@@ -25,7 +25,7 @@ A comprehensive Kafka client extension for Visual Studio Code with full AWS MSK 
 ### From Source
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/nipunap/vscode-kafka-client.git
 cd vscode-kafka
 npm install
 npm run compile
