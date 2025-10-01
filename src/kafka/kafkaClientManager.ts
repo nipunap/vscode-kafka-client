@@ -1,0 +1,749 @@
+import { Kafka, Admin, Producer, Consumer, SASLOptions, logLevel } from 'kafkajs';
+import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import * as ini from 'ini';
+import { ClusterConnection } from '../forms/clusterConnectionForm';
+import { fromIni, fromEnv } from '@aws-sdk/credential-providers';
+import { createMSKIAMAuthMechanism } from './mskIamAuthenticator';
+
+interface ClusterConfig extends ClusterConnection {
+    // Extends ClusterConnection with runtime data
+}
+
+export class KafkaClientManager {
+    private clusters: Map<string, ClusterConfig> = new Map();
+    private kafkaInstances: Map<string, Kafka> = new Map();
+    private admins: Map<string, Admin> = new Map();
+    private producers: Map<string, Producer> = new Map();
+
+    async addCluster(name: string, brokers: string[], sasl?: any) {
+        // Legacy method for backward compatibility
+        const connection: ClusterConnection = {
+            name,
+            type: 'kafka',
+            brokers,
+            securityProtocol: sasl ? 'SASL_SSL' : 'PLAINTEXT',
+            saslUsername: sasl?.username,
+            saslPassword: sasl?.password,
+            saslMechanism: sasl?.mechanism?.toUpperCase()
+        };
+
+        return this.addClusterFromConnection(connection);
+    }
+
+    async addClusterFromConnection(connection: ClusterConnection) {
+        this.clusters.set(connection.name, connection);
+
+        // Handle MSK clusters - fetch bootstrap brokers
+        let brokers = connection.brokers || [];
+        if (connection.type === 'msk' && connection.clusterArn && connection.region) {
+            try {
+                brokers = await this.getMSKBootstrapBrokers(connection.region, connection.clusterArn, connection.saslMechanism, connection.awsProfile);
+            } catch (error: any) {
+                const errorMsg = error?.message || error.toString();
+
+                if (errorMsg.includes('expired') || errorMsg.includes('ExpiredToken')) {
+                    throw new Error(
+                        `AWS credentials expired for profile "${connection.awsProfile}". ` +
+                        `Refresh credentials: aws sso login --profile ${connection.awsProfile || 'default'}`
+                    );
+                } else if (errorMsg.includes('AccessDenied')) {
+                    throw new Error(
+                        `Access denied when fetching MSK brokers. ` +
+                        `Profile "${connection.awsProfile}" needs kafka:GetBootstrapBrokers permission.`
+                    );
+                } else {
+                    throw new Error(`Failed to get MSK brokers: ${errorMsg}`);
+                }
+            }
+        }
+
+        if (brokers.length === 0) {
+            throw new Error(
+                `No brokers available for cluster "${connection.name}". ` +
+                connection.type === 'msk'
+                    ? `Check MSK cluster ARN and AWS credentials.`
+                    : `Please provide broker addresses.`
+            );
+        }
+
+        // Build Kafka configuration
+        const kafkaConfig: any = {
+            clientId: `vscode-kafka-${connection.name}`,
+            brokers,
+            logLevel: logLevel.ERROR,
+            retry: {
+                initialRetryTime: 300,
+                retries: 3
+            }
+        };
+
+        // Configure SSL
+        if (connection.securityProtocol.includes('SSL')) {
+            kafkaConfig.ssl = this.buildSSLConfig(connection);
+        }
+
+        // Configure SASL
+        if (connection.securityProtocol.includes('SASL')) {
+            kafkaConfig.sasl = await this.buildSASLConfig(connection);
+        }
+
+        // Create Kafka instance
+        const kafka = new Kafka(kafkaConfig);
+        this.kafkaInstances.set(connection.name, kafka);
+
+        // Test connection
+        try {
+            const admin = kafka.admin();
+            await admin.connect();
+            this.admins.set(connection.name, admin);
+        } catch (error) {
+            // Connection failed, but still save the config
+            // We'll try to connect later when needed
+            console.warn(`Failed to connect to cluster ${connection.name} on startup:`, error);
+        }
+
+        // Save configuration (without sensitive data)
+        this.saveConfiguration();
+    }
+
+    private async getMSKBootstrapBrokers(region: string, clusterArn: string, authMethod?: string, awsProfile?: string): Promise<string[]> {
+        try {
+            const { KafkaClient, GetBootstrapBrokersCommand } = require('@aws-sdk/client-kafka');
+
+            // NOTE: This uses BASE PROFILE credentials (no role assumption)
+            // Most users can list MSK clusters with their base profile
+            // Role assumption is only needed for Kafka admin operations (topics/consumer groups)
+
+            let credentials;
+
+            // If a specific profile is provided, read directly from credentials file
+            // This completely bypasses AWS SDK environment variable handling
+            if (awsProfile) {
+                const credentialsPath = path.join(os.homedir(), '.aws', 'credentials');
+
+                try {
+                    const credentialsContent = fs.readFileSync(credentialsPath, 'utf-8');
+                    const credentialsData = ini.parse(credentialsContent);
+
+                    if (credentialsData[awsProfile]) {
+                        const profileData = credentialsData[awsProfile];
+                        credentials = {
+                            accessKeyId: profileData.aws_access_key_id,
+                            secretAccessKey: profileData.aws_secret_access_key,
+                            sessionToken: profileData.aws_session_token || profileData.aws_security_token
+                        };
+                    } else {
+                        throw new Error(`Profile "${awsProfile}" not found in credentials file`);
+                    }
+                } catch (error: any) {
+                    console.error(`Failed to read credentials for profile ${awsProfile}:`, error);
+                    credentials = undefined;
+                }
+            }
+
+            // Fallback to environment variables or default profile
+            if (!credentials) {
+                const credentialProviders = [];
+                credentialProviders.push(fromEnv());
+                credentialProviders.push(
+                    fromIni({
+                        filepath: path.join(os.homedir(), '.aws', 'credentials'),
+                        configFilepath: path.join(os.homedir(), '.aws', 'config')
+                    })
+                );
+
+                for (const provider of credentialProviders) {
+                    try {
+                        credentials = await provider();
+                        if (credentials && credentials.accessKeyId) {
+                            break;
+                        }
+                    } catch (error) {
+                        continue;
+                    }
+                }
+            }
+
+            if (!credentials || !credentials.accessKeyId) {
+                throw new Error(
+                    `Failed to load AWS credentials for listing MSK clusters. ` +
+                    `Profile: ${awsProfile || 'default'}. ` +
+                    `Please ensure credentials are configured in ~/.aws/credentials`
+                );
+            }
+
+            const client = new KafkaClient({
+                region,
+                credentials
+            });
+
+            const response: any = await client.send(new GetBootstrapBrokersCommand({
+                ClusterArn: clusterArn
+            }));
+
+            // Choose brokers based on auth method
+            let brokerString: string | undefined;
+
+            if (authMethod === 'AWS_MSK_IAM' && response.BootstrapBrokerStringSaslIam) {
+                brokerString = response.BootstrapBrokerStringSaslIam;
+            } else if (authMethod?.includes('SCRAM') && response.BootstrapBrokerStringSaslScram) {
+                brokerString = response.BootstrapBrokerStringSaslScram;
+            } else if (response.BootstrapBrokerStringTls) {
+                brokerString = response.BootstrapBrokerStringTls;
+            } else if (response.BootstrapBrokerString) {
+                brokerString = response.BootstrapBrokerString;
+            }
+
+            if (!brokerString) {
+                throw new Error('No bootstrap brokers available for this authentication method');
+            }
+
+            return brokerString.split(',');
+        } catch (error: any) {
+            throw new Error(
+                `Failed to get MSK bootstrap brokers: ${error?.message || error}. ` +
+                `Verify: 1) AWS credentials in ~/.aws/credentials, 2) Cluster ARN is correct, 3) IAM permissions`
+            );
+        }
+    }
+
+    private buildSSLConfig(connection: ClusterConnection): any {
+        const sslConfig: any = {
+            rejectUnauthorized: connection.rejectUnauthorized !== false
+        };
+
+        if (connection.sslCaFile) {
+            sslConfig.ca = [fs.readFileSync(connection.sslCaFile, 'utf-8')];
+        }
+
+        if (connection.sslCertFile) {
+            sslConfig.cert = fs.readFileSync(connection.sslCertFile, 'utf-8');
+        }
+
+        if (connection.sslKeyFile) {
+            sslConfig.key = fs.readFileSync(connection.sslKeyFile, 'utf-8');
+        }
+
+        if (connection.sslPassword) {
+            sslConfig.passphrase = connection.sslPassword;
+        }
+
+        return sslConfig;
+    }
+
+    private async buildSASLConfig(connection: ClusterConnection): Promise<SASLOptions | undefined> {
+        if (!connection.saslMechanism) {
+            return undefined;
+        }
+
+        if (connection.saslMechanism === 'AWS_MSK_IAM') {
+            // AWS MSK IAM authentication using OAUTHBEARER
+            if (!connection.region) {
+                throw new Error('Region is required for AWS MSK IAM authentication');
+            }
+
+            return createMSKIAMAuthMechanism(connection.region, connection.awsProfile, connection.assumeRoleArn) as any;
+        }
+
+        // Standard SASL mechanisms
+        const mechanism = connection.saslMechanism.toLowerCase().replace(/-/g, '-') as any;
+
+        return {
+            mechanism,
+            username: connection.saslUsername || '',
+            password: connection.saslPassword || ''
+        };
+    }
+
+    async removeCluster(name: string) {
+        // Disconnect admin and producer
+        const admin = this.admins.get(name);
+        if (admin) {
+            await admin.disconnect();
+            this.admins.delete(name);
+        }
+
+        const producer = this.producers.get(name);
+        if (producer) {
+            await producer.disconnect();
+            this.producers.delete(name);
+        }
+
+        this.clusters.delete(name);
+        this.kafkaInstances.delete(name);
+
+        this.saveConfiguration();
+    }
+
+    getClusters(): string[] {
+        return Array.from(this.clusters.keys());
+    }
+
+    async getTopics(clusterName: string): Promise<string[]> {
+        const admin = await this.getAdmin(clusterName);
+        return await admin.listTopics();
+    }
+
+    async getTopicMetadata(clusterName: string, topic: string): Promise<any> {
+        const admin = await this.getAdmin(clusterName);
+        const metadata = await admin.fetchTopicMetadata({ topics: [topic] });
+        return metadata.topics[0];
+    }
+
+    async getTopicDetails(clusterName: string, topicName: string): Promise<any> {
+        const admin = await this.getAdmin(clusterName);
+
+        // Fetch topic metadata
+        const metadata = await admin.fetchTopicMetadata({ topics: [topicName] });
+        const topicMetadata = metadata.topics[0];
+
+        // Fetch topic configuration
+        const configs = await admin.describeConfigs({
+            resources: [
+                {
+                    type: 2, // TOPIC
+                    name: topicName
+                }
+            ],
+            includeSynonyms: false
+        });
+
+        // Fetch topic offsets (beginning and end)
+        const kafka = this.kafkaInstances.get(clusterName);
+        if (!kafka) {
+            throw new Error(`Cluster ${clusterName} not found`);
+        }
+
+        const consumer = kafka.consumer({ groupId: `vscode-kafka-offsets-${Date.now()}` });
+        await consumer.connect();
+        await consumer.subscribe({ topic: topicName, fromBeginning: false });
+
+        const offsetInfo: any = {};
+
+        // Fetch offsets for each partition
+        for (const partition of topicMetadata.partitions) {
+            const partitionId = partition.partitionId;
+
+            // Get beginning and end offsets using fetchOffsets
+            const beginOffset = await admin.fetchTopicOffsets(topicName);
+            const partitionOffset = beginOffset.find((p: any) => p.partition === partitionId);
+
+            offsetInfo[partitionId] = {
+                partition: partitionId,
+                leader: partition.leader,
+                replicas: partition.replicas,
+                isr: partition.isr,
+                lowWaterMark: partitionOffset?.low || '0',
+                highWaterMark: partitionOffset?.high || '0',
+                messageCount: partitionOffset ?
+                    (BigInt(partitionOffset.high) - BigInt(partitionOffset.low)).toString() : '0'
+            };
+        }
+
+        await consumer.disconnect();
+
+        return {
+            name: topicName,
+            partitions: topicMetadata.partitions.length,
+            replicationFactor: topicMetadata.partitions[0]?.replicas?.length || 0,
+            partitionDetails: offsetInfo,
+            configuration: configs.resources[0]?.configEntries || []
+        };
+    }
+
+    async createTopic(
+        clusterName: string,
+        topic: string,
+        numPartitions: number,
+        replicationFactor: number
+    ) {
+        const admin = await this.getAdmin(clusterName);
+        try {
+            const result = await admin.createTopics({
+                topics: [
+                    {
+                        topic,
+                        numPartitions,
+                        replicationFactor
+                    }
+                ],
+                waitForLeaders: true,
+                timeout: 5000
+            });
+
+            if (!result) {
+                throw new Error('Topic creation returned false - topic may already exist or broker rejected the request');
+            }
+        } catch (error: any) {
+            // Extract more detailed error information
+            if (error.message) {
+                throw new Error(error.message);
+            }
+            if (error.errors) {
+                const errorMessages = error.errors.map((e: any) =>
+                    `${e.topic || topic}: ${e.error || e.message || JSON.stringify(e)}`
+                ).join(', ');
+                throw new Error(errorMessages);
+            }
+            throw error;
+        }
+    }
+
+    async deleteTopic(clusterName: string, topic: string) {
+        const admin = await this.getAdmin(clusterName);
+        await admin.deleteTopics({
+            topics: [topic]
+        });
+    }
+
+    async produceMessage(
+        clusterName: string,
+        topic: string,
+        key: string | undefined,
+        value: string
+    ) {
+        const producer = await this.getProducer(clusterName);
+
+        await producer.send({
+            topic,
+            messages: [
+                {
+                    key: key ? Buffer.from(key) : undefined,
+                    value: Buffer.from(value)
+                }
+            ]
+        });
+    }
+
+    async consumeMessages(
+        clusterName: string,
+        topic: string,
+        fromBeginning: boolean,
+        limit: number,
+        cancellationToken?: vscode.CancellationToken
+    ): Promise<any[]> {
+        const kafka = this.kafkaInstances.get(clusterName);
+        if (!kafka) {
+            throw new Error(`Cluster ${clusterName} not found`);
+        }
+
+        const consumer = kafka.consumer({
+            groupId: `vscode-kafka-consumer-${Date.now()}`
+        });
+
+        await consumer.connect();
+        await consumer.subscribe({ topic, fromBeginning });
+
+        const messages: any[] = [];
+
+        return new Promise((resolve, reject) => {
+            if (cancellationToken) {
+                cancellationToken.onCancellationRequested(() => {
+                    consumer.disconnect().then(() => resolve(messages));
+                });
+            }
+
+            consumer.run({
+                eachMessage: async ({ topic, partition, message }) => {
+                    messages.push({ topic, partition, ...message });
+
+                    if (messages.length >= limit) {
+                        await consumer.disconnect();
+                        resolve(messages);
+                    }
+                }
+            }).catch(reject);
+
+            // Timeout after 30 seconds
+            setTimeout(async () => {
+                await consumer.disconnect();
+                resolve(messages);
+            }, 30000);
+        });
+    }
+
+    async getConsumerGroups(clusterName: string): Promise<any[]> {
+        const admin = await this.getAdmin(clusterName);
+        const groups = await admin.listGroups();
+        return groups.groups;
+    }
+
+    async deleteConsumerGroup(clusterName: string, groupId: string) {
+        const admin = await this.getAdmin(clusterName);
+        await admin.deleteGroups([groupId]);
+    }
+
+    async resetConsumerGroupOffsets(
+        clusterName: string,
+        groupId: string,
+        topic?: string,
+        resetTo: string = 'beginning',
+        specificOffset?: string
+    ) {
+        const admin = await this.getAdmin(clusterName);
+
+        // Get topics for the consumer group if not specified
+        let topics: string[] = [];
+        if (topic) {
+            topics = [topic];
+        } else {
+            const offsets = await admin.fetchOffsets({ groupId });
+            topics = [...new Set(offsets.map((o: any) => o.topic))];
+        }
+
+        // Build reset spec for each topic
+        const resetSpec: any = {
+            groupId,
+            topics: []
+        };
+
+        for (const topicName of topics) {
+            const topicOffsets = await admin.fetchTopicOffsets(topicName);
+            const partitions = topicOffsets.map((p: any) => {
+                let offset: string;
+
+                if (resetTo === 'beginning') {
+                    offset = p.low;
+                } else if (resetTo === 'end') {
+                    offset = p.high;
+                } else if (resetTo === 'specific offset' && specificOffset) {
+                    offset = specificOffset;
+                } else {
+                    offset = p.low; // default to beginning
+                }
+
+                return {
+                    partition: p.partition,
+                    offset
+                };
+            });
+
+            resetSpec.topics.push({
+                topic: topicName,
+                partitions
+            });
+        }
+
+        await admin.resetOffsets(resetSpec);
+    }
+
+    async getConsumerGroupDetails(clusterName: string, groupId: string): Promise<any> {
+        const admin = await this.getAdmin(clusterName);
+
+        try {
+            const description = await admin.describeGroups([groupId]);
+            const offsets = await admin.fetchOffsets({ groupId });
+            const group = description.groups[0];
+
+            // Calculate lag for each topic/partition
+            const lagInfo: any[] = [];
+
+            for (const topicOffsets of offsets) {
+                const topic = topicOffsets.topic;
+
+                // Fetch topic offsets to get high water marks
+                try {
+                    const topicHighWaterMarks = await admin.fetchTopicOffsets(topic);
+
+                    for (const partitionOffset of topicOffsets.partitions) {
+                        const partition = partitionOffset.partition;
+                        const currentOffset = partitionOffset.offset;
+
+                        // Find the high water mark for this partition
+                        const hwm = topicHighWaterMarks.find((p: any) => p.partition === partition);
+                        const highWaterMark = hwm ? BigInt(hwm.high) : BigInt(0);
+                        const current = BigInt(currentOffset);
+                        const lag = Number(highWaterMark - current);
+
+                        lagInfo.push({
+                            topic,
+                            partition,
+                            currentOffset: currentOffset.toString(),
+                            highWaterMark: highWaterMark.toString(),
+                            lag: Math.max(0, lag),
+                            metadata: partitionOffset.metadata
+                        });
+                    }
+                } catch (error) {
+                    console.error(`Failed to get lag for ${topic}`, error);
+                }
+            }
+
+            return {
+                groupId: group.groupId,
+                state: group.state,
+                protocolType: group.protocolType,
+                protocol: group.protocol,
+                members: group.members.map((member: any) => ({
+                    memberId: member.memberId,
+                    clientId: member.clientId,
+                    clientHost: member.clientHost,
+                    assignments: member.memberAssignment
+                })),
+                offsets: lagInfo,
+                totalLag: lagInfo.reduce((sum, info) => sum + info.lag, 0)
+            };
+        } catch (error) {
+            console.error('Error getting consumer group details:', error);
+            throw error;
+        }
+    }
+
+    private async getAdmin(clusterName: string): Promise<Admin> {
+        let admin = this.admins.get(clusterName);
+        if (!admin) {
+            const kafka = this.kafkaInstances.get(clusterName);
+            if (!kafka) {
+                throw new Error(`Cluster ${clusterName} not found`);
+            }
+            admin = kafka.admin();
+
+            try {
+                await admin.connect();
+                this.admins.set(clusterName, admin);
+            } catch (error: any) {
+                // Provide a more helpful error message
+                const brokers = this.clusters.get(clusterName)?.brokers || [];
+                throw new Error(
+                    `Failed to connect to cluster "${clusterName}" at ${brokers.join(', ')}. ` +
+                    `Error: ${error?.message || error}. ` +
+                    `Please check that the brokers are accessible and the cluster is running.`
+                );
+            }
+        }
+        return admin;
+    }
+
+    private async getProducer(clusterName: string): Promise<Producer> {
+        let producer = this.producers.get(clusterName);
+        if (!producer) {
+            const kafka = this.kafkaInstances.get(clusterName);
+            if (!kafka) {
+                throw new Error(`Cluster ${clusterName} not found`);
+            }
+            producer = kafka.producer();
+            await producer.connect();
+            this.producers.set(clusterName, producer);
+        }
+        return producer;
+    }
+
+    private saveConfiguration() {
+        const config = vscode.workspace.getConfiguration('kafka');
+        const clusters = Array.from(this.clusters.values()).map(c => {
+            const clusterConfig: any = {
+                name: c.name,
+                type: c.type,
+                brokers: c.brokers,
+                securityProtocol: c.securityProtocol
+            };
+
+            // Save MSK-specific configuration (needed for reconnection)
+            if (c.type === 'msk') {
+                clusterConfig.region = c.region;
+                clusterConfig.clusterArn = c.clusterArn;
+                clusterConfig.awsProfile = c.awsProfile;
+                clusterConfig.assumeRoleArn = c.assumeRoleArn;
+                clusterConfig.saslMechanism = c.saslMechanism;
+            }
+
+            // Save SASL mechanism for non-MSK clusters (but not credentials)
+            if (c.saslMechanism && c.type !== 'msk') {
+                clusterConfig.saslMechanism = c.saslMechanism;
+                // Note: We don't save username/password for security
+            }
+
+            // Save SSL file paths (not the actual certificates)
+            if (c.sslCaFile || c.sslCertFile || c.sslKeyFile) {
+                clusterConfig.sslCaFile = c.sslCaFile;
+                clusterConfig.sslCertFile = c.sslCertFile;
+                clusterConfig.sslKeyFile = c.sslKeyFile;
+                clusterConfig.rejectUnauthorized = c.rejectUnauthorized;
+            }
+
+            return clusterConfig;
+        });
+        config.update('clusters', clusters, vscode.ConfigurationTarget.Global);
+    }
+
+    async loadConfiguration() {
+        const config = vscode.workspace.getConfiguration('kafka');
+        const clusters = config.get<any[]>('clusters', []);
+
+        const failedClusters: { name: string; reason: string }[] = [];
+
+        for (const cluster of clusters) {
+            try {
+                // Reconstruct the full cluster connection from saved config
+                const connection: ClusterConnection = {
+                    name: cluster.name,
+                    type: cluster.type || 'kafka',
+                    brokers: cluster.brokers || [],
+                    securityProtocol: cluster.securityProtocol || 'PLAINTEXT',
+
+                    // MSK-specific fields
+                    region: cluster.region,
+                    clusterArn: cluster.clusterArn,
+                    awsProfile: cluster.awsProfile,
+                    assumeRoleArn: cluster.assumeRoleArn,
+
+                    // SASL fields
+                    saslMechanism: cluster.saslMechanism,
+                    // Note: We don't save passwords, so SASL clusters will need re-authentication
+
+                    // SSL fields
+                    sslCaFile: cluster.sslCaFile,
+                    sslCertFile: cluster.sslCertFile,
+                    sslKeyFile: cluster.sslKeyFile,
+                    rejectUnauthorized: cluster.rejectUnauthorized
+                };
+
+                // Use the same method as adding a new cluster to ensure consistency
+                await this.addClusterFromConnection(connection);
+
+            } catch (error: any) {
+                console.error(`Failed to load cluster ${cluster.name}:`, error);
+
+                // Determine the reason for failure
+                let reason = 'Unknown error';
+                const errorMsg = error?.message || error.toString();
+
+                if (errorMsg.includes('expired') || errorMsg.includes('credentials')) {
+                    reason = 'AWS credentials expired or invalid';
+                } else if (errorMsg.includes('brokers')) {
+                    reason = 'Failed to fetch brokers';
+                } else if (errorMsg.includes('network') || errorMsg.includes('timeout')) {
+                    reason = 'Network connection failed';
+                } else {
+                    reason = errorMsg.substring(0, 100);
+                }
+
+                failedClusters.push({ name: cluster.name, reason });
+            }
+        }
+
+        // Show notification if any clusters failed to load
+        if (failedClusters.length > 0) {
+            const clusterList = failedClusters.map(c => `• ${c.name}: ${c.reason}`).join('\n');
+
+            vscode.window.showErrorMessage(
+                `Failed to reconnect ${failedClusters.length} cluster(s):\n${clusterList}`,
+                'Retry', 'Remove Failed Clusters'
+            ).then(async selection => {
+                if (selection === 'Retry') {
+                    await this.loadConfiguration();
+                } else if (selection === 'Remove Failed Clusters') {
+                    // Remove failed clusters from config
+                    const successfulClusters = clusters.filter(c =>
+                        !failedClusters.find(fc => fc.name === c.name)
+                    );
+                    config.update('clusters', successfulClusters, vscode.ConfigurationTarget.Global);
+                    vscode.window.showInformationMessage('Failed clusters removed from configuration');
+                }
+            });
+        }
+    }
+}
