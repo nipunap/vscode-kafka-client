@@ -33,13 +33,13 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Wait for CI to complete
-        uses: lewagon/wait-on-check-action@v1.3.4
+        uses: fountainhead/action-wait-for-check@v1.2.0
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          checkName: CI
           ref: ${{ github.sha }}
-          check-name: 'Status Check'
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          wait-interval: 10
-          allowed-conclusions: success
+          timeoutSeconds: 600
+          intervalSeconds: 10
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
