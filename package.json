@@ -3,12 +3,42 @@
   "displayName": "Kafka Client",
   "description": "Full-featured Kafka client with AWS MSK support, IAM authentication, role assumption, and auto-discovery",
   "version": "0.0.1",
+  "publisher": "YOUR_PUBLISHER_ID",
+  "license": "GPL-3.0",
+  "icon": "resources/kafka-icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nipunap/vscode-kafka-client.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nipunap/vscode-kafka-client/issues"
+  },
+  "homepage": "https://github.com/nipunap/vscode-kafka-client#readme",
+  "keywords": [
+    "kafka",
+    "aws",
+    "msk",
+    "apache kafka",
+    "streaming",
+    "messaging",
+    "iam",
+    "consumer groups",
+    "topics",
+    "broker"
+  ],
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.90.0",
+    "node": ">=20.0.0"
   },
   "categories": [
+    "Programming Languages",
+    "Testing",
     "Other"
   ],
+  "galleryBanner": {
+    "color": "#231F20",
+    "theme": "dark"
+  },
   "activationEvents": [
     "onView:kafkaExplorer"
   ],
@@ -176,23 +206,30 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "lint": "eslint src --ext ts"
+    "lint": "eslint src --ext ts",
+    "package": "node scripts/package.js",
+    "publish": "node scripts/publish.js",
+    "release": "commit-and-tag-version",
+    "release:major": "commit-and-tag-version --release-as major",
+    "release:minor": "commit-and-tag-version --release-as minor",
+    "release:patch": "commit-and-tag-version --release-as patch"
   },
   "devDependencies": {
     "@types/ini": "^4.1.1",
-    "@types/node": "^20.10.0",
-    "@types/vscode": "^1.85.0",
-    "@typescript-eslint/eslint-plugin": "^6.13.0",
-    "@typescript-eslint/parser": "^6.13.0",
-    "eslint": "^8.54.0",
-    "typescript": "^5.3.2"
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.90.0",
+    "@typescript-eslint/eslint-plugin": "^8.15.0",
+    "@typescript-eslint/parser": "^8.15.0",
+    "commit-and-tag-version": "^12.5.0",
+    "eslint": "^9.15.0",
+    "typescript": "^5.7.2"
   },
   "dependencies": {
-    "@aws-sdk/client-kafka": "^3.600.0",
-    "@aws-sdk/client-sts": "^3.600.0",
-    "@aws-sdk/credential-providers": "^3.600.0",
+    "@aws-sdk/client-kafka": "^3.700.0",
+    "@aws-sdk/client-sts": "^3.700.0",
+    "@aws-sdk/credential-providers": "^3.700.0",
     "aws-msk-iam-sasl-signer-js": "github:aws/aws-msk-iam-sasl-signer-js",
-    "ini": "^4.1.1",
+    "ini": "^5.0.0",
     "kafkajs": "^2.2.4"
   }
 }

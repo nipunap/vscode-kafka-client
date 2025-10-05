@@ -1,0 +1,50 @@
+# Compiled output
+out/
+*.js.map
+
+# Dependencies
+node_modules/
+
+# VS Code extension packaging
+*.vsix
+*.vsix.sha256
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.vscode/launch.json
+.vscode/tasks.json
+.vscode/.ropeproject
+*.code-workspace
+
+# Test/misc files
+mics/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Coverage directory
+coverage/
+*.lcov
+.nyc_output/
+

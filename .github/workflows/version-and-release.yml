@@ -1,0 +1,197 @@
+name: Version and Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Release type (major, minor, patch)'
+        required: false
+        type: choice
+        options:
+          - auto
+          - major
+          - minor
+          - patch
+        default: auto
+
+jobs:
+  version-and-release:
+    name: Version and Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Install versioning tools
+        run: npm install -g commit-and-tag-version
+      
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      
+      - name: Determine version bump
+        id: version_bump
+        run: |
+          # Get commits since last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          
+          if [ -z "$LAST_TAG" ]; then
+            echo "No previous tag found, this will be the first release"
+            echo "bump_type=minor" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "Last tag: $LAST_TAG"
+          COMMITS=$(git log $LAST_TAG..HEAD --pretty=format:"%s")
+          
+          # Check for breaking changes
+          if echo "$COMMITS" | grep -qiE "^(feat|fix|chore|docs|style|refactor|perf|test)(\(.+\))?!:|BREAKING CHANGE:"; then
+            echo "bump_type=major" >> $GITHUB_OUTPUT
+            echo "Found breaking changes - MAJOR bump"
+          # Check for features
+          elif echo "$COMMITS" | grep -qiE "^feat(\(.+\))?:"; then
+            echo "bump_type=minor" >> $GITHUB_OUTPUT
+            echo "Found new features - MINOR bump"
+          # Otherwise patch
+          else
+            echo "bump_type=patch" >> $GITHUB_OUTPUT
+            echo "Only fixes/chores - PATCH bump"
+          fi
+      
+      - name: Override version bump (if manual)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.release_type != 'auto'
+        run: |
+          echo "bump_type=${{ github.event.inputs.release_type }}" >> $GITHUB_OUTPUT
+        id: manual_version
+      
+      - name: Get final bump type
+        id: final_bump
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ github.event.inputs.release_type }}" != "auto" ]; then
+            echo "type=${{ github.event.inputs.release_type }}" >> $GITHUB_OUTPUT
+          else
+            echo "type=${{ steps.version_bump.outputs.bump_type }}" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Check if release needed
+        id: check_release
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            echo "needed=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Check if there are any commits since last tag
+          COMMITS_SINCE_TAG=$(git rev-list $LAST_TAG..HEAD --count)
+          if [ "$COMMITS_SINCE_TAG" -gt 0 ]; then
+            echo "needed=true" >> $GITHUB_OUTPUT
+            echo "Found $COMMITS_SINCE_TAG commits since last tag"
+          else
+            echo "needed=false" >> $GITHUB_OUTPUT
+            echo "No commits since last tag, skipping release"
+          fi
+      
+      - name: Run commit-and-tag-version
+        if: steps.check_release.outputs.needed == 'true'
+        run: |
+          BUMP_TYPE="${{ steps.final_bump.outputs.type }}"
+          echo "Creating $BUMP_TYPE release..."
+          
+          npx commit-and-tag-version \
+            --release-as $BUMP_TYPE \
+            --skip.commit true \
+            --skip.tag true
+      
+      - name: Get new version
+        if: steps.check_release.outputs.needed == 'true'
+        id: get_version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "New version: $VERSION"
+      
+      - name: Compile TypeScript
+        if: steps.check_release.outputs.needed == 'true'
+        run: npm run compile
+      
+      - name: Install vsce
+        if: steps.check_release.outputs.needed == 'true'
+        run: npm install -g @vscode/vsce
+      
+      - name: Package extension
+        if: steps.check_release.outputs.needed == 'true'
+        run: vsce package --skip-license
+        continue-on-error: true
+      
+      - name: Commit version bump
+        if: steps.check_release.outputs.needed == 'true'
+        run: |
+          git add package.json CHANGELOG.md
+          git commit -m "chore(release): ${{ steps.get_version.outputs.version }}"
+          git tag -a "v${{ steps.get_version.outputs.version }}" -m "Release v${{ steps.get_version.outputs.version }}"
+      
+      - name: Push changes
+        if: steps.check_release.outputs.needed == 'true'
+        run: |
+          git push origin main
+          git push origin "v${{ steps.get_version.outputs.version }}"
+      
+      - name: Create GitHub Release
+        if: steps.check_release.outputs.needed == 'true'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}
+          name: Release v${{ steps.get_version.outputs.version }}
+          body_path: CHANGELOG.md
+          draft: false
+          prerelease: false
+          files: |
+            *.vsix
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Publish to Marketplace
+        if: steps.check_release.outputs.needed == 'true' && secrets.VSCE_PAT != ''
+        run: vsce publish -p ${{ secrets.VSCE_PAT }}
+        continue-on-error: true
+      
+      - name: Summary
+        if: steps.check_release.outputs.needed == 'true'
+        run: |
+          echo "## 🎉 Release v${{ steps.get_version.outputs.version }} Created!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.get_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Type:** ${{ steps.final_bump.outputs.type }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "- GitHub Release created" >> $GITHUB_STEP_SUMMARY
+          echo "- VSIX package uploaded" >> $GITHUB_STEP_SUMMARY
+          echo "- CHANGELOG.md updated" >> $GITHUB_STEP_SUMMARY
+      
+      - name: No release needed
+        if: steps.check_release.outputs.needed == 'false'
+        run: |
+          echo "## ℹ️ No Release Needed" >> $GITHUB_STEP_SUMMARY
+          echo "No commits since last release." >> $GITHUB_STEP_SUMMARY
+

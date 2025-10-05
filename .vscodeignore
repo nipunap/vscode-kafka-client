@@ -1,0 +1,39 @@
+# Source files
+src/**
+tsconfig.json
+
+# Build artifacts
+**/*.map
+*.vsix
+*.vsix.sha256
+
+# Scripts
+scripts/**
+
+# Development files
+.gitignore
+.editorconfig
+.eslintrc*
+
+# Test files
+test/**
+test-kafka.js
+
+# Documentation for development
+mics/**
+PUBLISHING.md
+
+# Dependencies (only needed for dev)
+node_modules/**
+!node_modules/@aws-sdk/**
+!node_modules/@smithy/**
+!node_modules/aws-msk-iam-sasl-signer-js/**
+!node_modules/kafkajs/**
+!node_modules/ini/**
+# Include only runtime dependencies needed by the extension
+# Note: @aws-sdk and kafkajs and their dependencies will be included
+
+# Misc
+.vscode/**
+.vscode-test/**
+

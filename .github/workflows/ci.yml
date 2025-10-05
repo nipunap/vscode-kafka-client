@@ -1,0 +1,219 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node-version: [18.x, 20.x]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run linter
+        run: npm run lint
+        continue-on-error: false
+      
+      - name: Compile TypeScript
+        run: npm run compile
+      
+      - name: Check for compilation errors
+        run: |
+          if [ ! -d "out" ]; then
+            echo "❌ Compilation failed - 'out' directory not found"
+            exit 1
+          fi
+          if [ ! -f "out/extension.js" ]; then
+            echo "❌ Compilation failed - 'out/extension.js' not found"
+            exit 1
+          fi
+          echo "✅ Compilation successful"
+        shell: bash
+      
+      - name: Validate package.json
+        run: |
+          node -e "
+          const pkg = require('./package.json');
+          const errors = [];
+          
+          if (!pkg.name) errors.push('Missing name');
+          if (!pkg.version) errors.push('Missing version');
+          if (!pkg.publisher || pkg.publisher === 'YOUR_PUBLISHER_ID') {
+            console.log('⚠️ Warning: Publisher ID not set (expected for non-release branches)');
+          }
+          if (!pkg.engines || !pkg.engines.vscode) errors.push('Missing vscode engine requirement');
+          if (!pkg.main) errors.push('Missing main entry point');
+          if (!pkg.contributes) errors.push('Missing contributes section');
+          
+          if (errors.length > 0) {
+            console.error('❌ package.json validation failed:');
+            errors.forEach(e => console.error('  - ' + e));
+            process.exit(1);
+          }
+          
+          console.log('✅ package.json is valid');
+          "
+        shell: bash
+      
+      - name: Check required files
+        run: |
+          files=("README.md" "LICENSE" "CHANGELOG.md" "package.json" "tsconfig.json")
+          missing=()
+          
+          for file in "${files[@]}"; do
+            if [ ! -f "$file" ]; then
+              missing+=("$file")
+            fi
+          done
+          
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "❌ Missing required files:"
+            printf '  - %s\n' "${missing[@]}"
+            exit 1
+          fi
+          
+          echo "✅ All required files present"
+        shell: bash
+      
+      - name: Upload compilation artifacts
+        if: matrix.os == 'ubuntu-latest' && matrix.node-version == '20.x'
+        uses: actions/upload-artifact@v4
+        with:
+          name: compiled-extension
+          path: out/
+          retention-days: 7
+
+  package:
+    name: Package Extension
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Install vsce
+        run: npm install -g @vscode/vsce
+      
+      - name: Compile TypeScript
+        run: npm run compile
+      
+      - name: Package extension
+        run: vsce package --skip-license
+        continue-on-error: true
+        id: package
+      
+      - name: Check package result
+        run: |
+          if [ -f *.vsix ]; then
+            VSIX_FILE=$(ls *.vsix)
+            SIZE=$(du -h "$VSIX_FILE" | cut -f1)
+            echo "✅ Package created: $VSIX_FILE (${SIZE})"
+            echo "package_success=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Package creation skipped (may need publisher ID for release)"
+            echo "package_success=false" >> $GITHUB_OUTPUT
+          fi
+        id: check_package
+      
+      - name: Upload VSIX
+        if: steps.check_package.outputs.package_success == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vsix-package
+          path: '*.vsix'
+          retention-days: 30
+
+  lint-report:
+    name: Lint Report
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run ESLint with report
+        run: npm run lint 2>&1 | tee eslint-report.txt
+        continue-on-error: true
+      
+      - name: Comment PR with lint results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let report = 'No linting issues found! ✅';
+            
+            try {
+              const output = fs.readFileSync('eslint-report.txt', 'utf8');
+              if (output.trim()) {
+                report = '## ESLint Report\n\n```\n' + output + '\n```';
+              }
+            } catch (e) {
+              report = 'Could not read lint report';
+            }
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: report
+            });
+
+  status-check:
+    name: Status Check
+    runs-on: ubuntu-latest
+    needs: [build-and-test, package, lint-report]
+    if: always()
+    
+    steps:
+      - name: Check build status
+        run: |
+          if [ "${{ needs.build-and-test.result }}" != "success" ]; then
+            echo "❌ Build and test failed"
+            exit 1
+          fi
+          if [ "${{ needs.package.result }}" != "success" ]; then
+            echo "❌ Package failed"
+            exit 1
+          fi
+          echo "✅ All checks passed - PR is ready to merge!"
+
