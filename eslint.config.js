@@ -1,45 +1,54 @@
-const tseslint = require('typescript-eslint');
-const eslint = require('@eslint/js');
+const globals = require("globals");
+const typescriptEslint = require("@typescript-eslint/eslint-plugin");
+const typescriptParser = require("@typescript-eslint/parser");
 
-module.exports = tseslint.config(
-  eslint.configs.recommended,
-  ...tseslint.configs.recommended,
+module.exports = [
   {
+    files: ["**/*.ts"],
     languageOptions: {
+      parser: typescriptParser,
       parserOptions: {
-        project: './tsconfig.json',
         ecmaVersion: 2022,
-        sourceType: 'module',
+        sourceType: "module",
+        project: "./tsconfig.json",
+      },
+      globals: {
+        ...globals.browser,
+        ...globals.node,
       },
     },
+    plugins: {
+      "@typescript-eslint": typescriptEslint,
+    },
     rules: {
-      '@typescript-eslint/naming-convention': [
-        'warn',
+      ...typescriptEslint.configs.recommended.rules,
+      "@typescript-eslint/naming-convention": [
+        "warn",
         {
-          selector: 'import',
-          format: ['camelCase', 'PascalCase'],
-        },
+          "selector": "import",
+          "format": ["camelCase", "PascalCase"]
+        }
       ],
-      '@typescript-eslint/semi': 'warn',
-      'curly': 'warn',
-      'eqeqeq': 'warn',
-      'no-throw-literal': 'warn',
-      'semi': 'off',
-      '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
-      '@typescript-eslint/no-require-imports': 'off',
+      "@typescript-eslint/semi": "warn",
+      "curly": "warn",
+      "eqeqeq": "warn",
+      "no-throw-literal": "warn",
+      "semi": "off",
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+      "@typescript-eslint/no-require-imports": "off"
     },
   },
   {
     ignores: [
-      'out/**',
-      'dist/**',
-      '**/*.d.ts',
-      'node_modules/**',
-      '.vscode-test/**',
-      'mics/**',
-      'scripts/**/*.js',
-    ],
+      "out/**",
+      "dist/**",
+      "**/*.d.ts",
+      "node_modules/**",
+      ".vscode-test/**",
+      "mics/**",
+      "scripts/**/*.js"
+    ]
   }
-);
+];
 

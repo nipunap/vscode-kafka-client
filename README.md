@@ -1,5 +1,8 @@
 # Kafka Client for VSCode
 
+[![CI](https://github.com/nipunap/vscode-kafka-client/actions/workflows/ci.yml/badge.svg)](https://github.com/nipunap/vscode-kafka-client/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
+
 A comprehensive Kafka client extension for Visual Studio Code with full AWS MSK support, including IAM authentication and role assumption.
 
 ## ✨ Features
@@ -346,11 +349,23 @@ npm install          # Install dependencies
 npm run compile      # Compile TypeScript
 npm run watch        # Watch mode for development
 npm run lint         # Run ESLint
-
-# Package for distribution
-npm install -g @vscode/vsce
-vsce package         # Creates .vsix file
+npm run package      # Package extension (creates .vsix)
+npm run publish      # Publish to VS Code Marketplace
 ```
+
+### Publishing
+
+The project includes automated scripts for packaging and publishing:
+
+```bash
+# Package extension
+npm run package      # Creates .vsix with validation
+
+# Publish to marketplace
+npm run publish      # Interactive publishing wizard
+```
+
+See `scripts/README.md` for detailed publishing instructions.
 
 ### Key Dependencies
 
@@ -366,10 +381,46 @@ vsce package         # Creates .vsix file
 Contributions are welcome! Please:
 
 1. Fork the repository
-2. Create a feature branch
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Make your changes
-4. Test thoroughly (especially AWS MSK features)
-5. Submit a pull request
+4. Ensure all tests pass (`npm run lint` and `npm run compile`)
+5. **Use conventional commits** (`git commit -m 'feat: add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
+
+### Commit Convention
+
+We use [Conventional Commits](https://www.conventionalcommits.org/) for automated versioning and changelog generation:
+
+- `feat:` - New feature (minor version bump)
+- `fix:` - Bug fix (patch version bump)  
+- `feat!:` or `BREAKING CHANGE:` - Breaking change (major version bump)
+- `docs:`, `style:`, `refactor:`, `perf:`, `test:`, `chore:` - Other changes
+
+**Examples:**
+```bash
+git commit -m "feat: add SASL authentication support"
+git commit -m "fix: resolve connection timeout issue"
+git commit -m "feat!: redesign configuration API"
+```
+
+### CI/CD
+
+All pull requests must pass automated checks before merging:
+- ✅ Linting (ESLint)
+- ✅ TypeScript compilation
+- ✅ Package validation
+- ✅ Multi-OS testing (Ubuntu, Windows, macOS)
+- ✅ Multi-Node testing (Node 18.x, 20.x)
+
+### Automated Releases
+
+When your PR is merged to `main`:
+- 🤖 Version is automatically bumped based on commit types
+- 📝 CHANGELOG.md is automatically generated
+- 🏷️ Git tag is created
+- 📦 GitHub Release is published
+- 🚀 (Optional) Extension is published to marketplace
 
 ## 📄 License
 
