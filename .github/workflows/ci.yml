@@ -117,6 +117,8 @@ jobs:
     name: Package Extension
     runs-on: ubuntu-latest
     needs: build-and-test
+    # Only package in CI for PRs and non-main branches (main uses version-and-release.yml)
+    if: github.ref != 'refs/heads/main'
     
     steps:
       - name: Checkout code
@@ -226,7 +228,8 @@ jobs:
             echo "❌ Build and test failed"
             exit 1
           fi
-          if [ "${{ needs.package.result }}" != "success" ]; then
+          # Package job is skipped on main branch (handled by version-and-release.yml)
+          if [ "${{ needs.package.result }}" != "success" ] && [ "${{ needs.package.result }}" != "skipped" ]; then
             echo "❌ Package failed"
             exit 1
           fi
