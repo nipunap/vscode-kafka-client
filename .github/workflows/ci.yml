@@ -37,6 +37,16 @@ jobs:
       - name: Compile TypeScript
         run: npm run compile
       
+      - name: Run Tests
+        if: runner.os == 'Linux'
+        uses: coactions/setup-xvfb@v1
+        with:
+          run: npm test
+      
+      - name: Run Tests (non-Linux)
+        if: runner.os != 'Linux'
+        run: npm test
+      
       - name: Check for compilation errors
         run: |
           if [ ! -d "out" ]; then

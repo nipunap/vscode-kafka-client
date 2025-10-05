@@ -18,6 +18,10 @@ scripts/**
 # Test files
 test/**
 test-kafka.js
+src/test/**
+out/test/**
+.vscode-test/**
+.mocharc.json
 
 # Documentation for development
 mics/**
