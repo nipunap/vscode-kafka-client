@@ -112,8 +112,23 @@ jobs:
             git push origin "$VERSION"
           fi
 
-      - name: Create GitHub Release
+      - name: Check if release exists
         if: steps.version_check.outputs.changed == 'true'
+        id: check_release
+        run: |
+          VERSION="v${{ steps.version_check.outputs.version }}"
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "Release $VERSION already exists"
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "Release $VERSION does not exist"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release
+        if: steps.version_check.outputs.changed == 'true' && steps.check_release.outputs.exists == 'false'
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ steps.version_check.outputs.version }}
@@ -125,6 +140,12 @@ jobs:
             *.vsix
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Skip release creation
+        if: steps.version_check.outputs.changed == 'true' && steps.check_release.outputs.exists == 'true'
+        run: |
+          echo "⚠️ Release v${{ steps.version_check.outputs.version }} already exists, skipping creation"
+          echo "The VSIX will still be published to the marketplace if configured"
 
       - name: Check Azure token availability
         id: check_token
