@@ -199,11 +199,11 @@ export async function consumeMessages(clientManager: KafkaClientManager, node: a
                     language: 'json'
                 });
                 const editor = await vscode.window.showTextDocument(document);
-
+                
                 const messages: any[] = [];
                 let lastUpdateTime = Date.now();
                 const UPDATE_THROTTLE_MS = 100; // Only update UI every 100ms to prevent performance issues
-
+                
                 try {
                     // Consume with real-time streaming
                     await clientManager.consumeMessages(
@@ -273,7 +273,7 @@ export async function showTopicDetails(clientManager: KafkaClientManager, node: 
                 title: `Loading details for topic "${node.topicName}"`,
                 cancellable: false
             },
-            async (progress) => {
+            async (_progress) => {
                 const details = await clientManager.getTopicDetails(
                     node.clusterName,
                     node.topicName
@@ -341,7 +341,7 @@ export async function findTopic(clientManager: KafkaClientManager) {
                 title: `Loading topics from ${selectedCluster}...`,
                 cancellable: true
             },
-            async (progress, token) => {
+            async (_progress, token) => {
                 // Add cancellation support
                 if (token.isCancellationRequested) {
                     return [];

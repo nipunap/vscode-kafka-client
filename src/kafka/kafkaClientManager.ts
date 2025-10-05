@@ -1,4 +1,4 @@
-import { Kafka, Admin, Producer, Consumer, SASLOptions, logLevel } from 'kafkajs';
+import { Kafka, Admin, Producer, SASLOptions, logLevel } from 'kafkajs';
 import * as vscode from 'vscode';
 import { promises as fs } from 'fs';
 import * as os from 'os';
@@ -173,7 +173,7 @@ export class KafkaClientManager {
                         if (credentials && credentials.accessKeyId) {
                             break;
                         }
-                    } catch (error) {
+                    } catch (_error) {
                         continue;
                     }
                 }

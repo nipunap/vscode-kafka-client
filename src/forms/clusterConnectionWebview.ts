@@ -172,7 +172,7 @@ export class ClusterConnectionWebview {
                             profile.expiresAt = expiresAt;
                             profile.isExpired = expiresAt < new Date();
                         }
-                    } catch (error) {
+                    } catch (_error) {
                         // Ignore parse errors
                     }
                 }

@@ -14,7 +14,7 @@ export async function showConsumerGroupDetails(clientManager: KafkaClientManager
                 title: `Loading details for consumer group "${node.groupId}"`,
                 cancellable: false
             },
-            async (progress) => {
+            async (_progress) => {
                 const details = await clientManager.getConsumerGroupDetails(
                     node.clusterName,
                     node.groupId
@@ -230,7 +230,7 @@ export async function findConsumerGroup(clientManager: KafkaClientManager) {
                 title: `Loading consumer groups from ${selectedCluster}...`,
                 cancellable: true
             },
-            async (progress, token) => {
+            async (_progress, token) => {
                 // Add cancellation support
                 if (token.isCancellationRequested) {
                     return [];

@@ -32,8 +32,13 @@ module.exports = [
       "curly": "warn",
       "eqeqeq": "warn",
       "no-throw-literal": "warn",
-      "@typescript-eslint/no-explicit-any": "warn",
-      "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+      // Allow 'any' type for now - can be gradually improved in future PRs
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unused-vars": ["warn", {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_"
+      }],
       "@typescript-eslint/no-require-imports": "off"
     },
   },

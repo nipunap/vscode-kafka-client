@@ -68,16 +68,8 @@ export class MSKIAMAuthenticator {
             // Get AWS credentials (with role assumption if configured)
             const credentials = await this.getAWSCredentials();
 
-            // Create a fresh credential provider that explicitly uses our credentials
-            const { fromTemporaryCredentials } = await import('@aws-sdk/credential-providers');
-
-            // Create a credential provider that returns our exact credentials
-            const credentialProvider = async () => ({
-                accessKeyId: credentials.accessKeyId,
-                secretAccessKey: credentials.secretAccessKey,
-                sessionToken: credentials.sessionToken,
-                expiration: undefined
-            });
+            // Note: We directly use credentials from getAWSCredentials()
+            // No need for credential providers here as we set env vars directly
 
             // Save original environment variables BEFORE modifying them
             originalEnvVars = {
@@ -236,7 +228,6 @@ export class MSKIAMAuthenticator {
         }
 
         // 2. If no profile specified, use AWS SDK credential chain
-        const credentialProviders = [];
         {
             // 2. Environment variables
             try {
@@ -248,7 +239,7 @@ export class MSKIAMAuthenticator {
                         sessionToken: envCreds.sessionToken
                     };
                 }
-            } catch (error) {
+            } catch (_error) {
                 // Try next provider
             }
 
@@ -265,7 +256,7 @@ export class MSKIAMAuthenticator {
                         sessionToken: iniCreds.sessionToken
                     };
                 }
-            } catch (error) {
+            } catch (_error) {
                 // Try next provider
             }
 
@@ -279,7 +270,7 @@ export class MSKIAMAuthenticator {
                         sessionToken: processCreds.sessionToken
                     };
                 }
-            } catch (error) {
+            } catch (_error) {
                 // Try next provider
             }
         }

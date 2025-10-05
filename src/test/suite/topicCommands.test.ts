@@ -151,7 +151,7 @@ suite('Topic Commands Test Suite', () => {
             ];
             clientManager.consumeMessages.resolves(messages);
 
-            const workspaceStub = sandbox.stub(vscode.workspace, 'openTextDocument').resolves({} as any);
+            sandbox.stub(vscode.workspace, 'openTextDocument').resolves({} as any);
             sandbox.stub(vscode.window, 'showTextDocument').resolves({} as any);
             
             // Mock withProgress to immediately call the callback

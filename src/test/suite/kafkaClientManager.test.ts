@@ -15,7 +15,7 @@ suite('KafkaClientManager Test Suite', () => {
         // Always dispose to prevent resource leaks in tests
         try {
             await clientManager.dispose();
-        } catch (e) {
+        } catch (_e) {
             // Ignore errors during teardown
         }
         sandbox.restore();
