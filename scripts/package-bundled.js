@@ -18,12 +18,12 @@ try {
     // Step 1: Build the bundle
     console.log('1️⃣ Running esbuild bundle...');
     execSync('npm run bundle', { stdio: 'inherit' });
-    
+
     // Step 2: Read package.json
     console.log('\n2️⃣ Temporarily switching to bundled version...');
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
     const originalMain = packageJson.main;
-    
+
     // Step 3: Read and modify .vscodeignore to exclude out/
     const originalVscodeignore = fs.readFileSync(vscodeignorePath, 'utf8');
     const modifiedVscodeignore = originalVscodeignore.replace(
@@ -32,12 +32,12 @@ try {
     );
     fs.writeFileSync(vscodeignorePath, modifiedVscodeignore);
     console.log('   Temporarily excluding out/ from VSIX');
-    
+
     // Step 4: Temporarily change main to dist
     packageJson.main = './dist/extension.js';
     fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
     console.log('   main: "./out/extension.js" → "./dist/extension.js"');
-    
+
     try {
         // Step 5: Package with vsce
         console.log('\n3️⃣ Packaging VSIX with bundled code...');
