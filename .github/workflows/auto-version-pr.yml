@@ -6,12 +6,16 @@ on:
     branches:
       - main
 
+concurrency:
+  group: auto-version-${{ github.head_ref }}
+  cancel-in-progress: false
+
 jobs:
   auto-version:
     name: Auto Version and Changelog
     runs-on: ubuntu-latest
     # Only run if not a release branch (to avoid infinite loops)
-    if: "!startsWith(github.head_ref, 'release/') && !startsWith(github.head_ref, 'auto-version/')"
+    if: ${{ !startsWith(github.head_ref, 'release/') && !startsWith(github.head_ref, 'auto-version/') }}
     permissions:
       contents: write
       pull-requests: write
@@ -40,9 +44,9 @@ jobs:
           ref: ${{ github.head_ref }}
           check-regexp: '^(Build and Test|Lint Report).*$'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          wait-interval: 10
+          wait-interval: 30
           allowed-conclusions: success
-        continue-on-error: true
+        timeout-minutes: 30
       
       - name: Install versioning tools
         run: npm install -g commit-and-tag-version
@@ -115,7 +119,7 @@ jobs:
         if: steps.version_bump.outputs.bump_type != 'none' && steps.check_bumped.outputs.already_bumped == 'false'
         run: |
           git add package.json CHANGELOG.md
-          git commit -m "chore(release): v${{ steps.bump.outputs.new_version }}"
+          git commit -m "chore(release): v${{ steps.bump.outputs.new_version }} [skip ci]"
           git push origin ${{ github.head_ref }}
       
       - name: Comment on PR
@@ -127,19 +131,21 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `## 🚀 Auto-Version Update
-              
-**Version bumped:** \`${{ steps.version_bump.outputs.current_version }}\` → \`${{ steps.bump.outputs.new_version }}\`
-**Bump type:** ${{ steps.version_bump.outputs.bump_type }}
-
-✅ CHANGELOG.md has been updated automatically.
-✅ CI checks will run again to validate the changes.
-✅ Once CI passes, this PR is ready to merge!
-
-When merged, this will automatically:
-- 🏷️ Create git tag \`v${{ steps.bump.outputs.new_version }}\`
-- 📦 Create GitHub Release
-- 🚀 Publish to VS Code Marketplace`
+              body: [
+                '## 🚀 Auto-Version Update',
+                '',
+                '**Version bumped:** `${{ steps.version_bump.outputs.current_version }}` → `${{ steps.bump.outputs.new_version }}`',
+                '**Bump type:** ${{ steps.version_bump.outputs.bump_type }}',
+                '',
+                '✅ CHANGELOG.md has been updated automatically.',
+                '✅ CI checks will run again to validate the changes.',
+                '✅ Once CI passes, this PR is ready to merge!',
+                '',
+                'When merged, this will automatically:',
+                '- 🏷️ Create git tag `v${{ steps.bump.outputs.new_version }}`',
+                '- 📦 Create GitHub Release',
+                '- 🚀 Publish to VS Code Marketplace'
+              ].join('\n')
             });
       
       - name: Summary
