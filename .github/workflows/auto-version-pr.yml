@@ -1,0 +1,166 @@
+name: Auto-Version PR
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+
+concurrency:
+  group: auto-version-${{ github.head_ref }}
+  cancel-in-progress: false
+
+jobs:
+  auto-version:
+    name: Auto Version and Changelog
+    runs-on: ubuntu-latest
+    # Only run if not a release branch (to avoid infinite loops)
+    if: ${{ !startsWith(github.head_ref, 'release/') && !startsWith(github.head_ref, 'auto-version/') }}
+    permissions:
+      contents: write
+      pull-requests: write
+      checks: read
+      
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Wait for CI checks
+        uses: lewagon/wait-on-check-action@v1.3.4
+        with:
+          ref: ${{ github.head_ref }}
+          check-regexp: '^(Build and Test|Lint Report).*$'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 30
+          allowed-conclusions: success
+        timeout-minutes: 30
+      
+      - name: Install versioning tools
+        run: npm install -g commit-and-tag-version
+      
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      
+      - name: Determine version bump
+        id: version_bump
+        run: |
+          # Get current version
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          
+          # Get commits in this PR
+          git fetch origin main
+          COMMITS=$(git log origin/main..HEAD --pretty=format:"%s")
+          echo "Commits in PR:"
+          echo "$COMMITS"
+          
+          # Determine bump type
+          if echo "$COMMITS" | grep -qiE "^(feat|fix|chore|docs|style|refactor|perf|test)(\(.+\))?!:|BREAKING CHANGE:"; then
+            BUMP_TYPE="major"
+            echo "Found breaking changes - MAJOR bump"
+          elif echo "$COMMITS" | grep -qiE "^feat(\(.+\))?:"; then
+            BUMP_TYPE="minor"
+            echo "Found features - MINOR bump"
+          elif echo "$COMMITS" | grep -qiE "^fix(\(.+\))?:"; then
+            BUMP_TYPE="patch"
+            echo "Found fixes - PATCH bump"
+          else
+            BUMP_TYPE="none"
+            echo "No version bump needed"
+          fi
+          
+          echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+      
+      - name: Check if version already bumped
+        id: check_bumped
+        if: steps.version_bump.outputs.bump_type != 'none'
+        run: |
+          # Check if there's already a version bump commit in this PR
+          if git log origin/main..HEAD --pretty=format:"%s" | grep -q "^chore(release):"; then
+            echo "already_bumped=true" >> $GITHUB_OUTPUT
+            echo "ℹ️ Version already bumped in this PR"
+          else
+            echo "already_bumped=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Bump version and update changelog
+        id: bump
+        if: steps.version_bump.outputs.bump_type != 'none' && steps.check_bumped.outputs.already_bumped == 'false'
+        run: |
+          # Run version bump
+          if [ "${{ steps.version_bump.outputs.bump_type }}" = "major" ]; then
+            commit-and-tag-version --release-as major --skip.tag
+          elif [ "${{ steps.version_bump.outputs.bump_type }}" = "minor" ]; then
+            commit-and-tag-version --release-as minor --skip.tag
+          elif [ "${{ steps.version_bump.outputs.bump_type }}" = "patch" ]; then
+            commit-and-tag-version --release-as patch --skip.tag
+          fi
+          
+          # Get new version
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+      
+      - name: Commit and push version bump
+        if: steps.version_bump.outputs.bump_type != 'none' && steps.check_bumped.outputs.already_bumped == 'false'
+        run: |
+          git add package.json CHANGELOG.md
+          git commit -m "chore(release): v${{ steps.bump.outputs.new_version }} [skip ci]"
+          git push origin ${{ github.head_ref }}
+      
+      - name: Comment on PR
+        if: steps.version_bump.outputs.bump_type != 'none' && steps.check_bumped.outputs.already_bumped == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: [
+                '## 🚀 Auto-Version Update',
+                '',
+                '**Version bumped:** `${{ steps.version_bump.outputs.current_version }}` → `${{ steps.bump.outputs.new_version }}`',
+                '**Bump type:** ${{ steps.version_bump.outputs.bump_type }}',
+                '',
+                '✅ CHANGELOG.md has been updated automatically.',
+                '✅ CI checks will run again to validate the changes.',
+                '✅ Once CI passes, this PR is ready to merge!',
+                '',
+                'When merged, this will automatically:',
+                '- 🏷️ Create git tag `v${{ steps.bump.outputs.new_version }}`',
+                '- 📦 Create GitHub Release',
+                '- 🚀 Publish to VS Code Marketplace'
+              ].join('\n')
+            });
+      
+      - name: Summary
+        run: |
+          if [ "${{ steps.version_bump.outputs.bump_type }}" = "none" ]; then
+            echo "## ℹ️ No Version Bump Needed" >> $GITHUB_STEP_SUMMARY
+            echo "No feat/fix commits found in this PR." >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.check_bumped.outputs.already_bumped }}" = "true" ]; then
+            echo "## ✅ Version Already Bumped" >> $GITHUB_STEP_SUMMARY
+            echo "This PR already has a version bump commit." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## ✅ Version Bumped!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Old Version:** ${{ steps.version_bump.outputs.current_version }}" >> $GITHUB_STEP_SUMMARY
+            echo "**New Version:** ${{ steps.bump.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Bump Type:** ${{ steps.version_bump.outputs.bump_type }}" >> $GITHUB_STEP_SUMMARY
+          fi
+
