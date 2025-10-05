@@ -118,7 +118,7 @@ export class KafkaTreeItem extends vscode.TreeItem {
             return new vscode.ThemeIcon('database');
         }
         if (this.contextValue === 'topic') {
-            return new vscode.ThemeIcon('symbol-event');
+            return new vscode.ThemeIcon('symbol-struct', new vscode.ThemeColor('charts.yellow')); // Topic as data structure in yellow
         }
         if (this.contextValue === 'empty') {
             return new vscode.ThemeIcon('info');

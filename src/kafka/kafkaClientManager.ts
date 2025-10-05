@@ -70,15 +70,31 @@ export class KafkaClientManager {
             clientId: `vscode-kafka-${connection.name}`,
             brokers,
             logLevel: logLevel.ERROR,
+            // Connection timeouts (matching AWS MSK recommended settings)
+            connectionTimeout: 30000, // 30 seconds (socket.connection.setup.timeout.ms)
+            requestTimeout: 60000, // 60 seconds (request.timeout.ms)
+            // Authentication timeout for SASL
+            authenticationTimeout: 30000, // 30 seconds
             retry: {
-                initialRetryTime: 300,
-                retries: 3
-            }
+                initialRetryTime: 1000, // retry.backoff.ms
+                retries: 3,
+                maxRetryTime: 30000,
+                multiplier: 2,
+                factor: 0.2
+            },
+            // Metadata settings
+            enforceRequestTimeout: true
         };
 
         // Configure SSL
         if (connection.securityProtocol.includes('SSL')) {
-            kafkaConfig.ssl = await this.buildSSLConfig(connection);
+            // For AWS MSK IAM, use simple SSL: true unless custom certs are provided
+            if (connection.saslMechanism === 'AWS_MSK_IAM' &&
+                !connection.sslCaFile && !connection.sslCertFile && !connection.sslKeyFile) {
+                kafkaConfig.ssl = true;
+            } else {
+                kafkaConfig.ssl = await this.buildSSLConfig(connection);
+            }
         }
 
         // Configure SASL
@@ -320,7 +336,7 @@ export class KafkaClientManager {
         }
 
         const consumer = kafka.consumer({ groupId: `vscode-kafka-offsets-${Date.now()}` });
-        
+
         try {
             await consumer.connect();
             await consumer.subscribe({ topic: topicName, fromBeginning: false });
@@ -433,7 +449,8 @@ export class KafkaClientManager {
         topic: string,
         fromBeginning: boolean,
         limit: number,
-        cancellationToken?: vscode.CancellationToken
+        cancellationToken?: vscode.CancellationToken,
+        onMessage?: (message: any, count: number) => void
     ): Promise<any[]> {
         const kafka = this.kafkaInstances.get(clusterName);
         if (!kafka) {
@@ -472,7 +489,13 @@ export class KafkaClientManager {
 
                 consumer.run({
                     eachMessage: async ({ topic, partition, message }) => {
-                        messages.push({ topic, partition, ...message });
+                        const msg = { topic, partition, ...message };
+                        messages.push(msg);
+
+                        // Call the callback for real-time streaming
+                        if (onMessage) {
+                            onMessage(msg, messages.length);
+                        }
 
                         if (messages.length >= limit) {
                             await disconnect();
@@ -643,8 +666,13 @@ export class KafkaClientManager {
             } catch (error: any) {
                 // Log full error for debugging but don't expose in user-facing message
                 console.error(`Failed to connect to cluster ${clusterName}:`, error);
+                console.error('Error details:', {
+                    message: error?.message,
+                    code: error?.code,
+                    stack: error?.stack
+                });
                 throw new Error(
-                    'Failed to connect to Kafka cluster. Please check that the brokers are accessible and your credentials are valid.'
+                    `Failed to connect to Kafka cluster: ${error?.message || 'Unknown error'}. Please check that the brokers are accessible and your credentials are valid.`
                 );
             }
         }

@@ -27,19 +27,6 @@ out/test/**
 mics/**
 PUBLISHING.md
 
-# Dependencies (only needed for dev)
-node_modules/**
-!node_modules/@aws-sdk/**
-!node_modules/@smithy/**
-!node_modules/aws-msk-iam-sasl-signer-js/**
-!node_modules/kafkajs/**
-!node_modules/ini/**
-!node_modules/tslib/**
-!node_modules/js-yaml/**
-# Include only runtime dependencies needed by the extension
-# Note: @aws-sdk and kafkajs and their dependencies will be included
-
 # Misc
 .vscode/**
 .vscode-test/**
-
