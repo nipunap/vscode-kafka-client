@@ -23,17 +23,27 @@ suite('Commands Test Suite', () => {
     });
 
     test('kafka.addCluster command should be callable', async () => {
-        // Stub the webview to avoid actual UI interaction
-        const showInputBoxStub = sandbox.stub(vscode.window, 'showInputBox').resolves(undefined);
+        // Stub webview creation to avoid actual UI interaction
+        const mockWebviewPanel = {
+            webview: {
+                html: '',
+                onDidReceiveMessage: sandbox.stub().returns({ dispose: () => {} }),
+                asWebviewUri: (uri: vscode.Uri) => uri,
+                postMessage: sandbox.stub()
+            },
+            onDidDispose: sandbox.stub().returns({ dispose: () => {} }),
+            reveal: sandbox.stub(),
+            dispose: sandbox.stub()
+        };
         
-        try {
-            await vscode.commands.executeCommand('kafka.addCluster');
-            // Command should execute without throwing
-            assert.ok(true);
-        } catch (error) {
-            // If it throws, it should be because of cancelled input, not a missing command
-            assert.ok(error);
-        }
+        sandbox.stub(vscode.window, 'createWebviewPanel').returns(mockWebviewPanel as any);
+        sandbox.stub(vscode.Uri, 'joinPath').returns(vscode.Uri.file('/test'));
+        
+        // Command should execute without throwing
+        const result = await vscode.commands.executeCommand('kafka.addCluster');
+        
+        // The command completed (webview was created)
+        assert.ok(true, 'Command executed successfully');
     });
 
     test('all commands should be accessible', async () => {
