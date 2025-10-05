@@ -1,6 +1,6 @@
 import { Kafka, Admin, Producer, Consumer, SASLOptions, logLevel } from 'kafkajs';
 import * as vscode from 'vscode';
-import * as fs from 'fs';
+import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as ini from 'ini';
@@ -45,26 +45,23 @@ export class KafkaClientManager {
 
                 if (errorMsg.includes('expired') || errorMsg.includes('ExpiredToken')) {
                     throw new Error(
-                        `AWS credentials expired for profile "${connection.awsProfile}". ` +
-                        `Refresh credentials: aws sso login --profile ${connection.awsProfile || 'default'}`
+                        'AWS credentials expired. Please refresh your credentials and try again.'
                     );
                 } else if (errorMsg.includes('AccessDenied')) {
                     throw new Error(
-                        `Access denied when fetching MSK brokers. ` +
-                        `Profile "${connection.awsProfile}" needs kafka:GetBootstrapBrokers permission.`
+                        'Access denied when fetching MSK brokers. Check that your AWS profile has kafka:GetBootstrapBrokers permission.'
                     );
                 } else {
-                    throw new Error(`Failed to get MSK brokers: ${errorMsg}`);
+                    throw new Error(`Failed to get MSK brokers. Please verify your AWS credentials and cluster ARN.`);
                 }
             }
         }
 
         if (brokers.length === 0) {
             throw new Error(
-                `No brokers available for cluster "${connection.name}". ` +
                 connection.type === 'msk'
-                    ? `Check MSK cluster ARN and AWS credentials.`
-                    : `Please provide broker addresses.`
+                    ? 'No brokers available. Check your MSK cluster ARN and AWS credentials.'
+                    : 'No brokers available. Please provide broker addresses.'
             );
         }
 
@@ -81,7 +78,7 @@ export class KafkaClientManager {
 
         // Configure SSL
         if (connection.securityProtocol.includes('SSL')) {
-            kafkaConfig.ssl = this.buildSSLConfig(connection);
+            kafkaConfig.ssl = await this.buildSSLConfig(connection);
         }
 
         // Configure SASL
@@ -124,7 +121,7 @@ export class KafkaClientManager {
                 const credentialsPath = path.join(os.homedir(), '.aws', 'credentials');
 
                 try {
-                    const credentialsContent = fs.readFileSync(credentialsPath, 'utf-8');
+                    const credentialsContent = await fs.readFile(credentialsPath, 'utf-8');
                     const credentialsData = ini.parse(credentialsContent);
 
                     if (credentialsData[awsProfile]) {
@@ -135,10 +132,10 @@ export class KafkaClientManager {
                             sessionToken: profileData.aws_session_token || profileData.aws_security_token
                         };
                     } else {
-                        throw new Error(`Profile "${awsProfile}" not found in credentials file`);
+                        throw new Error('Profile not found in credentials file');
                     }
                 } catch (error: any) {
-                    console.error(`Failed to read credentials for profile ${awsProfile}:`, error);
+                    console.error('Failed to read AWS credentials file:', error);
                     credentials = undefined;
                 }
             }
@@ -168,9 +165,7 @@ export class KafkaClientManager {
 
             if (!credentials || !credentials.accessKeyId) {
                 throw new Error(
-                    `Failed to load AWS credentials for listing MSK clusters. ` +
-                    `Profile: ${awsProfile || 'default'}. ` +
-                    `Please ensure credentials are configured in ~/.aws/credentials`
+                    'Failed to load AWS credentials. Please ensure credentials are configured in ~/.aws/credentials'
                 );
             }
 
@@ -202,28 +197,28 @@ export class KafkaClientManager {
 
             return brokerString.split(',');
         } catch (error: any) {
+            console.error('MSK bootstrap broker fetch error:', error);
             throw new Error(
-                `Failed to get MSK bootstrap brokers: ${error?.message || error}. ` +
-                `Verify: 1) AWS credentials in ~/.aws/credentials, 2) Cluster ARN is correct, 3) IAM permissions`
+                'Failed to get MSK bootstrap brokers. Verify: 1) AWS credentials are valid, 2) Cluster ARN is correct, 3) IAM permissions are configured'
             );
         }
     }
 
-    private buildSSLConfig(connection: ClusterConnection): any {
+    private async buildSSLConfig(connection: ClusterConnection): Promise<any> {
         const sslConfig: any = {
             rejectUnauthorized: connection.rejectUnauthorized !== false
         };
 
         if (connection.sslCaFile) {
-            sslConfig.ca = [fs.readFileSync(connection.sslCaFile, 'utf-8')];
+            sslConfig.ca = [await fs.readFile(connection.sslCaFile, 'utf-8')];
         }
 
         if (connection.sslCertFile) {
-            sslConfig.cert = fs.readFileSync(connection.sslCertFile, 'utf-8');
+            sslConfig.cert = await fs.readFile(connection.sslCertFile, 'utf-8');
         }
 
         if (connection.sslKeyFile) {
-            sslConfig.key = fs.readFileSync(connection.sslKeyFile, 'utf-8');
+            sslConfig.key = await fs.readFile(connection.sslKeyFile, 'utf-8');
         }
 
         if (connection.sslPassword) {
@@ -258,16 +253,24 @@ export class KafkaClientManager {
     }
 
     async removeCluster(name: string) {
-        // Disconnect admin and producer
+        // Disconnect admin and producer with proper error handling
         const admin = this.admins.get(name);
         if (admin) {
-            await admin.disconnect();
+            try {
+                await admin.disconnect();
+            } catch (error) {
+                console.error(`Error disconnecting admin for cluster ${name}:`, error);
+            }
             this.admins.delete(name);
         }
 
         const producer = this.producers.get(name);
         if (producer) {
-            await producer.disconnect();
+            try {
+                await producer.disconnect();
+            } catch (error) {
+                console.error(`Error disconnecting producer for cluster ${name}:`, error);
+            }
             this.producers.delete(name);
         }
 
@@ -317,40 +320,48 @@ export class KafkaClientManager {
         }
 
         const consumer = kafka.consumer({ groupId: `vscode-kafka-offsets-${Date.now()}` });
-        await consumer.connect();
-        await consumer.subscribe({ topic: topicName, fromBeginning: false });
+        
+        try {
+            await consumer.connect();
+            await consumer.subscribe({ topic: topicName, fromBeginning: false });
 
-        const offsetInfo: any = {};
+            const offsetInfo: any = {};
 
-        // Fetch offsets for each partition
-        for (const partition of topicMetadata.partitions) {
-            const partitionId = partition.partitionId;
+            // Fetch offsets for each partition
+            for (const partition of topicMetadata.partitions) {
+                const partitionId = partition.partitionId;
 
-            // Get beginning and end offsets using fetchOffsets
-            const beginOffset = await admin.fetchTopicOffsets(topicName);
-            const partitionOffset = beginOffset.find((p: any) => p.partition === partitionId);
+                // Get beginning and end offsets using fetchOffsets
+                const beginOffset = await admin.fetchTopicOffsets(topicName);
+                const partitionOffset = beginOffset.find((p: any) => p.partition === partitionId);
 
-            offsetInfo[partitionId] = {
-                partition: partitionId,
-                leader: partition.leader,
-                replicas: partition.replicas,
-                isr: partition.isr,
-                lowWaterMark: partitionOffset?.low || '0',
-                highWaterMark: partitionOffset?.high || '0',
-                messageCount: partitionOffset ?
-                    (BigInt(partitionOffset.high) - BigInt(partitionOffset.low)).toString() : '0'
+                offsetInfo[partitionId] = {
+                    partition: partitionId,
+                    leader: partition.leader,
+                    replicas: partition.replicas,
+                    isr: partition.isr,
+                    lowWaterMark: partitionOffset?.low || '0',
+                    highWaterMark: partitionOffset?.high || '0',
+                    messageCount: partitionOffset ?
+                        (BigInt(partitionOffset.high) - BigInt(partitionOffset.low)).toString() : '0'
+                };
+            }
+
+            return {
+                name: topicName,
+                partitions: topicMetadata.partitions.length,
+                replicationFactor: topicMetadata.partitions[0]?.replicas?.length || 0,
+                partitionDetails: offsetInfo,
+                configuration: configs.resources[0]?.configEntries || []
             };
+        } finally {
+            // Always disconnect consumer, even if an error occurs
+            try {
+                await consumer.disconnect();
+            } catch (error) {
+                console.error('Error disconnecting consumer in getTopicDetails:', error);
+            }
         }
-
-        await consumer.disconnect();
-
-        return {
-            name: topicName,
-            partitions: topicMetadata.partitions.length,
-            replicationFactor: topicMetadata.partitions[0]?.replicas?.length || 0,
-            partitionDetails: offsetInfo,
-            configuration: configs.resources[0]?.configEntries || []
-        };
     }
 
     async createTopic(
@@ -433,35 +444,61 @@ export class KafkaClientManager {
             groupId: `vscode-kafka-consumer-${Date.now()}`
         });
 
-        await consumer.connect();
-        await consumer.subscribe({ topic, fromBeginning });
+        try {
+            await consumer.connect();
+            await consumer.subscribe({ topic, fromBeginning });
 
-        const messages: any[] = [];
+            const messages: any[] = [];
+            let isDisconnected = false;
 
-        return new Promise((resolve, reject) => {
-            if (cancellationToken) {
-                cancellationToken.onCancellationRequested(() => {
-                    consumer.disconnect().then(() => resolve(messages));
-                });
-            }
-
-            consumer.run({
-                eachMessage: async ({ topic, partition, message }) => {
-                    messages.push({ topic, partition, ...message });
-
-                    if (messages.length >= limit) {
-                        await consumer.disconnect();
-                        resolve(messages);
+            return await new Promise((resolve, reject) => {
+                const disconnect = async () => {
+                    if (!isDisconnected) {
+                        isDisconnected = true;
+                        try {
+                            await consumer.disconnect();
+                        } catch (err) {
+                            console.error('Error disconnecting consumer:', err);
+                        }
                     }
-                }
-            }).catch(reject);
+                };
 
-            // Timeout after 30 seconds
-            setTimeout(async () => {
+                if (cancellationToken) {
+                    cancellationToken.onCancellationRequested(async () => {
+                        await disconnect();
+                        resolve(messages);
+                    });
+                }
+
+                consumer.run({
+                    eachMessage: async ({ topic, partition, message }) => {
+                        messages.push({ topic, partition, ...message });
+
+                        if (messages.length >= limit) {
+                            await disconnect();
+                            resolve(messages);
+                        }
+                    }
+                }).catch(async (error) => {
+                    await disconnect();
+                    reject(error);
+                });
+
+                // Timeout after 30 seconds
+                setTimeout(async () => {
+                    await disconnect();
+                    resolve(messages);
+                }, 30000);
+            });
+        } catch (error) {
+            // Ensure consumer is disconnected even if connection/subscription fails
+            try {
                 await consumer.disconnect();
-                resolve(messages);
-            }, 30000);
-        });
+            } catch (disconnectError) {
+                console.error('Error disconnecting consumer after failure:', disconnectError);
+            }
+            throw error;
+        }
     }
 
     async getConsumerGroups(clusterName: string): Promise<any[]> {
@@ -604,12 +641,10 @@ export class KafkaClientManager {
                 await admin.connect();
                 this.admins.set(clusterName, admin);
             } catch (error: any) {
-                // Provide a more helpful error message
-                const brokers = this.clusters.get(clusterName)?.brokers || [];
+                // Log full error for debugging but don't expose in user-facing message
+                console.error(`Failed to connect to cluster ${clusterName}:`, error);
                 throw new Error(
-                    `Failed to connect to cluster "${clusterName}" at ${brokers.join(', ')}. ` +
-                    `Error: ${error?.message || error}. ` +
-                    `Please check that the brokers are accessible and the cluster is running.`
+                    'Failed to connect to Kafka cluster. Please check that the brokers are accessible and your credentials are valid.'
                 );
             }
         }
@@ -675,6 +710,16 @@ export class KafkaClientManager {
         const failedClusters: { name: string; reason: string }[] = [];
 
         for (const cluster of clusters) {
+            // Validate cluster configuration
+            if (!this.validateClusterConfig(cluster)) {
+                console.error(`Invalid cluster configuration for "${cluster.name}"`);
+                failedClusters.push({
+                    name: cluster.name || 'Unknown',
+                    reason: 'Invalid configuration (missing required fields)'
+                });
+                continue;
+            }
+
             try {
                 // Reconstruct the full cluster connection from saved config
                 const connection: ClusterConnection = {
@@ -744,5 +789,72 @@ export class KafkaClientManager {
                 }
             });
         }
+    }
+
+    /**
+     * Validates cluster configuration to prevent extension crashes from manually edited settings
+     */
+    private validateClusterConfig(cluster: any): boolean {
+        // Must have a name
+        if (!cluster.name || typeof cluster.name !== 'string') {
+            return false;
+        }
+
+        // Must have a valid type
+        if (!cluster.type || (cluster.type !== 'kafka' && cluster.type !== 'msk')) {
+            return false;
+        }
+
+        // For MSK clusters, must have region and clusterArn
+        if (cluster.type === 'msk') {
+            if (!cluster.region || !cluster.clusterArn) {
+                return false;
+            }
+        }
+
+        // For regular Kafka clusters, must have brokers
+        if (cluster.type === 'kafka') {
+            if (!cluster.brokers || !Array.isArray(cluster.brokers) || cluster.brokers.length === 0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Dispose of all Kafka connections and clean up resources
+     * This should be called when the extension is deactivated
+     */
+    async dispose(): Promise<void> {
+        console.log('Disposing Kafka client manager...');
+
+        // Disconnect all admin clients
+        for (const [name, admin] of this.admins.entries()) {
+            try {
+                console.log(`Disconnecting admin for cluster: ${name}`);
+                await admin.disconnect();
+            } catch (error) {
+                console.error(`Failed to disconnect admin for ${name}:`, error);
+            }
+        }
+        this.admins.clear();
+
+        // Disconnect all producers
+        for (const [name, producer] of this.producers.entries()) {
+            try {
+                console.log(`Disconnecting producer for cluster: ${name}`);
+                await producer.disconnect();
+            } catch (error) {
+                console.error(`Failed to disconnect producer for ${name}:`, error);
+            }
+        }
+        this.producers.clear();
+
+        // Clear other maps
+        this.kafkaInstances.clear();
+        this.clusters.clear();
+
+        console.log('Kafka client manager disposed successfully');
     }
 }

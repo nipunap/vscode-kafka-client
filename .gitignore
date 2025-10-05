@@ -26,9 +26,6 @@ Thumbs.db
 .vscode/.ropeproject
 *.code-workspace
 
-# Test/misc files
-mics/
-
 # Environment variables
 .env
 .env.local

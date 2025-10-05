@@ -184,10 +184,10 @@ export class ClusterConnectionWebview {
         }
 
         profiles.sort((a, b) => {
-            if (a.name === 'default') return -1;
-            if (b.name === 'default') return 1;
-            if (a.isExpired && !b.isExpired) return 1;
-            if (!a.isExpired && b.isExpired) return -1;
+            if (a.name === 'default') {return -1;}
+            if (b.name === 'default') {return 1;}
+            if (a.isExpired && !b.isExpired) {return 1;}
+            if (!a.isExpired && b.isExpired) {return -1;}
             return a.name.localeCompare(b.name);
         });
 
