@@ -141,7 +141,11 @@ jobs:
       - name: Publish to VS Code Marketplace
         id: marketplace_publish
         if: steps.version_check.outputs.changed == 'true' && steps.check_token.outputs.has_token == 'true'
-        run: vsce publish --pat $VSCE_PAT
+        run: |
+          # Find the VSIX file created by npm run package
+          VSIX_FILE=$(ls *.vsix)
+          echo "Publishing $VSIX_FILE to marketplace..."
+          vsce publish --packagePath "$VSIX_FILE" --pat $VSCE_PAT
         env:
           VSCE_PAT: ${{ secrets.AZURE_TOKEN }}
         continue-on-error: true
