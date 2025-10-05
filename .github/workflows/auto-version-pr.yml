@@ -102,6 +102,10 @@ jobs:
         id: bump
         if: steps.version_bump.outputs.bump_type != 'none' && steps.check_bumped.outputs.already_bumped == 'false'
         run: |
+          # Reset any changes from npm install (node_modules metadata updates)
+          git reset --hard HEAD
+          git clean -fd
+          
           # Run version bump
           if [ "${{ steps.version_bump.outputs.bump_type }}" = "major" ]; then
             commit-and-tag-version --release-as major --skip.tag
