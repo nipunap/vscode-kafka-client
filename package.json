@@ -119,6 +119,16 @@
         "command": "kafka.resetConsumerGroupOffsets",
         "title": "Reset Offsets",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "kafka.showTopicDetails",
+        "title": "Show Topic Details",
+        "icon": "$(info)"
+      },
+      {
+        "command": "kafka.showConsumerGroupDetails",
+        "title": "Show Consumer Group Details",
+        "icon": "$(info)"
       }
     ],
     "menus": {

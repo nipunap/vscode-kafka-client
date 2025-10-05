@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import { KafkaExplorerProvider } from './providers/kafkaExplorerProvider';
 import { ConsumerGroupProvider } from './providers/consumerGroupProvider';
 import { KafkaClientManager } from './kafka/kafkaClientManager';
-import { ClusterConnectionForm } from './forms/clusterConnectionForm';
 import { ClusterConnectionWebview } from './forms/clusterConnectionWebview';
 
 export async function activate(context: vscode.ExtensionContext) {
