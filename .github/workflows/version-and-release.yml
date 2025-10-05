@@ -172,7 +172,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Publish to Marketplace
-        if: steps.check_release.outputs.needed == 'true' && secrets.VSCE_PAT != ''
+        if: steps.check_release.outputs.needed == 'true'
         run: vsce publish -p ${{ secrets.VSCE_PAT }}
         continue-on-error: true
       
