@@ -88,17 +88,13 @@ jobs:
         if: steps.version_check.outputs.changed == 'true'
         run: npm ci
       
-      - name: Compile TypeScript
-        if: steps.version_check.outputs.changed == 'true'
-        run: npm run compile
-      
       - name: Install vsce
         if: steps.version_check.outputs.changed == 'true'
         run: npm install -g @vscode/vsce
       
-      - name: Package extension
+      - name: Package extension (bundled with esbuild)
         if: steps.version_check.outputs.changed == 'true'
-        run: vsce package --skip-license
+        run: npm run package
       
       - name: Create git tag
         if: steps.version_check.outputs.changed == 'true'

@@ -139,8 +139,8 @@ jobs:
       - name: Compile TypeScript
         run: npm run compile
       
-      - name: Package extension
-        run: vsce package --skip-license
+      - name: Package extension (bundled)
+        run: npm run package
         continue-on-error: true
         id: package
       
