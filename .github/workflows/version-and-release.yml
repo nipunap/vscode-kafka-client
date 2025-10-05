@@ -32,6 +32,15 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
       
+      - name: Wait for CI to complete
+        uses: lewagon/wait-on-check-action@v1.3.4
+        with:
+          ref: ${{ github.sha }}
+          check-name: 'Status Check'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 10
+          allowed-conclusions: success
+      
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -171,10 +180,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Publish to Marketplace
+      - name: Publish to VS Code Marketplace
         if: steps.check_release.outputs.needed == 'true'
-        run: vsce publish -p ${{ secrets.VSCE_PAT }}
-        continue-on-error: true
+        run: vsce publish -p ${{ secrets.AZURE_TOKEN }}
+        env:
+          VSCE_PAT: ${{ secrets.AZURE_TOKEN }}
       
       - name: Summary
         if: steps.check_release.outputs.needed == 'true'
@@ -185,9 +195,10 @@ jobs:
           echo "**Type:** ${{ steps.final_bump.outputs.type }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📦 Artifacts" >> $GITHUB_STEP_SUMMARY
-          echo "- GitHub Release created" >> $GITHUB_STEP_SUMMARY
-          echo "- VSIX package uploaded" >> $GITHUB_STEP_SUMMARY
-          echo "- CHANGELOG.md updated" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ GitHub Release created" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ VSIX package uploaded" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ CHANGELOG.md updated" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Published to VS Code Marketplace" >> $GITHUB_STEP_SUMMARY
       
       - name: No release needed
         if: steps.check_release.outputs.needed == 'false'
