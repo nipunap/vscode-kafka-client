@@ -8,9 +8,8 @@ import { ClusterConnection } from '../forms/clusterConnectionForm';
 import { fromIni, fromEnv } from '@aws-sdk/credential-providers';
 import { createMSKIAMAuthMechanism } from './mskIamAuthenticator';
 
-interface ClusterConfig extends ClusterConnection {
-    // Extends ClusterConnection with runtime data
-}
+// Type alias for cluster configuration
+type ClusterConfig = ClusterConnection;
 
 export class KafkaClientManager {
     private clusters: Map<string, ClusterConfig> = new Map();
