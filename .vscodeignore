@@ -5,7 +5,9 @@ eslint.config.js
 esbuild.js
 
 # Build artifacts
-out/**
+# Note: out/ is kept for development builds (vsce package)
+# Production builds use 'npm run package' which bundles to dist/
+out/test/**
 **/*.map
 *.vsix
 *.vsix.sha256
