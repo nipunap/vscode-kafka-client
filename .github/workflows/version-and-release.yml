@@ -1,7 +1,7 @@
-name: Version and Release
+name: Prepare Release
 
 on:
-  # Trigger manually only - version bump will be done via PR
+  # Manually trigger to create a version bump PR
   workflow_dispatch:
     inputs:
       release_type:
@@ -16,8 +16,8 @@ on:
         default: auto
 
 jobs:
-  version-and-release:
-    name: Version and Release
+  prepare-release:
+    name: Prepare Release PR
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -196,10 +196,10 @@ jobs:
           echo "**PR:** ${{ steps.create_pr.outputs.pr_url }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### ✅ Next Steps" >> $GITHUB_STEP_SUMMARY
-          echo "1. Review and merge the release PR" >> $GITHUB_STEP_SUMMARY
-          echo "2. After merge, create and push a git tag: \`git tag v${{ steps.get_version.outputs.version }} && git push origin v${{ steps.get_version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "3. Create GitHub Release manually from the tag" >> $GITHUB_STEP_SUMMARY
-          echo "4. Run \`vsce publish\` to publish to marketplace" >> $GITHUB_STEP_SUMMARY
+          echo "1. Review the release PR" >> $GITHUB_STEP_SUMMARY
+          echo "2. CI will run tests automatically" >> $GITHUB_STEP_SUMMARY
+          echo "3. Merge the PR when ready" >> $GITHUB_STEP_SUMMARY
+          echo "4. 🚀 Publishing will happen automatically after merge!" >> $GITHUB_STEP_SUMMARY
       
       - name: No release needed
         if: steps.check_release.outputs.needed == 'false'

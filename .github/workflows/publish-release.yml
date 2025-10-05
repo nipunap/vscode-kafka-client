@@ -1,0 +1,126 @@
+name: Publish Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'package.json'
+      - 'CHANGELOG.md'
+
+jobs:
+  publish:
+    name: Publish to Marketplace
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Need previous commit to detect version change
+      
+      - name: Check if version changed
+        id: version_check
+        run: |
+          # Get current version from package.json
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          
+          # Get previous version from parent commit
+          git checkout HEAD~1 -- package.json 2>/dev/null || {
+            echo "First commit, no previous version"
+            PREVIOUS_VERSION="0.0.0"
+            git checkout HEAD -- package.json
+          }
+          
+          if [ -f package.json ]; then
+            PREVIOUS_VERSION=$(node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0")
+            git checkout HEAD -- package.json
+          fi
+          
+          echo "Previous version: $PREVIOUS_VERSION"
+          echo "Current version: $CURRENT_VERSION"
+          
+          if [ "$CURRENT_VERSION" != "$PREVIOUS_VERSION" ]; then
+            echo "✅ Version changed: $PREVIOUS_VERSION → $CURRENT_VERSION"
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          else
+            echo "ℹ️ Version unchanged, skipping release"
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Setup Node.js
+        if: steps.version_check.outputs.changed == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        if: steps.version_check.outputs.changed == 'true'
+        run: npm ci
+      
+      - name: Compile TypeScript
+        if: steps.version_check.outputs.changed == 'true'
+        run: npm run compile
+      
+      - name: Install vsce
+        if: steps.version_check.outputs.changed == 'true'
+        run: npm install -g @vscode/vsce
+      
+      - name: Package extension
+        if: steps.version_check.outputs.changed == 'true'
+        run: vsce package --skip-license
+      
+      - name: Create git tag
+        if: steps.version_check.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v${{ steps.version_check.outputs.version }}" -m "Release v${{ steps.version_check.outputs.version }}"
+          git push origin "v${{ steps.version_check.outputs.version }}"
+      
+      - name: Create GitHub Release
+        if: steps.version_check.outputs.changed == 'true'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version_check.outputs.version }}
+          name: Release v${{ steps.version_check.outputs.version }}
+          body_path: CHANGELOG.md
+          draft: false
+          prerelease: false
+          files: |
+            *.vsix
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Publish to VS Code Marketplace
+        if: steps.version_check.outputs.changed == 'true' && secrets.AZURE_TOKEN != ''
+        run: vsce publish -p ${{ secrets.AZURE_TOKEN }}
+        env:
+          VSCE_PAT: ${{ secrets.AZURE_TOKEN }}
+        continue-on-error: true
+      
+      - name: Summary
+        if: steps.version_check.outputs.changed == 'true'
+        run: |
+          echo "## 🎉 Release v${{ steps.version_check.outputs.version }} Published!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### ✅ Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- 🏷️ Git tag created" >> $GITHUB_STEP_SUMMARY
+          echo "- 📦 GitHub Release created" >> $GITHUB_STEP_SUMMARY
+          echo "- 📤 VSIX package uploaded" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ secrets.AZURE_TOKEN }}" ]; then
+            echo "- 🚀 Published to VS Code Marketplace" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ⚠️ Marketplace publish skipped (AZURE_TOKEN not configured)" >> $GITHUB_STEP_SUMMARY
+          fi
+      
+      - name: No release
+        if: steps.version_check.outputs.changed == 'false'
+        run: |
+          echo "## ℹ️ No Release" >> $GITHUB_STEP_SUMMARY
+          echo "Version in package.json unchanged, skipping release." >> $GITHUB_STEP_SUMMARY
+
