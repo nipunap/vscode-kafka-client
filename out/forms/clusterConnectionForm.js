@@ -522,14 +522,18 @@ class ClusterConnectionForm {
         }
         // Sort profiles: default first, then by expiration (non-expired first), then alphabetically
         profiles.sort((a, b) => {
-            if (a.name === 'default')
+            if (a.name === 'default') {
                 return -1;
-            if (b.name === 'default')
+            }
+            if (b.name === 'default') {
                 return 1;
-            if (a.isExpired && !b.isExpired)
+            }
+            if (a.isExpired && !b.isExpired) {
                 return 1;
-            if (!a.isExpired && b.isExpired)
+            }
+            if (!a.isExpired && b.isExpired) {
                 return -1;
+            }
             return a.name.localeCompare(b.name);
         });
         return profiles;
