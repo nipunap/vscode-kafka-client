@@ -44,7 +44,7 @@
     "onView:kafkaConsumerGroups",
     "onCommand:kafka.addCluster"
   ],
-  "main": "./dist/extension.js",
+  "main": "./out/extension.js",
   "contributes": {
     "viewsContainers": {
       "activitybar": [
@@ -246,7 +246,7 @@
     "pretest": "npm run compile && npm run lint",
     "test": "node ./out/test/runTest.js",
     "test:unit": "mocha --require ts-node/register 'src/test/suite/**/*.test.ts'",
-    "package": "npm run bundle && vsce package --no-update-package-json",
+    "package": "node scripts/package-bundled.js",
     "publish": "node scripts/publish.js",
     "release": "commit-and-tag-version",
     "release:major": "commit-and-tag-version --release-as major",
