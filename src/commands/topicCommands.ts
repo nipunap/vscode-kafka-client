@@ -273,7 +273,7 @@ export async function showTopicDetails(clientManager: KafkaClientManager, node: 
                 title: `Loading details for topic "${node.topicName}"`,
                 cancellable: false
             },
-            async (progress) => {
+            async (_progress) => {
                 const details = await clientManager.getTopicDetails(
                     node.clusterName,
                     node.topicName
@@ -341,7 +341,7 @@ export async function findTopic(clientManager: KafkaClientManager) {
                 title: `Loading topics from ${selectedCluster}...`,
                 cancellable: true
             },
-            async (progress, token) => {
+            async (_progress, token) => {
                 // Add cancellation support
                 if (token.isCancellationRequested) {
                     return [];

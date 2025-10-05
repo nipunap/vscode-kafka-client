@@ -11,42 +11,42 @@ jobs:
   build-and-test:
     name: Build and Test
     runs-on: ${{ matrix.os }}
-    
+
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         node-version: [18.x, 20.x]
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
-      
+
       - name: Install dependencies
         run: npm ci
-      
+
       - name: Run linter
         run: npm run lint
         continue-on-error: false
-      
+
       - name: Compile TypeScript
         run: npm run compile
-      
+
       - name: Run Tests
         if: runner.os == 'Linux'
         uses: coactions/setup-xvfb@v1
         with:
           run: npm test
-      
+
       - name: Run Tests (non-Linux)
         if: runner.os != 'Linux'
         run: npm test
-      
+
       - name: Check for compilation errors
         run: |
           if [ ! -d "out" ]; then
@@ -59,13 +59,13 @@ jobs:
           fi
           echo "✅ Compilation successful"
         shell: bash
-      
+
       - name: Validate package.json
         run: |
           node -e "
           const pkg = require('./package.json');
           const errors = [];
-          
+
           if (!pkg.name) errors.push('Missing name');
           if (!pkg.version) errors.push('Missing version');
           if (!pkg.publisher || pkg.publisher === 'YOUR_PUBLISHER_ID') {
@@ -74,37 +74,37 @@ jobs:
           if (!pkg.engines || !pkg.engines.vscode) errors.push('Missing vscode engine requirement');
           if (!pkg.main) errors.push('Missing main entry point');
           if (!pkg.contributes) errors.push('Missing contributes section');
-          
+
           if (errors.length > 0) {
             console.error('❌ package.json validation failed:');
             errors.forEach(e => console.error('  - ' + e));
             process.exit(1);
           }
-          
+
           console.log('✅ package.json is valid');
           "
         shell: bash
-      
+
       - name: Check required files
         run: |
           files=("README.md" "LICENSE" "CHANGELOG.md" "package.json" "tsconfig.json")
           missing=()
-          
+
           for file in "${files[@]}"; do
             if [ ! -f "$file" ]; then
               missing+=("$file")
             fi
           done
-          
+
           if [ ${#missing[@]} -gt 0 ]; then
             echo "❌ Missing required files:"
             printf '  - %s\n' "${missing[@]}"
             exit 1
           fi
-          
+
           echo "✅ All required files present"
         shell: bash
-      
+
       - name: Upload compilation artifacts
         if: matrix.os == 'ubuntu-latest' && matrix.node-version == '20.x'
         uses: actions/upload-artifact@v4
@@ -119,31 +119,31 @@ jobs:
     needs: build-and-test
     # Only package in CI for PRs and non-main branches (main uses version-and-release.yml)
     if: github.ref != 'refs/heads/main'
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20.x'
           cache: 'npm'
-      
+
       - name: Install dependencies
         run: npm ci
-      
+
       - name: Install vsce
         run: npm install -g @vscode/vsce
-      
+
       - name: Compile TypeScript
         run: npm run compile
-      
-      - name: Package extension
-        run: vsce package --skip-license
+
+      - name: Package extension (bundled)
+        run: npm run package
         continue-on-error: true
         id: package
-      
+
       - name: Check package result
         run: |
           if [ -f *.vsix ]; then
@@ -156,7 +156,7 @@ jobs:
             echo "package_success=false" >> $GITHUB_OUTPUT
           fi
         id: check_package
-      
+
       - name: Upload VSIX
         if: steps.check_package.outputs.package_success == 'true'
         uses: actions/upload-artifact@v4
@@ -172,20 +172,20 @@ jobs:
       contents: read
       pull-requests: write
       issues: write
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20.x'
           cache: 'npm'
-      
+
       - name: Install dependencies
         run: npm ci
-      
+
       - name: Run ESLint
         run: npm run lint
         continue-on-error: true
@@ -195,7 +195,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-and-test, package, lint-report]
     if: always()
-    
+
     steps:
       - name: Check build status
         run: |
@@ -209,4 +209,3 @@ jobs:
             exit 1
           fi
           echo "✅ All checks passed - PR is ready to merge!"
-

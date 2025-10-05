@@ -47,7 +47,7 @@ export function formatTopicDetailsYaml(details: any): string {
         ([a], [b]) => Number(a) - Number(b)
     );
 
-    for (const [partId, part] of sortedPartitions) {
+    for (const [_partId, part] of sortedPartitions) {
         const p = part as any;
         const msgCount = typeof p.messageCount === 'string' ?
             parseInt(p.messageCount) : p.messageCount;
@@ -148,4 +148,3 @@ export function formatConsumerGroupDetailsYaml(details: any): string {
 
     return yaml;
 }
-

@@ -23,7 +23,7 @@ suite('Topic Commands Test Suite', () => {
     suite('createTopic', () => {
         test('should create topic with valid inputs', async () => {
             const node = { clusterName: 'test-cluster' };
-            
+
             // Mock user inputs
             sandbox.stub(vscode.window, 'showInputBox')
                 .onFirstCall().resolves('test-topic')   // topic name
@@ -42,7 +42,7 @@ suite('Topic Commands Test Suite', () => {
 
         test('should abort if topic name is not provided', async () => {
             const node = { clusterName: 'test-cluster' };
-            
+
             sandbox.stub(vscode.window, 'showInputBox').resolves(undefined);
 
             await topicCommands.createTopic(clientManager as any, provider as any, node);
@@ -52,7 +52,7 @@ suite('Topic Commands Test Suite', () => {
 
         test('should handle topic creation errors', async () => {
             const node = { clusterName: 'test-cluster' };
-            
+
             sandbox.stub(vscode.window, 'showInputBox')
                 .onFirstCall().resolves('test-topic')
                 .onSecondCall().resolves('1')
@@ -71,7 +71,7 @@ suite('Topic Commands Test Suite', () => {
     suite('deleteTopic', () => {
         test('should delete topic when confirmed', async () => {
             const node = { clusterName: 'test-cluster', topicName: 'test-topic', label: 'test-topic' };
-            
+
             sandbox.stub(vscode.window, 'showWarningMessage').resolves('Yes' as any);
             clientManager.deleteTopic.resolves();
             sandbox.stub(vscode.window, 'showInformationMessage');
@@ -85,7 +85,7 @@ suite('Topic Commands Test Suite', () => {
 
         test('should not delete topic when cancelled', async () => {
             const node = { clusterName: 'test-cluster', topicName: 'test-topic', label: 'test-topic' };
-            
+
             sandbox.stub(vscode.window, 'showWarningMessage').resolves(undefined);
 
             await topicCommands.deleteTopic(clientManager as any, provider as any, node);
@@ -97,7 +97,7 @@ suite('Topic Commands Test Suite', () => {
     suite('produceMessage', () => {
         test('should produce message with key and value', async () => {
             const node = { clusterName: 'test-cluster', topicName: 'test-topic' };
-            
+
             sandbox.stub(vscode.window, 'showInputBox')
                 .onFirstCall().resolves('message-key')
                 .onSecondCall().resolves('message-value');
@@ -113,7 +113,7 @@ suite('Topic Commands Test Suite', () => {
 
         test('should produce message without key', async () => {
             const node = { clusterName: 'test-cluster', topicName: 'test-topic' };
-            
+
             sandbox.stub(vscode.window, 'showInputBox')
                 .onFirstCall().resolves(undefined)      // no key
                 .onSecondCall().resolves('message-value');
@@ -128,7 +128,7 @@ suite('Topic Commands Test Suite', () => {
 
         test('should not produce if value is not provided', async () => {
             const node = { clusterName: 'test-cluster', topicName: 'test-topic' };
-            
+
             sandbox.stub(vscode.window, 'showInputBox')
                 .onFirstCall().resolves('key')
                 .onSecondCall().resolves(undefined);
@@ -142,18 +142,18 @@ suite('Topic Commands Test Suite', () => {
     suite('consumeMessages', () => {
         test('should consume messages from beginning', async () => {
             const node = { clusterName: 'test-cluster', topicName: 'test-topic' };
-            
+
             sandbox.stub(vscode.window, 'showQuickPick').resolves('Beginning' as any);
             sandbox.stub(vscode.window, 'showInputBox').resolves('10');
-            
+
             const messages = [
                 { partition: 0, offset: '1', key: Buffer.from('key'), value: Buffer.from('value') }
             ];
             clientManager.consumeMessages.resolves(messages);
 
-            const workspaceStub = sandbox.stub(vscode.workspace, 'openTextDocument').resolves({} as any);
+            sandbox.stub(vscode.workspace, 'openTextDocument').resolves({} as any);
             sandbox.stub(vscode.window, 'showTextDocument').resolves({} as any);
-            
+
             // Mock withProgress to immediately call the callback
             const withProgressStub = sandbox.stub(vscode.window, 'withProgress');
             withProgressStub.callsFake(async (options, task) => {
@@ -168,7 +168,7 @@ suite('Topic Commands Test Suite', () => {
 
         test('should abort if consumption options are not selected', async () => {
             const node = { clusterName: 'test-cluster', topicName: 'test-topic' };
-            
+
             sandbox.stub(vscode.window, 'showQuickPick').resolves(undefined);
 
             await topicCommands.consumeMessages(clientManager as any, node);
@@ -180,7 +180,7 @@ suite('Topic Commands Test Suite', () => {
     suite('showTopicDetails', () => {
         test('should show topic details successfully', async () => {
             const node = { clusterName: 'test-cluster', topicName: 'test-topic' };
-            
+
             const topicDetails = {
                 name: 'test-topic',
                 partitions: 3,
@@ -192,7 +192,7 @@ suite('Topic Commands Test Suite', () => {
 
             sandbox.stub(vscode.workspace, 'openTextDocument').resolves({} as any);
             sandbox.stub(vscode.window, 'showTextDocument').resolves({} as any);
-            
+
             const withProgressStub = sandbox.stub(vscode.window, 'withProgress');
             withProgressStub.callsFake(async (options, task) => {
                 return await task({ report: () => {} } as any, {} as any);
@@ -206,10 +206,10 @@ suite('Topic Commands Test Suite', () => {
 
         test('should handle errors when showing topic details', async () => {
             const node = { clusterName: 'test-cluster', topicName: 'test-topic' };
-            
+
             clientManager.getTopicDetails.rejects(new Error('Topic not found'));
             sandbox.stub(vscode.window, 'showErrorMessage');
-            
+
             const withProgressStub = sandbox.stub(vscode.window, 'withProgress');
             withProgressStub.callsFake(async (options, task) => {
                 return await task({ report: () => {} } as any, {} as any);
@@ -222,4 +222,3 @@ suite('Topic Commands Test Suite', () => {
         });
     });
 });
-
