@@ -133,8 +133,10 @@ jobs:
       - name: Check Azure token availability
         id: check_token
         if: steps.version_check.outputs.changed == 'true'
+        env:
+          AZURE_TOKEN: ${{ secrets.AZURE_TOKEN }}
         run: |
-          if [ -n "${{ secrets.AZURE_TOKEN }}" ]; then
+          if [ -n "$AZURE_TOKEN" ]; then
             echo "has_token=true" >> $GITHUB_OUTPUT
           else
             echo "has_token=false" >> $GITHUB_OUTPUT

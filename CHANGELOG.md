@@ -4,6 +4,13 @@ All notable changes to the "Kafka Client" extension will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/) and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.0.3](https://github.com/nipunap/vscode-kafka-client/compare/v0.0.2...v0.0.3) (2025-10-05)
+
+
+### 🐛 Bug Fixes
+
+* properly check AZURE_TOKEN secret availability ([7103d33](https://github.com/nipunap/vscode-kafka-client/commit/7103d336be8d827837360146bae44e8cd4ce927d))
+
 ## 0.0.2 (2025-10-05)
 
 
