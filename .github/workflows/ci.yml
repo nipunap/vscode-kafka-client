@@ -186,34 +186,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
       
-      - name: Run ESLint with report
-        run: npm run lint 2>&1 | tee eslint-report.txt
+      - name: Run ESLint
+        run: npm run lint
         continue-on-error: true
-      
-      - name: Comment PR with lint results
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        continue-on-error: true
-        with:
-          script: |
-            const fs = require('fs');
-            let report = 'No linting issues found! ✅';
-            
-            try {
-              const output = fs.readFileSync('eslint-report.txt', 'utf8');
-              if (output.trim()) {
-                report = '## ESLint Report\n\n```\n' + output + '\n```';
-              }
-            } catch (e) {
-              report = 'Could not read lint report';
-            }
-            
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: report
-            });
 
   status-check:
     name: Status Check
