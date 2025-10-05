@@ -6,7 +6,6 @@ on:
       - main
     paths:
       - 'package.json'
-      - 'CHANGELOG.md'
 
 jobs:
   publish:
