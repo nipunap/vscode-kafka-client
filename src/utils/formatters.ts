@@ -148,4 +148,3 @@ export function formatConsumerGroupDetailsYaml(details: any): string {
 
     return yaml;
 }
-
