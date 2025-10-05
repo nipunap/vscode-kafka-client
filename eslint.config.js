@@ -29,11 +29,9 @@ module.exports = [
           "format": ["camelCase", "PascalCase"]
         }
       ],
-      "@typescript-eslint/semi": "warn",
       "curly": "warn",
       "eqeqeq": "warn",
       "no-throw-literal": "warn",
-      "semi": "off",
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
       "@typescript-eslint/no-require-imports": "off"
