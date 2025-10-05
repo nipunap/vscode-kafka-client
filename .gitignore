@@ -48,3 +48,7 @@ coverage/
 *.lcov
 .nyc_output/
 
+# Test artifacts
+.vscode-test/
+out/test/**
+

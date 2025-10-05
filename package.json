@@ -40,7 +40,9 @@
     "theme": "dark"
   },
   "activationEvents": [
-    "onView:kafkaExplorer"
+    "onView:kafkaExplorer",
+    "onView:kafkaConsumerGroups",
+    "onCommand:kafka.addCluster"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -117,6 +119,16 @@
         "command": "kafka.resetConsumerGroupOffsets",
         "title": "Reset Offsets",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "kafka.showTopicDetails",
+        "title": "Show Topic Details",
+        "icon": "$(info)"
+      },
+      {
+        "command": "kafka.showConsumerGroupDetails",
+        "title": "Show Consumer Group Details",
+        "icon": "$(info)"
       }
     ],
     "menus": {
@@ -207,6 +219,9 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "lint": "eslint src --ext ts",
+    "pretest": "npm run compile && npm run lint",
+    "test": "node ./out/test/runTest.js",
+    "test:unit": "mocha --require ts-node/register 'src/test/suite/**/*.test.ts'",
     "package": "node scripts/package.js",
     "publish": "node scripts/publish.js",
     "release": "commit-and-tag-version",
@@ -216,13 +231,18 @@
   },
   "devDependencies": {
     "@types/ini": "^4.1.1",
+    "@types/mocha": "^10.0.10",
     "@types/node": "^20.0.0",
+    "@types/sinon": "^17.0.4",
     "@types/vscode": "^1.90.0",
     "@typescript-eslint/eslint-plugin": "^8.15.0",
     "@typescript-eslint/parser": "^8.15.0",
+    "@vscode/test-electron": "^2.5.2",
     "commit-and-tag-version": "^12.5.0",
     "eslint": "^9.15.0",
     "globals": "^16.4.0",
+    "mocha": "^11.7.4",
+    "sinon": "^21.0.0",
     "typescript": "^5.7.2"
   },
   "dependencies": {
