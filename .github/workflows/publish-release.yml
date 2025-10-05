@@ -136,8 +136,6 @@ jobs:
           body_path: CHANGELOG.md
           draft: false
           prerelease: false
-          files: |
-            *.vsix
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -208,7 +206,6 @@ jobs:
           echo "### ✅ Completed" >> $GITHUB_STEP_SUMMARY
           echo "- 🏷️ Git tag created" >> $GITHUB_STEP_SUMMARY
           echo "- 📦 GitHub Release created" >> $GITHUB_STEP_SUMMARY
-          echo "- 📤 VSIX package uploaded" >> $GITHUB_STEP_SUMMARY
 
           if [ "${{ steps.check_token.outputs.has_token }}" == "true" ]; then
             if [ "${{ steps.marketplace_publish.outcome }}" == "success" ]; then
