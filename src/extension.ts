@@ -4,11 +4,14 @@ import { ConsumerGroupProvider } from './providers/consumerGroupProvider';
 import { KafkaClientManager } from './kafka/kafkaClientManager';
 import { ClusterConnectionWebview } from './forms/clusterConnectionWebview';
 
+// Global client manager instance for cleanup on deactivation
+let clientManager: KafkaClientManager;
+
 export async function activate(context: vscode.ExtensionContext) {
     console.log('Kafka extension is now active!');
 
     // Initialize Kafka client manager
-    const clientManager = new KafkaClientManager();
+    clientManager = new KafkaClientManager();
 
     // Register tree data providers
     const kafkaExplorerProvider = new KafkaExplorerProvider(clientManager);
@@ -761,6 +764,16 @@ async function resetConsumerGroupOffsets(clientManager: KafkaClientManager, node
     }
 }
 
-export function deactivate() {
-    // Cleanup
+export async function deactivate() {
+    console.log('Kafka extension is being deactivated...');
+    
+    // Clean up all Kafka connections
+    if (clientManager) {
+        try {
+            await clientManager.dispose();
+            console.log('Successfully cleaned up Kafka connections');
+        } catch (error) {
+            console.error('Error during Kafka client cleanup:', error);
+        }
+    }
 }
