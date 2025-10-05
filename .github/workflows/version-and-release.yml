@@ -32,14 +32,8 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Wait for CI to complete
-        uses: fountainhead/action-wait-for-check@v1.2.0
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          checkName: CI
-          ref: ${{ github.sha }}
-          timeoutSeconds: 600
-          intervalSeconds: 10
+      # Note: CI checks are enforced by branch protection before merge to main
+      # No need to wait for CI here since this only runs after successful merge
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
