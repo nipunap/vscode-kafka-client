@@ -115,11 +115,23 @@ export async function activate(context: vscode.ExtensionContext) {
             await consumerGroupCommands.resetConsumerGroupOffsets(clientManager, node);
         })
     );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('kafka.findTopic', async () => {
+            await topicCommands.findTopic(clientManager);
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('kafka.findConsumerGroup', async () => {
+            await consumerGroupCommands.findConsumerGroup(clientManager);
+        })
+    );
 }
 
 export async function deactivate() {
     console.log('Kafka extension is being deactivated...');
-    
+
     // Clean up all Kafka connections
     if (clientManager) {
         try {

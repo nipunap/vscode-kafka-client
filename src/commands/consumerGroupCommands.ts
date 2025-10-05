@@ -196,3 +196,95 @@ export async function resetConsumerGroupOffsets(clientManager: KafkaClientManage
     }
 }
 
+/**
+ * Find/search for a consumer group across all clusters
+ */
+export async function findConsumerGroup(clientManager: KafkaClientManager) {
+    try {
+        const clusters = clientManager.getClusters();
+
+        if (clusters.length === 0) {
+            vscode.window.showInformationMessage('No clusters configured. Please add a cluster first.');
+            return;
+        }
+
+        // If multiple clusters, let user select one first
+        let selectedCluster: string;
+        if (clusters.length === 1) {
+            selectedCluster = clusters[0];
+        } else {
+            const clusterChoice = await vscode.window.showQuickPick(clusters, {
+                placeHolder: 'Select cluster to search consumer groups',
+                ignoreFocusOut: true
+            });
+            if (!clusterChoice) {
+                return;
+            }
+            selectedCluster = clusterChoice;
+        }
+
+        // Get all consumer groups with cancellation support
+        const groups = await vscode.window.withProgress(
+            {
+                location: vscode.ProgressLocation.Notification,
+                title: `Loading consumer groups from ${selectedCluster}...`,
+                cancellable: true
+            },
+            async (progress, token) => {
+                // Add cancellation support
+                if (token.isCancellationRequested) {
+                    return [];
+                }
+
+                try {
+                    const result = await clientManager.getConsumerGroups(selectedCluster);
+                    return result || [];
+                } catch (error: any) {
+                    // Provide more specific error messages
+                    const errorMsg = error?.message || error?.toString() || 'Unknown error';
+                    if (errorMsg.includes('expired') || errorMsg.includes('credentials')) {
+                        throw new Error('AWS credentials expired. Please reconnect the cluster.');
+                    } else if (errorMsg.includes('timeout')) {
+                        throw new Error('Connection timeout. Check that the cluster is accessible.');
+                    } else if (errorMsg.includes('COORDINATOR_NOT_AVAILABLE')) {
+                        throw new Error('Consumer group coordinator not available. The cluster may be initializing.');
+                    } else {
+                        throw error;
+                    }
+                }
+            }
+        );
+
+        if (!groups || groups.length === 0) {
+            vscode.window.showInformationMessage(`No consumer groups found in cluster "${selectedCluster}"`);
+            return;
+        }
+
+        // Show searchable list with fuzzy matching
+        const selectedGroup = await vscode.window.showQuickPick(
+            groups.map(group => ({
+                label: group.groupId,
+                description: `Cluster: ${selectedCluster}`,
+                detail: `State: ${group.state || 'Unknown'}`,
+                group: group
+            })),
+            {
+                placeHolder: `Search consumer groups in ${selectedCluster} (${groups.length} total)`,
+                matchOnDescription: true,
+                matchOnDetail: true,
+                ignoreFocusOut: true
+            }
+        );
+
+        if (selectedGroup) {
+            // Show consumer group details
+            await showConsumerGroupDetails(clientManager, {
+                clusterName: selectedCluster,
+                groupId: selectedGroup.label
+            });
+        }
+    } catch (error: any) {
+        const errorMsg = error?.message || error?.toString() || 'Unknown error';
+        vscode.window.showErrorMessage(`Failed to search consumer groups: ${errorMsg}`);
+    }
+}

@@ -11,6 +11,8 @@ export class MSKIAMAuthenticator {
     private region: string;
     private profile?: string;
     private assumeRoleArn?: string;
+    private cachedToken?: { token: string; expiresAt: number };
+    private tokenGenerationPromise?: Promise<{ username: string; password: string }>;
 
     constructor(region: string, profile?: string, assumeRoleArn?: string) {
         this.region = region;
@@ -22,8 +24,46 @@ export class MSKIAMAuthenticator {
      * Generate authentication token for AWS MSK IAM
      * NOTE: This is used for Kafka broker authentication (topics/consumer groups)
      * Role assumption is applied here if configured
+     * Tokens are cached for 14 minutes (AWS tokens are valid for 15 minutes)
      */
     async generateAuthToken(): Promise<{ username: string; password: string }> {
+        // Check if we have a valid cached token (with 1 minute buffer before expiration)
+        const now = Date.now();
+        if (this.cachedToken && this.cachedToken.expiresAt > now) {
+            console.log('♻️  Using cached MSK IAM token (expires in', Math.floor((this.cachedToken.expiresAt - now) / 1000), 'seconds)');
+            return {
+                username: this.cachedToken.token,
+                password: this.cachedToken.token
+            };
+        }
+
+        // Prevent race condition: if token generation is already in progress, wait for it
+        if (this.tokenGenerationPromise) {
+            console.log('⏳ Token generation already in progress, waiting for completion...');
+            return await this.tokenGenerationPromise;
+        }
+
+        console.log('🔄 Generating NEW MSK IAM token...');
+
+        // Store the promise to prevent concurrent generation
+        this.tokenGenerationPromise = this.generateTokenInternal();
+
+        try {
+            const result = await this.tokenGenerationPromise;
+            return result;
+        } finally {
+            // Clear the promise after completion (success or failure)
+            this.tokenGenerationPromise = undefined;
+        }
+    }
+
+    /**
+     * Internal method to actually generate the token
+     * Separated to handle race conditions properly
+     */
+    private async generateTokenInternal(): Promise<{ username: string; password: string }> {
+        let originalEnvVars: Record<string, string | undefined> = {};
+
         try {
             // Get AWS credentials (with role assumption if configured)
             const credentials = await this.getAWSCredentials();
@@ -39,18 +79,18 @@ export class MSKIAMAuthenticator {
                 expiration: undefined
             });
 
+            // Save original environment variables BEFORE modifying them
+            originalEnvVars = {
+                AWS_PROFILE: process.env.AWS_PROFILE,
+                AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
+                AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
+                AWS_SESSION_TOKEN: process.env.AWS_SESSION_TOKEN,
+                AWS_SECURITY_TOKEN: process.env.AWS_SECURITY_TOKEN
+            };
+
             try {
                 // Dynamically import the MSK IAM signer
                 const { generateAuthToken } = await import('aws-msk-iam-sasl-signer-js');
-
-                // Clear all AWS env vars to force library to fail and fallback
-                const originalEnvVars = {
-                    AWS_PROFILE: process.env.AWS_PROFILE,
-                    AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
-                    AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
-                    AWS_SESSION_TOKEN: process.env.AWS_SESSION_TOKEN,
-                    AWS_SECURITY_TOKEN: process.env.AWS_SECURITY_TOKEN
-                };
 
                 // Clear all AWS environment variables
                 delete process.env.AWS_PROFILE;
@@ -74,29 +114,38 @@ export class MSKIAMAuthenticator {
                     region: this.region
                 });
 
-                // Restore original environment variables
-                for (const [key, value] of Object.entries(originalEnvVars)) {
-                    if (value !== undefined) {
-                        process.env[key] = value;
-                    } else {
-                        delete process.env[key];
-                    }
+                // Validate token response
+                if (!authTokenResponse || !authTokenResponse.token) {
+                    throw new Error('Token generation returned empty or invalid token');
                 }
+
+                console.log('✅ Generated NEW MSK IAM auth token successfully:', {
+                    tokenLength: authTokenResponse.token?.length || 0,
+                    tokenPrefix: authTokenResponse.token?.substring(0, 50) + '...'
+                });
+
+                // Cache the token for 14 minutes (AWS tokens are valid for 15 minutes, use 14 for safety)
+                const tokenLifetimeMs = 14 * 60 * 1000; // 14 minutes
+                this.cachedToken = {
+                    token: authTokenResponse.token,
+                    expiresAt: Date.now() + tokenLifetimeMs
+                };
+                console.log('💾 Cached token for', tokenLifetimeMs / 1000, 'seconds (will reuse until expiration)');
 
                 // Return in the format KafkaJS expects for SASL/OAUTHBEARER
                 return {
                     username: authTokenResponse.token,
                     password: authTokenResponse.token
                 };
-            } catch (error: any) {
-                // Restore env vars even on error
-                const originalEnvVars = {
-                    AWS_PROFILE: process.env.AWS_PROFILE,
-                    AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
-                    AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
-                    AWS_SESSION_TOKEN: process.env.AWS_SESSION_TOKEN
-                };
-                throw error;
+            } finally {
+                // ALWAYS restore environment variables (success or failure)
+                for (const [key, value] of Object.entries(originalEnvVars)) {
+                    if (value !== undefined) {
+                        process.env[key] = value;
+                    } else {
+                        delete process.env[key as string];
+                    }
+                }
             }
         } catch (error: any) {
             const errorMsg = error?.message || error.toString();
@@ -352,10 +401,16 @@ export function createMSKIAMAuthMechanism(region: string, profile?: string, assu
     return {
         mechanism: 'oauthbearer',
         oauthBearerProvider: async () => {
-            const { username, password } = await authenticator.generateAuthToken();
-            return {
-                value: password // The token is used as the value in OAUTHBEARER
-            };
+            try {
+                const { username, password } = await authenticator.generateAuthToken();
+                // Note: The actual token generation (or cache hit) is logged inside generateAuthToken()
+                return {
+                    value: password // The token is used as the value in OAUTHBEARER
+                };
+            } catch (error: any) {
+                console.error('Failed to generate MSK IAM auth token:', error);
+                throw error;
+            }
         }
     };
 }
