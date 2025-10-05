@@ -4,6 +4,16 @@ All notable changes to the "Kafka Client" extension will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/) and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.1](https://github.com/nipunap/vscode-kafka-client/compare/v0.1.0...v0.1.1) (2025-10-05)
+
+
+### 🐛 Bug Fixes
+
+* add missing file changes ([0bcb539](https://github.com/nipunap/vscode-kafka-client/commit/0bcb539dcf34d491e6a9f5f51d37824fa8922fde))
+* Bundle extension with esbuild and remove unused variable ([d82fdc2](https://github.com/nipunap/vscode-kafka-client/commit/d82fdc2808a448d86e0861ddc38346c6b1a82cd7))
+* Support both bundled and unbundled packaging ([6035f43](https://github.com/nipunap/vscode-kafka-client/commit/6035f43f7db99e1a543d1fed943d68665fd6536a))
+* Use out/extension.js for development/testing, dist for production ([670309a](https://github.com/nipunap/vscode-kafka-client/commit/670309a9bf6485d11029b88e14621d28a0c73dae))
+
 ## [0.1.0](https://github.com/nipunap/vscode-kafka-client/compare/v0.0.3...v0.1.0) (2025-10-05)
 
 
