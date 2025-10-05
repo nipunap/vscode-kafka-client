@@ -2,7 +2,7 @@
   "name": "vscode-kafka-client",
   "displayName": "Kafka Client",
   "description": "Full-featured Kafka client with AWS MSK support, IAM authentication, role assumption, and auto-discovery",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "publisher": "NipunaPerera",
   "license": "GPL-3.0",
   "icon": "resources/kafka-icon.png",
@@ -251,6 +251,8 @@
     "@aws-sdk/credential-providers": "^3.700.0",
     "aws-msk-iam-sasl-signer-js": "github:aws/aws-msk-iam-sasl-signer-js",
     "ini": "^5.0.0",
-    "kafkajs": "^2.2.4"
+    "js-yaml": "^4.1.0",
+    "kafkajs": "^2.2.4",
+    "tslib": "^2.8.1"
   }
 }
