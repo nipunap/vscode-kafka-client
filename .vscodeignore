@@ -1,9 +1,11 @@
-# Source files
+# Source files (not needed when bundled)
 src/**
 tsconfig.json
 eslint.config.js
+esbuild.js
 
 # Build artifacts
+out/**
 **/*.map
 *.vsix
 *.vsix.sha256
@@ -48,3 +50,6 @@ node_modules/**/.DS_Store
 # Uncomment if you want smaller VSIX
 # package-lock.json
 # npm-shrinkwrap.json
+
+# Node modules (bundled into dist/extension.js by esbuild)
+node_modules/**

@@ -1,5 +1,6 @@
 # Compiled output
 out/
+dist/
 *.js.map
 
 # Dependencies
@@ -48,4 +49,3 @@ coverage/
 # Test artifacts
 .vscode-test/
 out/test/**
-

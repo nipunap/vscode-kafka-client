@@ -402,7 +402,7 @@ export function createMSKIAMAuthMechanism(region: string, profile?: string, assu
         mechanism: 'oauthbearer',
         oauthBearerProvider: async () => {
             try {
-                const { username, password } = await authenticator.generateAuthToken();
+                const { password } = await authenticator.generateAuthToken();
                 // Note: The actual token generation (or cache hit) is logged inside generateAuthToken()
                 return {
                     value: password // The token is used as the value in OAUTHBEARER
