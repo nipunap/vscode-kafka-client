@@ -1,6 +1,7 @@
 # Source files
 src/**
 tsconfig.json
+eslint.config.js
 
 # Build artifacts
 **/*.map
@@ -14,6 +15,9 @@ scripts/**
 .gitignore
 .editorconfig
 .eslintrc*
+.git/**
+.github/**
+.gitattributes
 
 # Test files
 test/**
@@ -26,7 +30,21 @@ out/test/**
 # Documentation for development
 mics/**
 PUBLISHING.md
+DEPENDENCY_AUDIT.md
+CODE_REVIEW_IMPROVEMENTS.md
+CONTRIBUTING.md
+
+# Version control and CI/CD
+.versionrc.json
 
 # Misc
 .vscode/**
 .vscode-test/**
+.DS_Store
+**/.DS_Store
+node_modules/**/.DS_Store
+
+# Lock files (optional, but recommended to exclude)
+# Uncomment if you want smaller VSIX
+# package-lock.json
+# npm-shrinkwrap.json
