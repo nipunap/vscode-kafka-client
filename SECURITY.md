@@ -13,7 +13,7 @@
 
 **Severity**: High
 
-**Description**: 
+**Description**:
 Prior to version 0.2.1, the extension did not properly validate broker URLs entered by users. This could allow attackers to inject malicious URLs or special characters that could manipulate connection strings. The vulnerability allowed arbitrary hosts to be injected before or after legitimate broker addresses.
 
 **Attack Vectors**:
@@ -25,14 +25,14 @@ Prior to version 0.2.1, the extension did not properly validate broker URLs ente
 - Null byte injection (e.g., `localhost:9092\x00evil.com`)
 - Invalid IPv4 addresses (e.g., `1.2.3:9092`, `256.0.0.1:9092`)
 
-**Impact**: 
+**Impact**:
 An attacker could potentially redirect Kafka connections to malicious brokers, leading to:
 - Data exfiltration (messages sent to attacker's broker)
 - Man-in-the-middle attacks
 - Denial of service
 - Credential theft
 
-**Fix**: 
+**Fix**:
 Version 0.2.1 introduces comprehensive broker URL validation:
 - Validates proper `host:port` format
 - Blocks dangerous characters: `\r`, `\n`, `\0`, `@`, `/`, `?`, `#`
@@ -42,7 +42,7 @@ Version 0.2.1 introduces comprehensive broker URL validation:
 - Port range validation (1-65535)
 - Both client-side (webview) and server-side validation
 
-**Credits**: 
+**Credits**:
 Thank you to the security researcher who responsibly disclosed this vulnerability.
 
 ## Reporting a Vulnerability
@@ -92,4 +92,3 @@ We regularly audit dependencies for known vulnerabilities:
 - Security patches are applied promptly
 
 Run `npm audit` to check for known vulnerabilities in dependencies.
-

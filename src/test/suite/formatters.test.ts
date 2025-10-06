@@ -124,6 +124,38 @@ suite('Formatters Test Suite', () => {
             // Should include configuration source information
             assert.ok(yaml.includes('# All configurations by source'));
         });
+
+        test('should properly escape backslashes and quotes in config values', () => {
+            const details = {
+                name: 'test-topic',
+                partitions: 1,
+                replicationFactor: 1,
+                partitionDetails: {
+                    0: { messageCount: '0', partition: 0, leader: 1, replicas: [1], isr: [1], lowWaterMark: '0', highWaterMark: '0' }
+                },
+                configuration: [
+                    // Test backslash escaping
+                    { configName: 'path.config', configValue: 'C:\\Users\\kafka\\data', isDefault: false, configSource: 'DYNAMIC_TOPIC_CONFIG' },
+                    // Test quote escaping
+                    { configName: 'quoted.value', configValue: 'value with "quotes"', isDefault: false, configSource: 'DYNAMIC_TOPIC_CONFIG' },
+                    // Test both backslash and quote
+                    { configName: 'complex.path', configValue: 'C:\\Program Files\\kafka\\config "prod"', isDefault: false, configSource: 'DYNAMIC_TOPIC_CONFIG' }
+                ]
+            };
+
+            const yaml = formatTopicDetailsYaml(details);
+
+            // Backslashes should be escaped in the output (\ becomes \\)
+            // In the actual string, we're looking for the literal characters: \\ 
+            assert.ok(yaml.includes('C:\\\\Users\\\\kafka\\\\data'), 'Should escape backslashes');
+            
+            // Quotes should be escaped (") becomes \")
+            // In the actual string, we're looking for: \"
+            assert.ok(yaml.includes('value with \\"quotes\\"'), 'Should escape quotes');
+            
+            // Both should work together
+            assert.ok(yaml.includes('C:\\\\Program Files\\\\kafka\\\\config \\"prod\\"'), 'Should escape both backslashes and quotes');
+        });
     });
 
     suite('formatConsumerGroupDetailsYaml', () => {

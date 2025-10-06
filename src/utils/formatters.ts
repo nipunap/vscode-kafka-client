@@ -93,8 +93,8 @@ export function formatTopicDetailsYaml(details: any): string {
         yaml += `  modified:\n`;
         for (const config of nonDefaultConfigs) {
             const value = config.configValue || 'null';
-            const safeValue = value.includes(':') || value.includes('\n') ?
-                `"${value.replace(/"/g, '\\"')}"` : value;
+            const safeValue = value.includes(':') || value.includes('\n') || value.includes('\\') || value.includes('"') ?
+                `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"` : value;
             const source = config.configSource || 'UNKNOWN';
             const sensitive = config.isSensitive ? ' [SENSITIVE]' : '';
             const readOnly = config.isReadOnly ? ' [READ-ONLY]' : '';
@@ -119,8 +119,8 @@ export function formatTopicDetailsYaml(details: any): string {
 
         for (const config of configs) {
             const value = config.configValue || 'null';
-            const safeValue = value.includes(':') || value.includes('\n') ?
-                `"${value.replace(/"/g, '\\"')}"` : value;
+            const safeValue = value.includes(':') || value.includes('\n') || value.includes('\\') || value.includes('"') ?
+                `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"` : value;
             const sensitive = config.isSensitive ? ' [SENSITIVE]' : '';
             const readOnly = config.isReadOnly ? ' [READ-ONLY]' : '';
             const isDefault = config.isDefault ? ' [default]' : '';
@@ -244,8 +244,8 @@ export function formatBrokerDetailsYaml(details: any): string {
         yaml += `  modified:\n`;
         for (const config of nonDefaultConfigs) {
             const value = config.configValue || 'null';
-            const safeValue = value.includes(':') || value.includes('\n') ?
-                `"${value.replace(/"/g, '\\"')}"` : value;
+            const safeValue = value.includes(':') || value.includes('\n') || value.includes('\\') || value.includes('"') ?
+                `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"` : value;
             const source = config.configSource || 'UNKNOWN';
             const sensitive = config.isSensitive ? ' [SENSITIVE]' : '';
             const readOnly = config.isReadOnly ? ' [READ-ONLY]' : '';
@@ -270,8 +270,8 @@ export function formatBrokerDetailsYaml(details: any): string {
 
         for (const config of configs) {
             const value = config.configValue || 'null';
-            const safeValue = value.includes(':') || value.includes('\n') ?
-                `"${value.replace(/"/g, '\\"')}"` : value;
+            const safeValue = value.includes(':') || value.includes('\n') || value.includes('\\') || value.includes('"') ?
+                `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"` : value;
             const sensitive = config.isSensitive ? ' [SENSITIVE]' : '';
             const readOnly = config.isReadOnly ? ' [READ-ONLY]' : '';
             const isDefault = config.isDefault ? ' [default]' : '';
