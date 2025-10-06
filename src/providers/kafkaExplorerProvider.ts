@@ -93,6 +93,15 @@ export class KafkaTreeItem extends vscode.TreeItem {
         this.tooltip = this.getTooltip();
         this.iconPath = this.getIcon();
 
+        // Add click command for clusters - show dashboard
+        if (this.contextValue === 'cluster') {
+            this.command = {
+                command: 'kafka.showClusterDashboard',
+                title: 'Show Cluster Dashboard',
+                arguments: [this]
+            };
+        }
+
         // Add click command for topics
         if (this.contextValue === 'topic') {
             this.command = {

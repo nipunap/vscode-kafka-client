@@ -308,7 +308,14 @@ export class KafkaClientManager {
     async getTopicMetadata(clusterName: string, topic: string): Promise<any> {
         const admin = await this.getAdmin(clusterName);
         const metadata = await admin.fetchTopicMetadata({ topics: [topic] });
-        return metadata.topics[0];
+        const topicData = metadata.topics[0];
+
+        // Validate topic metadata
+        if (!topicData || !topicData.partitions) {
+            throw new Error(`Topic "${topic}" not found or has invalid metadata`);
+        }
+
+        return topicData;
     }
 
     async getTopicDetails(clusterName: string, topicName: string): Promise<any> {
@@ -317,6 +324,11 @@ export class KafkaClientManager {
         // Fetch topic metadata
         const metadata = await admin.fetchTopicMetadata({ topics: [topicName] });
         const topicMetadata = metadata.topics[0];
+
+        // Validate topic metadata
+        if (!topicMetadata || !topicMetadata.partitions || topicMetadata.partitions.length === 0) {
+            throw new Error(`Topic "${topicName}" not found or has no partitions`);
+        }
 
         // Fetch topic configuration with all details including synonyms
         const configs = await admin.describeConfigs({
@@ -351,15 +363,19 @@ export class KafkaClientManager {
                 const beginOffset = await admin.fetchTopicOffsets(topicName);
                 const partitionOffset = beginOffset.find((p: any) => p.partition === partitionId);
 
+                // Convert Long objects to strings (kafkajs uses 'long' library for 64-bit integers)
+                const lowOffset = partitionOffset?.low ? String(partitionOffset.low) : '0';
+                const highOffset = partitionOffset?.high ? String(partitionOffset.high) : '0';
+
                 offsetInfo[partitionId] = {
                     partition: partitionId,
                     leader: partition.leader,
                     replicas: partition.replicas,
                     isr: partition.isr,
-                    lowWaterMark: partitionOffset?.low || '0',
-                    highWaterMark: partitionOffset?.high || '0',
+                    lowWaterMark: lowOffset,
+                    highWaterMark: highOffset,
                     messageCount: partitionOffset ?
-                        (BigInt(partitionOffset.high) - BigInt(partitionOffset.low)).toString() : '0'
+                        (BigInt(highOffset) - BigInt(lowOffset)).toString() : '0'
                 };
             }
 
@@ -717,6 +733,34 @@ export class KafkaClientManager {
             port: broker.port,
             rack: (broker as any).rack || 'N/A',
             configuration: configs.resources[0]?.configEntries || []
+        };
+    }
+
+    async getClusterStatistics(clusterName: string): Promise<any> {
+        const admin = await this.getAdmin(clusterName);
+
+        // Get cluster metadata
+        const cluster = await admin.describeCluster();
+        const topics = await admin.listTopics();
+
+        // Calculate total partitions
+        let totalPartitions = 0;
+        for (const topic of topics) {
+            try {
+                const metadata = await admin.fetchTopicMetadata({ topics: [topic] });
+                totalPartitions += metadata.topics[0]?.partitions?.length || 0;
+            } catch (_error) {
+                // Skip topics we can't access
+                continue;
+            }
+        }
+
+        return {
+            clusterId: cluster.clusterId,
+            controller: cluster.controller,
+            brokerCount: cluster.brokers.length,
+            topicCount: topics.length,
+            totalPartitions
         };
     }
 

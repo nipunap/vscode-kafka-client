@@ -155,6 +155,11 @@
         "command": "kafka.findBroker",
         "title": "Kafka: Find Broker",
         "icon": "$(search)"
+      },
+      {
+        "command": "kafka.showClusterDashboard",
+        "title": "Show Cluster Dashboard",
+        "icon": "$(dashboard)"
       }
     ],
     "menus": {
@@ -196,6 +201,11 @@
         }
       ],
       "view/item/context": [
+        {
+          "command": "kafka.showClusterDashboard",
+          "when": "view == kafkaExplorer && viewItem == cluster",
+          "group": "0_info@1"
+        },
         {
           "command": "kafka.removeCluster",
           "when": "view == kafkaExplorer && viewItem == cluster",
