@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as ini from 'ini';
+import { validateBrokerList } from '../utils/validators';
 
 export interface ClusterConnection {
     name: string;
@@ -122,10 +123,7 @@ export class ClusterConnectionForm {
             prompt: 'Enter broker addresses (comma-separated)',
             placeHolder: 'localhost:9092,localhost:9093',
             validateInput: (value) => {
-                if (!value || value.trim().length === 0) {
-                    return 'At least one broker is required';
-                }
-                return undefined;
+                return validateBrokerList(value);
             }
         });
 
@@ -133,7 +131,8 @@ export class ClusterConnectionForm {
             return undefined;
         }
 
-        connection.brokers = brokersInput.split(',').map(b => b.trim());
+        // Validation already done by validateInput, but split here
+        connection.brokers = brokersInput.split(',').map(b => b.trim()).filter(b => b.length > 0);
 
         // Step 2: Security protocol
         const securityProtocol = await this.selectSecurityProtocol();

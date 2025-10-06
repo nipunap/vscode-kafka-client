@@ -4,6 +4,7 @@ import * as os from 'os';
 import * as fs from 'fs';
 import * as ini from 'ini';
 import { ClusterConnection } from './clusterConnectionForm';
+import { sanitizeBrokerList } from '../utils/validators';
 
 interface AWSProfile {
     name: string;
@@ -107,7 +108,8 @@ export class ClusterConnectionWebview {
         };
 
         if (data.type === 'kafka') {
-            connection.brokers = data.brokers.split(',').map((b: string) => b.trim());
+            // Validate and sanitize broker addresses (throws error if invalid)
+            connection.brokers = sanitizeBrokerList(data.brokers);
             connection.securityProtocol = data.securityProtocol;
 
             if (data.securityProtocol.includes('SASL')) {
@@ -679,6 +681,48 @@ export class ClusterConnectionWebview {
             });
         });
 
+        // Broker validation function
+        function validateBrokerAddress(broker) {
+            const trimmed = broker.trim();
+            if (!trimmed) return 'Broker address cannot be empty';
+            
+            // Check for dangerous characters
+            if (/[\r\n\0@/?#]/.test(trimmed)) {
+                return 'Broker address contains invalid characters';
+            }
+            
+            // Must be host:port
+            const parts = trimmed.split(':');
+            if (parts.length !== 2) {
+                return 'Broker must be in format host:port';
+            }
+            
+            const [host, portStr] = parts;
+            if (!host || host.length === 0) return 'Host cannot be empty';
+            
+            // Validate host format
+            const hostnameRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/;
+            const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
+            const ipv6Regex = /^\[([0-9a-fA-F:]+)\]$/;
+            
+            if (!hostnameRegex.test(host) && !ipv4Regex.test(host) && !ipv6Regex.test(host)) {
+                return 'Invalid host format';
+            }
+            
+            if (!portStr || portStr.length === 0) return 'Port cannot be empty';
+            
+            const port = parseInt(portStr, 10);
+            if (isNaN(port) || portStr !== port.toString()) {
+                return 'Port must be a valid number';
+            }
+            
+            if (port < 1 || port > 65535) {
+                return 'Port must be between 1 and 65535';
+            }
+            
+            return null; // Valid
+        }
+
         // Form submission
         document.getElementById('clusterForm').addEventListener('submit', (e) => {
             e.preventDefault();
@@ -690,7 +734,24 @@ export class ClusterConnectionWebview {
             };
 
             if (type === 'kafka') {
-                data.brokers = document.getElementById('brokers').value;
+                const brokersValue = document.getElementById('brokers').value;
+                
+                // Validate brokers before submitting
+                const brokers = brokersValue.split(',').map(b => b.trim()).filter(b => b.length > 0);
+                if (brokers.length === 0) {
+                    alert('At least one broker is required');
+                    return;
+                }
+                
+                for (const broker of brokers) {
+                    const error = validateBrokerAddress(broker);
+                    if (error) {
+                        alert('Invalid broker "' + broker + '": ' + error);
+                        return;
+                    }
+                }
+                
+                data.brokers = brokersValue;
                 data.securityProtocol = document.getElementById('securityProtocol').value;
                 data.saslMechanism = document.getElementById('saslMechanism').value;
                 data.saslUsername = document.getElementById('saslUsername').value;
