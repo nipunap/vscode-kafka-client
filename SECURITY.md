@@ -9,11 +9,12 @@
 
 ## Security Vulnerabilities
 
-### CVE-2024-XXXXX: Incomplete URL Substring Sanitization (Fixed in v0.2.1)
+### CVE-2024-XXXXX-1: Incomplete URL Substring Sanitization (Fixed in v0.2.1)
 
-**Severity**: High
+**Severity**: High  
+**GitHub Alert**: N/A (User reported)
 
-**Description**:
+**Description**: 
 Prior to version 0.2.1, the extension did not properly validate broker URLs entered by users. This could allow attackers to inject malicious URLs or special characters that could manipulate connection strings. The vulnerability allowed arbitrary hosts to be injected before or after legitimate broker addresses.
 
 **Attack Vectors**:
@@ -42,8 +43,52 @@ Version 0.2.1 introduces comprehensive broker URL validation:
 - Port range validation (1-65535)
 - Both client-side (webview) and server-side validation
 
-**Credits**:
+**Credits**: 
 Thank you to the security researcher who responsibly disclosed this vulnerability.
+
+---
+
+### CVE-2024-XXXXX-2: Incomplete String Escaping in YAML Output (Fixed in v0.2.1)
+
+**Severity**: Warning  
+**GitHub Alert**: [CodeQL Alert #16](https://github.com/nipunap/vscode-kafka-client/security/code-scanning/16)
+
+**Description**:
+Prior to version 0.2.1, the YAML formatters (`formatTopicDetailsYaml` and `formatBrokerDetailsYaml`) only escaped double quotes but did not escape backslashes. This could allow injection attacks if Kafka configuration values contained backslashes (common in Windows paths).
+
+**Attack Vectors**:
+- Windows paths with backslashes (e.g., `C:\Users\kafka\data`)
+- Config values with embedded quotes and backslashes
+- Malformed YAML that breaks parsing
+- Potential injection of YAML directives
+
+**Example**:
+```yaml
+# Before fix (incorrect):
+path.config: C:\Users\kafka\data  # Invalid YAML
+
+# After fix (correct):
+path.config: "C:\\Users\\kafka\\data"  # Properly escaped
+```
+
+**Impact**:
+An attacker or misconfigured Kafka cluster could return configuration values that:
+- Break YAML parsing in the extension
+- Inject malicious YAML content
+- Cause incorrect configuration display
+- Lead to confusion or misconfiguratoin
+
+**Fix**:
+Version 0.2.1 implements proper string escaping:
+- Escapes backslashes BEFORE quotes (correct order)
+- Wraps values in quotes if they contain `\`, `"`, `:`, or `\n`
+- Applied in all 4 locations across both formatters
+- Comprehensive test coverage for edge cases
+
+**Credits**:
+Detected by GitHub Advanced Security (CodeQL) and Copilot code review.
+
+---
 
 ## Reporting a Vulnerability
 
