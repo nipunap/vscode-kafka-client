@@ -57,7 +57,8 @@ export class ConsumerGroupProvider implements vscode.TreeDataProvider<ConsumerGr
                             vscode.TreeItemCollapsibleState.None,
                             'consumerGroup',
                             element.clusterName,
-                            group.groupId
+                            group.groupId,
+                            group.state
                         )
                 );
             } catch (error: any) {
@@ -86,7 +87,8 @@ export class ConsumerGroupTreeItem extends vscode.TreeItem {
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
         public readonly contextValue: string,
         public readonly clusterName: string,
-        public readonly groupId?: string
+        public readonly groupId?: string,
+        public readonly state?: string
     ) {
         super(label, collapsibleState);
 
@@ -108,9 +110,29 @@ export class ConsumerGroupTreeItem extends vscode.TreeItem {
             return `Cluster: ${this.label}`;
         }
         if (this.contextValue === 'consumerGroup') {
-            return `Consumer Group: ${this.label}`;
+            const stateLabel = this.getStateLabel();
+            return `Consumer Group: ${this.label}\nState: ${stateLabel}`;
         }
         return this.label;
+    }
+
+    private getStateLabel(): string {
+        if (!this.state) {
+            return 'Unknown';
+        }
+
+        const state = this.state.toLowerCase();
+
+        // Map Kafka states to human-readable labels
+        if (state === 'stable') {
+            return 'Active';
+        } else if (state === 'empty') {
+            return 'Empty (no active consumers)';
+        } else if (state === 'dead' || state === 'preparingrebalance' || state === 'completingrebalance') {
+            return state === 'dead' ? 'Dead/Zombie' : this.state;
+        }
+
+        return this.state;
     }
 
     private getIcon(): vscode.ThemeIcon {
@@ -118,6 +140,21 @@ export class ConsumerGroupTreeItem extends vscode.TreeItem {
             return new vscode.ThemeIcon('database');
         }
         if (this.contextValue === 'consumerGroup') {
+            // Color-code based on consumer group state
+            const state = this.state?.toLowerCase() || '';
+
+            if (state === 'stable') {
+                // Active consumer groups - GREEN
+                return new vscode.ThemeIcon('organization', new vscode.ThemeColor('charts.green'));
+            } else if (state === 'empty') {
+                // Empty consumer groups - ORANGE
+                return new vscode.ThemeIcon('organization', new vscode.ThemeColor('charts.orange'));
+            } else if (state === 'dead' || state === 'preparingrebalance' || state === 'completingrebalance') {
+                // Dead/Zombie or rebalancing consumer groups - RED
+                return new vscode.ThemeIcon('organization', new vscode.ThemeColor('charts.red'));
+            }
+
+            // Unknown state - default color
             return new vscode.ThemeIcon('organization');
         }
         if (this.contextValue === 'empty') {

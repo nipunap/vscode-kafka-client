@@ -2,7 +2,7 @@
   "name": "vscode-kafka-client",
   "displayName": "Kafka Client",
   "description": "Full-featured Kafka client with AWS MSK support, IAM authentication, role assumption, and auto-discovery",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "publisher": "NipunaPerera",
   "license": "GPL-3.0",
   "icon": "resources/kafka-icon.png",
@@ -42,6 +42,7 @@
   "activationEvents": [
     "onView:kafkaExplorer",
     "onView:kafkaConsumerGroups",
+    "onView:kafkaBrokers",
     "onCommand:kafka.addCluster"
   ],
   "main": "./out/extension.js",
@@ -66,6 +67,11 @@
           "id": "kafkaConsumerGroups",
           "name": "Consumer Groups",
           "icon": "$(organization)"
+        },
+        {
+          "id": "kafkaBrokers",
+          "name": "Brokers",
+          "icon": "$(server)"
         }
       ]
     },
@@ -139,6 +145,21 @@
         "command": "kafka.findConsumerGroup",
         "title": "Kafka: Find Consumer Group",
         "icon": "$(search)"
+      },
+      {
+        "command": "kafka.showBrokerDetails",
+        "title": "Show Broker Details",
+        "icon": "$(info)"
+      },
+      {
+        "command": "kafka.findBroker",
+        "title": "Kafka: Find Broker",
+        "icon": "$(search)"
+      },
+      {
+        "command": "kafka.showClusterDashboard",
+        "title": "Show Cluster Dashboard",
+        "icon": "$(dashboard)"
       }
     ],
     "menus": {
@@ -167,9 +188,24 @@
           "command": "kafka.findConsumerGroup",
           "when": "view == kafkaConsumerGroups",
           "group": "navigation"
+        },
+        {
+          "command": "kafka.refreshCluster",
+          "when": "view == kafkaBrokers",
+          "group": "navigation"
+        },
+        {
+          "command": "kafka.findBroker",
+          "when": "view == kafkaBrokers",
+          "group": "navigation"
         }
       ],
       "view/item/context": [
+        {
+          "command": "kafka.showClusterDashboard",
+          "when": "view == kafkaExplorer && viewItem == cluster",
+          "group": "0_info@1"
+        },
         {
           "command": "kafka.removeCluster",
           "when": "view == kafkaExplorer && viewItem == cluster",

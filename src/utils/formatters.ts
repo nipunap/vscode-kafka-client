@@ -33,7 +33,8 @@ export function formatTopicDetailsYaml(details: any): string {
         0
     );
 
-    let yaml = `# Topic Details\n`;
+    let yaml = `# Topic Configuration\n`;
+    yaml += `# Similar to: kafka-configs.sh --describe --entity-type topics --entity-name ${details.name}\n`;
     yaml += `# Generated at ${new Date().toLocaleString()}\n\n`;
 
     yaml += `topic:\n`;
@@ -63,17 +64,69 @@ export function formatTopicDetailsYaml(details: any): string {
         yaml += `    messages: ${count}\n\n`;
     }
 
-    const configs = details.configuration.filter((c: any) => !c.isDefault);
-    if (configs.length > 0) {
-        yaml += `configuration:\n`;
+    // Group configurations by source
+    const configsBySource: { [key: string]: any[] } = {
+        'DYNAMIC_TOPIC_CONFIG': [],
+        'DYNAMIC_BROKER_CONFIG': [],
+        'DYNAMIC_DEFAULT_BROKER_CONFIG': [],
+        'STATIC_BROKER_CONFIG': [],
+        'DEFAULT_CONFIG': [],
+        'OTHER': []
+    };
+
+    for (const config of details.configuration) {
+        const source = config.configSource || 'OTHER';
+        if (configsBySource[source]) {
+            configsBySource[source].push(config);
+        } else {
+            configsBySource['OTHER'].push(config);
+        }
+    }
+
+    yaml += `configuration:\n`;
+    yaml += `  total: ${details.configuration.length}\n\n`;
+
+    // Show non-default configs first
+    const nonDefaultConfigs = details.configuration.filter((c: any) => !c.isDefault);
+    if (nonDefaultConfigs.length > 0) {
+        yaml += `  # Non-default configurations (${nonDefaultConfigs.length})\n`;
+        yaml += `  modified:\n`;
+        for (const config of nonDefaultConfigs) {
+            const value = config.configValue || 'null';
+            const safeValue = value.includes(':') || value.includes('\n') || value.includes('\\') || value.includes('"') ?
+                `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"` : value;
+            const source = config.configSource || 'UNKNOWN';
+            const sensitive = config.isSensitive ? ' [SENSITIVE]' : '';
+            const readOnly = config.isReadOnly ? ' [READ-ONLY]' : '';
+            yaml += `    ${config.configName}: ${safeValue}  # ${source}${sensitive}${readOnly}\n`;
+        }
+        yaml += `\n`;
+    }
+
+    // Show all configurations grouped by source
+    yaml += `  # All configurations by source\n`;
+
+    for (const [source, configs] of Object.entries(configsBySource)) {
+        if (configs.length === 0) {
+            continue;
+        }
+
+        const sourceLabel = source.replace(/_/g, ' ').toLowerCase();
+        yaml += `  ${sourceLabel}:\n`;
+
+        // Sort configs by name
+        configs.sort((a, b) => a.configName.localeCompare(b.configName));
+
         for (const config of configs) {
             const value = config.configValue || 'null';
-            const safeValue = value.includes(':') || value.includes('\n') ?
-                `"${value.replace(/"/g, '\\"')}"` : value;
-            yaml += `  ${config.configName}: ${safeValue}\n`;
+            const safeValue = value.includes(':') || value.includes('\n') || value.includes('\\') || value.includes('"') ?
+                `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"` : value;
+            const sensitive = config.isSensitive ? ' [SENSITIVE]' : '';
+            const readOnly = config.isReadOnly ? ' [READ-ONLY]' : '';
+            const isDefault = config.isDefault ? ' [default]' : '';
+            yaml += `    ${config.configName}: ${safeValue}${sensitive}${readOnly}${isDefault}\n`;
         }
-    } else {
-        yaml += `configuration: {}  # All using defaults\n`;
+        yaml += `\n`;
     }
 
     return yaml;
@@ -144,6 +197,87 @@ export function formatConsumerGroupDetailsYaml(details: any): string {
         }
     } else {
         yaml += `offsets: []  # No offset information\n`;
+    }
+
+    return yaml;
+}
+
+/**
+ * Format broker details as YAML
+ */
+export function formatBrokerDetailsYaml(details: any): string {
+    let yaml = `# Broker Configuration\n`;
+    yaml += `# Similar to: kafka-configs.sh --describe --entity-type brokers --entity-name ${details.nodeId}\n`;
+    yaml += `# Generated at ${new Date().toLocaleString()}\n\n`;
+
+    yaml += `broker:\n`;
+    yaml += `  nodeId: ${details.nodeId}\n`;
+    yaml += `  host: "${details.host}"\n`;
+    yaml += `  port: ${details.port}\n`;
+    yaml += `  rack: "${details.rack}"\n\n`;
+
+    // Group configurations by source
+    const configsBySource: { [key: string]: any[] } = {
+        'DYNAMIC_BROKER_CONFIG': [],
+        'DYNAMIC_DEFAULT_BROKER_CONFIG': [],
+        'STATIC_BROKER_CONFIG': [],
+        'DEFAULT_CONFIG': [],
+        'OTHER': []
+    };
+
+    for (const config of details.configuration) {
+        const source = config.configSource || 'OTHER';
+        if (configsBySource[source]) {
+            configsBySource[source].push(config);
+        } else {
+            configsBySource['OTHER'].push(config);
+        }
+    }
+
+    yaml += `configuration:\n`;
+    yaml += `  total: ${details.configuration.length}\n\n`;
+
+    // Show non-default configs first
+    const nonDefaultConfigs = details.configuration.filter((c: any) => !c.isDefault);
+    if (nonDefaultConfigs.length > 0) {
+        yaml += `  # Non-default configurations (${nonDefaultConfigs.length})\n`;
+        yaml += `  modified:\n`;
+        for (const config of nonDefaultConfigs) {
+            const value = config.configValue || 'null';
+            const safeValue = value.includes(':') || value.includes('\n') || value.includes('\\') || value.includes('"') ?
+                `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"` : value;
+            const source = config.configSource || 'UNKNOWN';
+            const sensitive = config.isSensitive ? ' [SENSITIVE]' : '';
+            const readOnly = config.isReadOnly ? ' [READ-ONLY]' : '';
+            yaml += `    ${config.configName}: ${safeValue}  # ${source}${sensitive}${readOnly}\n`;
+        }
+        yaml += `\n`;
+    }
+
+    // Show all configurations grouped by source
+    yaml += `  # All configurations by source\n`;
+
+    for (const [source, configs] of Object.entries(configsBySource)) {
+        if (configs.length === 0) {
+            continue;
+        }
+
+        const sourceLabel = source.replace(/_/g, ' ').toLowerCase();
+        yaml += `  ${sourceLabel}:\n`;
+
+        // Sort configs by name
+        configs.sort((a, b) => a.configName.localeCompare(b.configName));
+
+        for (const config of configs) {
+            const value = config.configValue || 'null';
+            const safeValue = value.includes(':') || value.includes('\n') || value.includes('\\') || value.includes('"') ?
+                `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"` : value;
+            const sensitive = config.isSensitive ? ' [SENSITIVE]' : '';
+            const readOnly = config.isReadOnly ? ' [READ-ONLY]' : '';
+            const isDefault = config.isDefault ? ' [default]' : '';
+            yaml += `    ${config.configName}: ${safeValue}${sensitive}${readOnly}${isDefault}\n`;
+        }
+        yaml += `\n`;
     }
 
     return yaml;

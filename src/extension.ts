@@ -1,10 +1,13 @@
 import * as vscode from 'vscode';
 import { KafkaExplorerProvider } from './providers/kafkaExplorerProvider';
 import { ConsumerGroupProvider } from './providers/consumerGroupProvider';
+import { BrokerProvider } from './providers/brokerProvider';
 import { KafkaClientManager } from './kafka/kafkaClientManager';
 import * as clusterCommands from './commands/clusterCommands';
 import * as topicCommands from './commands/topicCommands';
 import * as consumerGroupCommands from './commands/consumerGroupCommands';
+import * as brokerCommands from './commands/brokerCommands';
+import * as clusterDashboardCommands from './commands/clusterDashboardCommands';
 
 // Global client manager instance for cleanup on deactivation
 let clientManager: KafkaClientManager;
@@ -18,9 +21,11 @@ export async function activate(context: vscode.ExtensionContext) {
     // Register tree data providers
     const kafkaExplorerProvider = new KafkaExplorerProvider(clientManager);
     const consumerGroupProvider = new ConsumerGroupProvider(clientManager);
+    const brokerProvider = new BrokerProvider(clientManager);
 
     vscode.window.registerTreeDataProvider('kafkaExplorer', kafkaExplorerProvider);
     vscode.window.registerTreeDataProvider('kafkaConsumerGroups', consumerGroupProvider);
+    vscode.window.registerTreeDataProvider('kafkaBrokers', brokerProvider);
 
     // Load saved clusters from configuration
     try {
@@ -29,6 +34,7 @@ export async function activate(context: vscode.ExtensionContext) {
         // Refresh the tree views after loading configuration
         kafkaExplorerProvider.refresh();
         consumerGroupProvider.refresh();
+        brokerProvider.refresh();
     } catch (error: any) {
         console.error('Failed to load cluster configurations:', error);
         vscode.window.showWarningMessage(
@@ -45,12 +51,14 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.addCluster', async () => {
             await clusterCommands.addCluster(clientManager, kafkaExplorerProvider, consumerGroupProvider, context);
+            brokerProvider.refresh();
         })
     );
 
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.removeCluster', async (node) => {
             await clusterCommands.removeCluster(clientManager, kafkaExplorerProvider, node);
+            brokerProvider.refresh();
         })
     );
 
@@ -58,6 +66,7 @@ export async function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('kafka.refreshCluster', () => {
             kafkaExplorerProvider.refresh();
             consumerGroupProvider.refresh();
+            brokerProvider.refresh();
             vscode.window.showInformationMessage('Refreshed cluster data');
         })
     );
@@ -125,6 +134,24 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.findConsumerGroup', async () => {
             await consumerGroupCommands.findConsumerGroup(clientManager);
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('kafka.showBrokerDetails', async (node) => {
+            await brokerCommands.showBrokerDetails(clientManager, node);
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('kafka.findBroker', async () => {
+            await brokerCommands.findBroker(clientManager);
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('kafka.showClusterDashboard', async (node) => {
+            await clusterDashboardCommands.showClusterDashboard(clientManager, context, node);
         })
     );
 }

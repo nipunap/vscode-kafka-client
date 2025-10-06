@@ -6,7 +6,7 @@
 [![Downloads](https://img.shields.io/visual-studio-marketplace/d/NipunaPerera.vscode-kafka-client)](https://marketplace.visualstudio.com/items?itemName=NipunaPerera.vscode-kafka-client)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
 
-A comprehensive Kafka client extension for Visual Studio Code with full AWS MSK support, including IAM authentication and role assumption.
+A comprehensive Kafka client extension for Visual Studio Code with full AWS MSK support, including IAM authentication and role assumption. View and manage Kafka clusters with enterprise-grade features including detailed configuration inspection, color-coded health monitoring, and complete broker visibility.
 
 ## ✨ Features
 
@@ -14,11 +14,36 @@ A comprehensive Kafka client extension for Visual Studio Code with full AWS MSK 
 - ☁️ **AWS MSK with IAM** - Full AWS MSK IAM authentication with automatic role assumption
 - 🔐 **AWS Profile Management** - Select profiles with credential expiration tracking
 - 🔍 **Auto-Discovery** - Automatically discover MSK clusters in your AWS account
-- 📋 **Topic Management** - Create, delete, and browse topics
-- 👥 **Consumer Groups** - View consumer groups with lag and offset information
-- 📊 **Detailed Views** - Click resources to see comprehensive metadata in YAML format
+- 📋 **Topic Management** - Create, delete, and browse topics with full configuration details
+- 🖥️ **Broker Management** - View all brokers with detailed configuration settings
+- 👥 **Consumer Groups** - View consumer groups with color-coded health status and lag information
+- 📊 **Comprehensive Configuration Views** - See all settings like `kafka-configs.sh --describe`
+- 🎨 **Visual Health Indicators** - Color-coded consumer group states (🟢 Active, 🟠 Empty, 🔴 Dead/Zombie)
 - 🔒 **Enterprise Security** - Support for SSL/TLS, SASL (PLAIN, SCRAM-SHA-256/512), and AWS IAM
 - 📨 **Produce & Consume** - Send and receive messages with custom keys and values
+- 🔍 **Smart Search** - Find topics, consumer groups, and brokers across clusters
+
+## 🎯 What's New
+
+### Broker Management
+View all brokers in your cluster with detailed configuration, similar to running `kafka-configs.sh --describe --entity-type brokers`. See dynamic configs, static configs, and defaults all in one place.
+
+### Enhanced Configuration Views
+Click any topic or broker to see comprehensive configuration details including:
+- All settings grouped by configuration source
+- Sensitive value indicators
+- Read-only flags
+- Default value indicators
+- Configuration synonyms and inheritance
+
+### Color-Coded Consumer Groups
+Instantly see consumer group health:
+- 🟢 **Green** icons for active groups with running consumers
+- 🟠 **Orange** icons for empty groups (no active consumers)
+- 🔴 **Red** icons for dead/zombie groups or groups in rebalancing
+
+### Smart Search
+Find any resource across all clusters with fuzzy matching and instant navigation.
 
 ## 📦 Installation
 
@@ -198,20 +223,49 @@ The extension handles this automatically:
 
 - **Create Topic**: Right-click cluster → "Create Topic"
 - **Delete Topic**: Right-click topic → "Delete Topic" (⚠️ requires confirmation)
-- **View Details**: Double-click a topic to see:
-  - Partition count and replication factor
+- **View Details**: Click a topic to see comprehensive configuration:
+  - Partition count, replication factor, and total messages
   - Per-partition offsets (earliest, latest, message count)
-  - Topic configuration (compression, retention, etc.)
+  - Per-partition leaders, replicas, and in-sync replicas (ISR)
+  - **All topic configurations** grouped by source:
+    - Dynamic Topic Config (set via kafka-configs.sh)
+    - Dynamic Broker Config
+    - Static Broker Config
+    - Default Config
+  - Configuration metadata (sensitive, read-only, source)
+  - Similar to: `kafka-configs.sh --describe --entity-type topics --entity-name <topic>`
+- **Search Topics**: Click search icon to find topics across clusters
+
+### Working with Brokers
+
+- **View Brokers**: Expand cluster in "Brokers" view
+- **View Details**: Click a broker to see:
+  - Node ID, host, port, and rack information
+  - **All broker configurations** grouped by source:
+    - Dynamic Broker Config
+    - Dynamic Default Broker Config
+    - Static Broker Config
+    - Default Config
+  - Configuration metadata (sensitive, read-only, default values)
+  - Similar to: `kafka-configs.sh --describe --entity-type brokers --entity-name <broker-id>`
+- **Search Brokers**: Click search icon to find brokers across clusters
 
 ### Working with Consumer Groups
 
 - **View Groups**: Expand cluster in "Consumer Groups" view
-- **View Details**: Double-click a group to see:
-  - Group state (Stable, Empty, Dead)
-  - Member count and assignments
-  - Per-partition offsets and lag
+- **Visual Health Status**: Consumer groups are color-coded:
+  - 🟢 **Green** - Active/Stable groups with running consumers
+  - 🟠 **Orange** - Empty groups with no active consumers
+  - 🔴 **Red** - Dead/Zombie groups or groups rebalancing
+- **View Details**: Click a group to see:
+  - Group state (Stable, Empty, Dead, PreparingRebalance, etc.)
+  - Member count and client assignments
+  - Per-topic and per-partition offsets and lag
+  - Lag status indicators (ok, minor, warning, critical)
+  - Total lag across all partitions
 - **Delete Group**: Right-click → "Delete Consumer Group"
 - **Reset Offsets**: Right-click → "Reset Offsets" (⚠️ group must be empty)
+- **Search Groups**: Click search icon to find consumer groups across clusters
 
 ### Producing Messages
 
@@ -233,18 +287,29 @@ The extension handles this automatically:
 
 **Clusters:**
 - Create Topic
+- Remove Cluster
 - Refresh
 
 **Topics:**
 - Produce Message
 - Consume Messages
-- View Details (double-click)
+- View Configuration Details (click)
 - Delete Topic
 
+**Brokers:**
+- View Configuration Details (click)
+
 **Consumer Groups:**
-- View Details (double-click)
+- View Details (click)
 - Delete Consumer Group
 - Reset Offsets
+
+### Search & Find
+
+All views include a search icon in the toolbar:
+- **Find Topic** - Search topics across all clusters with fuzzy matching
+- **Find Consumer Group** - Search consumer groups with state filtering
+- **Find Broker** - Search brokers by ID or host
 
 ## 🔧 Configuration
 
@@ -326,7 +391,7 @@ aws sso login --profile your-profile
 ### Project Structure
 
 ```
-vscode-kafka/
+vscode-kafka-client/
 ├── src/
 │   ├── extension.ts                    # Extension entry point
 │   ├── kafka/
@@ -334,13 +399,22 @@ vscode-kafka/
 │   │   └── mskIamAuthenticator.ts      # AWS MSK IAM auth
 │   ├── providers/
 │   │   ├── kafkaExplorerProvider.ts    # Topics tree view
-│   │   └── consumerGroupProvider.ts    # Consumer groups tree view
+│   │   ├── consumerGroupProvider.ts    # Consumer groups tree view (color-coded)
+│   │   └── brokerProvider.ts           # Brokers tree view
+│   ├── commands/
+│   │   ├── clusterCommands.ts          # Cluster operations
+│   │   ├── topicCommands.ts            # Topic operations
+│   │   ├── consumerGroupCommands.ts    # Consumer group operations
+│   │   └── brokerCommands.ts           # Broker operations
 │   ├── forms/
 │   │   ├── clusterConnectionForm.ts    # Legacy input boxes
 │   │   └── clusterConnectionWebview.ts # New webview form
-│   └── ...
+│   ├── utils/
+│   │   └── formatters.ts               # YAML formatters for details views
+│   └── test/                           # Unit and integration tests
 ├── resources/
-│   └── kafka-icon.svg                  # Extension icon
+│   ├── kafka-icon.svg                  # Extension icon
+│   └── kafka-icon.png                  # Extension icon (PNG)
 ├── package.json                        # Extension manifest
 └── tsconfig.json                       # TypeScript config
 ```
@@ -396,7 +470,7 @@ Contributions are welcome! Please:
 We use [Conventional Commits](https://www.conventionalcommits.org/) for automated versioning and changelog generation:
 
 - `feat:` - New feature (minor version bump)
-- `fix:` - Bug fix (patch version bump)  
+- `fix:` - Bug fix (patch version bump)
 - `feat!:` or `BREAKING CHANGE:` - Breaking change (major version bump)
 - `docs:`, `style:`, `refactor:`, `perf:`, `test:`, `chore:` - Other changes
 
@@ -433,6 +507,39 @@ See LICENSE file for details
 
 - [kafkajs](https://kafka.js.org/) - Kafka client library
 - [AWS MSK](https://aws.amazon.com/msk/) - Managed Kafka service
+
+## 📋 Quick Reference
+
+### Supported Operations
+
+| Resource | View | Create | Delete | Configure | Search |
+|----------|------|--------|--------|-----------|--------|
+| **Clusters** | ✅ | ✅ | ✅ | ✅ | - |
+| **Topics** | ✅ | ✅ | ✅ | ✅ (view only) | ✅ |
+| **Brokers** | ✅ | - | - | ✅ (view only) | ✅ |
+| **Consumer Groups** | ✅ | - | ✅ | ✅ (reset offsets) | ✅ |
+| **Messages** | ✅ (consume) | ✅ (produce) | - | - | - |
+
+### Supported Authentication Methods
+
+| Method | Apache Kafka | AWS MSK |
+|--------|--------------|---------|
+| **PLAINTEXT** | ✅ | ✅ |
+| **SSL/TLS** | ✅ | ✅ |
+| **SASL/PLAIN** | ✅ | ✅ |
+| **SASL/SCRAM-SHA-256** | ✅ | ✅ |
+| **SASL/SCRAM-SHA-512** | ✅ | ✅ |
+| **AWS IAM** | - | ✅ |
+| **AWS Role Assumption** | - | ✅ |
+
+### Configuration Sources Displayed
+
+When viewing topic or broker configurations, you'll see settings from:
+- **Dynamic Topic Config** - Topic-specific overrides set via kafka-configs.sh
+- **Dynamic Broker Config** - Broker-level dynamic configs
+- **Dynamic Default Broker Config** - Cluster-wide defaults
+- **Static Broker Config** - Settings from server.properties
+- **Default Config** - Built-in Kafka defaults
 
 ---
 

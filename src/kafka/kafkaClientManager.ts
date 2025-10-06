@@ -308,7 +308,14 @@ export class KafkaClientManager {
     async getTopicMetadata(clusterName: string, topic: string): Promise<any> {
         const admin = await this.getAdmin(clusterName);
         const metadata = await admin.fetchTopicMetadata({ topics: [topic] });
-        return metadata.topics[0];
+        const topicData = metadata.topics[0];
+
+        // Validate topic metadata
+        if (!topicData || !topicData.partitions) {
+            throw new Error(`Topic "${topic}" not found or has invalid metadata`);
+        }
+
+        return topicData;
     }
 
     async getTopicDetails(clusterName: string, topicName: string): Promise<any> {
@@ -318,15 +325,20 @@ export class KafkaClientManager {
         const metadata = await admin.fetchTopicMetadata({ topics: [topicName] });
         const topicMetadata = metadata.topics[0];
 
-        // Fetch topic configuration
+        // Validate topic metadata
+        if (!topicMetadata || !topicMetadata.partitions || topicMetadata.partitions.length === 0) {
+            throw new Error(`Topic "${topicName}" not found or has no partitions`);
+        }
+
+        // Fetch topic configuration with all details including synonyms
         const configs = await admin.describeConfigs({
             resources: [
                 {
-                    type: 2, // TOPIC
+                    type: 2, // TOPIC (ConfigResourceType.TOPIC = 2)
                     name: topicName
                 }
             ],
-            includeSynonyms: false
+            includeSynonyms: true // Include configuration synonyms to get full details
         });
 
         // Fetch topic offsets (beginning and end)
@@ -351,15 +363,19 @@ export class KafkaClientManager {
                 const beginOffset = await admin.fetchTopicOffsets(topicName);
                 const partitionOffset = beginOffset.find((p: any) => p.partition === partitionId);
 
+                // Convert Long objects to strings (kafkajs uses 'long' library for 64-bit integers)
+                const lowOffset = partitionOffset?.low ? String(partitionOffset.low) : '0';
+                const highOffset = partitionOffset?.high ? String(partitionOffset.high) : '0';
+
                 offsetInfo[partitionId] = {
                     partition: partitionId,
                     leader: partition.leader,
                     replicas: partition.replicas,
                     isr: partition.isr,
-                    lowWaterMark: partitionOffset?.low || '0',
-                    highWaterMark: partitionOffset?.high || '0',
+                    lowWaterMark: lowOffset,
+                    highWaterMark: highOffset,
                     messageCount: partitionOffset ?
-                        (BigInt(partitionOffset.high) - BigInt(partitionOffset.low)).toString() : '0'
+                        (BigInt(highOffset) - BigInt(lowOffset)).toString() : '0'
                 };
             }
 
@@ -526,8 +542,34 @@ export class KafkaClientManager {
 
     async getConsumerGroups(clusterName: string): Promise<any[]> {
         const admin = await this.getAdmin(clusterName);
-        const groups = await admin.listGroups();
-        return groups.groups;
+        const groupsList = await admin.listGroups();
+
+        // Fetch detailed information including state for each group
+        if (groupsList.groups.length === 0) {
+            return [];
+        }
+
+        try {
+            const groupIds = groupsList.groups.map((g: any) => g.groupId);
+            const descriptions = await admin.describeGroups(groupIds);
+
+            // Return groups with state information
+            return descriptions.groups.map((group: any) => ({
+                groupId: group.groupId,
+                state: group.state,
+                protocolType: group.protocolType,
+                protocol: group.protocol,
+                members: group.members
+            }));
+        } catch (error) {
+            console.error('Error fetching consumer group states:', error);
+            // Fallback to basic group list if describe fails
+            return groupsList.groups.map((g: any) => ({
+                groupId: g.groupId,
+                state: 'Unknown',
+                protocolType: g.protocolType
+            }));
+        }
     }
 
     async deleteConsumerGroup(clusterName: string, groupId: string) {
@@ -649,6 +691,77 @@ export class KafkaClientManager {
             console.error('Error getting consumer group details:', error);
             throw error;
         }
+    }
+
+    async getBrokers(clusterName: string): Promise<any[]> {
+        const admin = await this.getAdmin(clusterName);
+        const cluster = await admin.describeCluster();
+
+        return cluster.brokers.map((broker: any) => ({
+            nodeId: broker.nodeId,
+            host: broker.host,
+            port: broker.port,
+            rack: (broker as any).rack || null
+        }));
+    }
+
+    async getBrokerDetails(clusterName: string, brokerId: number): Promise<any> {
+        const admin = await this.getAdmin(clusterName);
+
+        // Get cluster info
+        const cluster = await admin.describeCluster();
+        const broker = cluster.brokers.find((b: any) => b.nodeId === brokerId);
+
+        if (!broker) {
+            throw new Error(`Broker ${brokerId} not found`);
+        }
+
+        // Fetch broker configuration with all details including synonyms
+        const configs = await admin.describeConfigs({
+            resources: [
+                {
+                    type: 4, // BROKER (ConfigResourceType.BROKER = 4)
+                    name: brokerId.toString()
+                }
+            ],
+            includeSynonyms: true // Include configuration synonyms to get full details
+        });
+
+        return {
+            nodeId: broker.nodeId,
+            host: broker.host,
+            port: broker.port,
+            rack: (broker as any).rack || 'N/A',
+            configuration: configs.resources[0]?.configEntries || []
+        };
+    }
+
+    async getClusterStatistics(clusterName: string): Promise<any> {
+        const admin = await this.getAdmin(clusterName);
+
+        // Get cluster metadata
+        const cluster = await admin.describeCluster();
+        const topics = await admin.listTopics();
+
+        // Calculate total partitions
+        let totalPartitions = 0;
+        for (const topic of topics) {
+            try {
+                const metadata = await admin.fetchTopicMetadata({ topics: [topic] });
+                totalPartitions += metadata.topics[0]?.partitions?.length || 0;
+            } catch (_error) {
+                // Skip topics we can't access
+                continue;
+            }
+        }
+
+        return {
+            clusterId: cluster.clusterId,
+            controller: cluster.controller,
+            brokerCount: cluster.brokers.length,
+            topicCount: topics.length,
+            totalPartitions
+        };
     }
 
     private async getAdmin(clusterName: string): Promise<Admin> {
