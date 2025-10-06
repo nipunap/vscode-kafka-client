@@ -4,6 +4,14 @@ All notable changes to the "Kafka Client" extension will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/) and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.0](https://github.com/nipunap/vscode-kafka-client/compare/v0.1.4...v0.2.0) (2025-10-06)
+
+
+### ✨ Features
+
+* add broker management and enhanced configuration views ([18b08cc](https://github.com/nipunap/vscode-kafka-client/commit/18b08ccd15b4ffd0a0bc3b7940c389fc92192e1e))
+* add interactive cluster dashboard with parallel data loading ([b444d80](https://github.com/nipunap/vscode-kafka-client/commit/b444d80d9750dd82d681333bee01eb1f25be9ab9))
+
 ## [0.1.4](https://github.com/nipunap/vscode-kafka-client/compare/v0.1.3...v0.1.4) (2025-10-05)
 
 
