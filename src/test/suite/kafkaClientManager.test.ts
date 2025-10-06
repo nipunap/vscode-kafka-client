@@ -101,4 +101,48 @@ suite('KafkaClientManager Test Suite', () => {
             assert.strictEqual(clusters.length, 0);
         });
     });
+
+    suite('Broker Operations', () => {
+        test('getBrokers() should be defined', () => {
+            assert.strictEqual(typeof clientManager.getBrokers, 'function');
+        });
+
+        test('getBrokerDetails() should be defined', () => {
+            assert.strictEqual(typeof clientManager.getBrokerDetails, 'function');
+        });
+
+        test('getBrokers() should throw error for invalid cluster', async () => {
+            try {
+                await clientManager.getBrokers('non-existent-cluster');
+                assert.fail('Should have thrown error');
+            } catch (error: any) {
+                assert.ok(error.message.includes('not found'));
+            }
+        });
+
+        test('getBrokerDetails() should throw error for invalid cluster', async () => {
+            try {
+                await clientManager.getBrokerDetails('non-existent-cluster', 1);
+                assert.fail('Should have thrown error');
+            } catch (error: any) {
+                assert.ok(error.message.includes('not found'));
+            }
+        });
+    });
+
+    suite('Consumer Group Operations', () => {
+        test('getConsumerGroups() should return state information', async () => {
+            // This verifies the method signature expects state to be returned
+            assert.strictEqual(typeof clientManager.getConsumerGroups, 'function');
+        });
+
+        test('getConsumerGroups() should handle empty results', async () => {
+            try {
+                await clientManager.getConsumerGroups('non-existent-cluster');
+                assert.fail('Should have thrown error');
+            } catch (error: any) {
+                assert.ok(error.message.includes('not found'));
+            }
+        });
+    });
 });

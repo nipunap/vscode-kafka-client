@@ -42,6 +42,7 @@
   "activationEvents": [
     "onView:kafkaExplorer",
     "onView:kafkaConsumerGroups",
+    "onView:kafkaBrokers",
     "onCommand:kafka.addCluster"
   ],
   "main": "./out/extension.js",
@@ -66,6 +67,11 @@
           "id": "kafkaConsumerGroups",
           "name": "Consumer Groups",
           "icon": "$(organization)"
+        },
+        {
+          "id": "kafkaBrokers",
+          "name": "Brokers",
+          "icon": "$(server)"
         }
       ]
     },
@@ -139,6 +145,16 @@
         "command": "kafka.findConsumerGroup",
         "title": "Kafka: Find Consumer Group",
         "icon": "$(search)"
+      },
+      {
+        "command": "kafka.showBrokerDetails",
+        "title": "Show Broker Details",
+        "icon": "$(info)"
+      },
+      {
+        "command": "kafka.findBroker",
+        "title": "Kafka: Find Broker",
+        "icon": "$(search)"
       }
     ],
     "menus": {
@@ -166,6 +182,16 @@
         {
           "command": "kafka.findConsumerGroup",
           "when": "view == kafkaConsumerGroups",
+          "group": "navigation"
+        },
+        {
+          "command": "kafka.refreshCluster",
+          "when": "view == kafkaBrokers",
+          "group": "navigation"
+        },
+        {
+          "command": "kafka.findBroker",
+          "when": "view == kafkaBrokers",
           "group": "navigation"
         }
       ],

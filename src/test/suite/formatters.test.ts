@@ -1,8 +1,8 @@
 import * as assert from 'assert';
-import { formatMessages, formatTopicDetailsYaml, formatConsumerGroupDetailsYaml } from '../../utils/formatters';
+import { formatMessages, formatTopicDetailsYaml, formatConsumerGroupDetailsYaml, formatBrokerDetailsYaml } from '../../utils/formatters';
 
 suite('Formatters Test Suite', () => {
-    
+
     suite('formatMessages', () => {
         test('should format empty messages array', () => {
             const result = formatMessages([]);
@@ -106,15 +106,23 @@ suite('Formatters Test Suite', () => {
                     0: { messageCount: '0', partition: 0, leader: 1, replicas: [1], isr: [1], lowWaterMark: '0', highWaterMark: '0' }
                 },
                 configuration: [
-                    { configName: 'compression.type', configValue: 'gzip', isDefault: false },
-                    { configName: 'retention.ms', configValue: '86400000', isDefault: true }
+                    { configName: 'compression.type', configValue: 'gzip', isDefault: false, configSource: 'DYNAMIC_TOPIC_CONFIG' },
+                    { configName: 'retention.ms', configValue: '86400000', isDefault: true, configSource: 'DEFAULT_CONFIG' }
                 ]
             };
 
             const yaml = formatTopicDetailsYaml(details);
 
+            // Should show non-default configs in the modified section
             assert.ok(yaml.includes('compression.type: gzip'));
-            assert.ok(!yaml.includes('retention.ms')); // Default configs are filtered
+            assert.ok(yaml.includes('modified:'));
+
+            // Should show ALL configs (including defaults) in the full configuration section
+            assert.ok(yaml.includes('retention.ms'));
+            assert.ok(yaml.includes('total: 2'));
+
+            // Should include configuration source information
+            assert.ok(yaml.includes('# All configurations by source'));
         });
     });
 
@@ -241,7 +249,7 @@ suite('Formatters Test Suite', () => {
             // Should have both topics
             assert.ok(yaml.includes('topic: "topic-a"'));
             assert.ok(yaml.includes('topic: "topic-b"'));
-            
+
             // Should sort partitions within each topic
             const topicAIndex = yaml.indexOf('topic: "topic-a"');
             const partition0Index = yaml.indexOf('partition: 0', topicAIndex);
@@ -249,5 +257,69 @@ suite('Formatters Test Suite', () => {
             assert.ok(partition0Index < partition1Index);
         });
     });
-});
 
+    suite('formatBrokerDetailsYaml', () => {
+        test('should format basic broker details', () => {
+            const details = {
+                nodeId: 1,
+                host: 'broker-1.example.com',
+                port: 9092,
+                rack: 'us-east-1a',
+                configuration: []
+            };
+
+            const yaml = formatBrokerDetailsYaml(details);
+
+            assert.ok(yaml.includes('nodeId: 1'));
+            assert.ok(yaml.includes('host: "broker-1.example.com"'));
+            assert.ok(yaml.includes('port: 9092'));
+            assert.ok(yaml.includes('rack: "us-east-1a"'));
+        });
+
+        test('should handle broker configuration entries', () => {
+            const details = {
+                nodeId: 2,
+                host: 'broker-2.example.com',
+                port: 9092,
+                rack: 'N/A',
+                configuration: [
+                    { configName: 'num.io.threads', configValue: '16', isDefault: false, configSource: 'DYNAMIC_BROKER_CONFIG', isReadOnly: true },
+                    { configName: 'log.dirs', configValue: '/kafka/data', isDefault: false, configSource: 'STATIC_BROKER_CONFIG' },
+                    { configName: 'compression.type', configValue: 'producer', isDefault: true, configSource: 'DEFAULT_CONFIG' }
+                ]
+            };
+
+            const yaml = formatBrokerDetailsYaml(details);
+
+            // Should show non-default configs in the modified section
+            assert.ok(yaml.includes('num.io.threads: 16'));
+            assert.ok(yaml.includes('log.dirs: /kafka/data'));
+            assert.ok(yaml.includes('modified:'));
+
+            // Should show ALL configs (including defaults) in the full configuration section
+            assert.ok(yaml.includes('compression.type: producer'));
+            assert.ok(yaml.includes('total: 3'));
+
+            // Should include configuration metadata
+            assert.ok(yaml.includes('[READ-ONLY]'));
+            assert.ok(yaml.includes('[default]'));
+
+            // Should include configuration source information
+            assert.ok(yaml.includes('# All configurations by source'));
+        });
+
+        test('should format broker without rack', () => {
+            const details = {
+                nodeId: 3,
+                host: 'broker-3.example.com',
+                port: 9092,
+                rack: 'N/A',
+                configuration: []
+            };
+
+            const yaml = formatBrokerDetailsYaml(details);
+
+            assert.ok(yaml.includes('rack: "N/A"'));
+        });
+    });
+});

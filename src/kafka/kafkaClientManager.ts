@@ -318,15 +318,15 @@ export class KafkaClientManager {
         const metadata = await admin.fetchTopicMetadata({ topics: [topicName] });
         const topicMetadata = metadata.topics[0];
 
-        // Fetch topic configuration
+        // Fetch topic configuration with all details including synonyms
         const configs = await admin.describeConfigs({
             resources: [
                 {
-                    type: 2, // TOPIC
+                    type: 2, // TOPIC (ConfigResourceType.TOPIC = 2)
                     name: topicName
                 }
             ],
-            includeSynonyms: false
+            includeSynonyms: true // Include configuration synonyms to get full details
         });
 
         // Fetch topic offsets (beginning and end)
@@ -526,8 +526,34 @@ export class KafkaClientManager {
 
     async getConsumerGroups(clusterName: string): Promise<any[]> {
         const admin = await this.getAdmin(clusterName);
-        const groups = await admin.listGroups();
-        return groups.groups;
+        const groupsList = await admin.listGroups();
+
+        // Fetch detailed information including state for each group
+        if (groupsList.groups.length === 0) {
+            return [];
+        }
+
+        try {
+            const groupIds = groupsList.groups.map((g: any) => g.groupId);
+            const descriptions = await admin.describeGroups(groupIds);
+
+            // Return groups with state information
+            return descriptions.groups.map((group: any) => ({
+                groupId: group.groupId,
+                state: group.state,
+                protocolType: group.protocolType,
+                protocol: group.protocol,
+                members: group.members
+            }));
+        } catch (error) {
+            console.error('Error fetching consumer group states:', error);
+            // Fallback to basic group list if describe fails
+            return groupsList.groups.map((g: any) => ({
+                groupId: g.groupId,
+                state: 'Unknown',
+                protocolType: g.protocolType
+            }));
+        }
     }
 
     async deleteConsumerGroup(clusterName: string, groupId: string) {
@@ -649,6 +675,49 @@ export class KafkaClientManager {
             console.error('Error getting consumer group details:', error);
             throw error;
         }
+    }
+
+    async getBrokers(clusterName: string): Promise<any[]> {
+        const admin = await this.getAdmin(clusterName);
+        const cluster = await admin.describeCluster();
+
+        return cluster.brokers.map((broker: any) => ({
+            nodeId: broker.nodeId,
+            host: broker.host,
+            port: broker.port,
+            rack: (broker as any).rack || null
+        }));
+    }
+
+    async getBrokerDetails(clusterName: string, brokerId: number): Promise<any> {
+        const admin = await this.getAdmin(clusterName);
+
+        // Get cluster info
+        const cluster = await admin.describeCluster();
+        const broker = cluster.brokers.find((b: any) => b.nodeId === brokerId);
+
+        if (!broker) {
+            throw new Error(`Broker ${brokerId} not found`);
+        }
+
+        // Fetch broker configuration with all details including synonyms
+        const configs = await admin.describeConfigs({
+            resources: [
+                {
+                    type: 4, // BROKER (ConfigResourceType.BROKER = 4)
+                    name: brokerId.toString()
+                }
+            ],
+            includeSynonyms: true // Include configuration synonyms to get full details
+        });
+
+        return {
+            nodeId: broker.nodeId,
+            host: broker.host,
+            port: broker.port,
+            rack: (broker as any).rack || 'N/A',
+            configuration: configs.resources[0]?.configEntries || []
+        };
     }
 
     private async getAdmin(clusterName: string): Promise<Admin> {
