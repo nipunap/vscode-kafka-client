@@ -11,10 +11,10 @@
 
 ### CVE-2024-XXXXX-1: Incomplete URL Substring Sanitization (Fixed in v0.2.1)
 
-**Severity**: High  
+**Severity**: High
 **GitHub Alert**: N/A (User reported)
 
-**Description**: 
+**Description**:
 Prior to version 0.2.1, the extension did not properly validate broker URLs entered by users. This could allow attackers to inject malicious URLs or special characters that could manipulate connection strings. The vulnerability allowed arbitrary hosts to be injected before or after legitimate broker addresses.
 
 **Attack Vectors**:
@@ -43,14 +43,14 @@ Version 0.2.1 introduces comprehensive broker URL validation:
 - Port range validation (1-65535)
 - Both client-side (webview) and server-side validation
 
-**Credits**: 
+**Credits**:
 Thank you to the security researcher who responsibly disclosed this vulnerability.
 
 ---
 
 ### CVE-2024-XXXXX-2: Incomplete String Escaping in YAML Output (Fixed in v0.2.1)
 
-**Severity**: Warning  
+**Severity**: Warning
 **GitHub Alert**: [CodeQL Alert #16](https://github.com/nipunap/vscode-kafka-client/security/code-scanning/16)
 
 **Description**:

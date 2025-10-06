@@ -146,13 +146,13 @@ suite('Formatters Test Suite', () => {
             const yaml = formatTopicDetailsYaml(details);
 
             // Backslashes should be escaped in the output (\ becomes \\)
-            // In the actual string, we're looking for the literal characters: \\ 
+            // In the actual string, we're looking for the literal characters: \\
             assert.ok(yaml.includes('C:\\\\Users\\\\kafka\\\\data'), 'Should escape backslashes');
-            
+
             // Quotes should be escaped (") becomes \")
             // In the actual string, we're looking for: \"
             assert.ok(yaml.includes('value with \\"quotes\\"'), 'Should escape quotes');
-            
+
             // Both should work together
             assert.ok(yaml.includes('C:\\\\Program Files\\\\kafka\\\\config \\"prod\\"'), 'Should escape both backslashes and quotes');
         });
