@@ -8,15 +8,28 @@ import * as topicCommands from './commands/topicCommands';
 import * as consumerGroupCommands from './commands/consumerGroupCommands';
 import * as brokerCommands from './commands/brokerCommands';
 import * as clusterDashboardCommands from './commands/clusterDashboardCommands';
+import { Logger, LogLevel } from './infrastructure/Logger';
+import { EventBus, KafkaEvents } from './infrastructure/EventBus';
+import { CredentialManager } from './infrastructure/CredentialManager';
 
-// Global client manager instance for cleanup on deactivation
+// Global instances for cleanup on deactivation
 let clientManager: KafkaClientManager;
+let eventBus: EventBus;
+let credentialManager: CredentialManager;
+const logger = Logger.getLogger('Extension');
 
 export async function activate(context: vscode.ExtensionContext) {
-    console.log('Kafka extension is now active!');
+    logger.info('Kafka extension is now active!');
 
-    // Initialize Kafka client manager
-    clientManager = new KafkaClientManager();
+    // Initialize log level from configuration
+    const config = vscode.workspace.getConfiguration('kafka');
+    const logLevel = config.get<string>('logLevel', 'info');
+    Logger.setLevel(logLevel === 'debug' ? LogLevel.DEBUG : LogLevel.INFO);
+
+    // Initialize infrastructure
+    eventBus = new EventBus();
+    credentialManager = new CredentialManager(context.secrets);
+    clientManager = new KafkaClientManager(credentialManager);
 
     // Register tree data providers
     const kafkaExplorerProvider = new KafkaExplorerProvider(clientManager);
@@ -27,22 +40,46 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.window.registerTreeDataProvider('kafkaConsumerGroups', consumerGroupProvider);
     vscode.window.registerTreeDataProvider('kafkaBrokers', brokerProvider);
 
-    // Load saved clusters from configuration
-    try {
-        await clientManager.loadConfiguration();
-
-        // Refresh the tree views after loading configuration
+    // Set up event listeners for auto-refresh
+    eventBus.on(KafkaEvents.CLUSTER_ADDED, () => {
+        logger.debug('Cluster added, refreshing providers');
         kafkaExplorerProvider.refresh();
         consumerGroupProvider.refresh();
         brokerProvider.refresh();
+    });
+
+    eventBus.on(KafkaEvents.CLUSTER_REMOVED, () => {
+        logger.debug('Cluster removed, refreshing providers');
+        kafkaExplorerProvider.refresh();
+        consumerGroupProvider.refresh();
+        brokerProvider.refresh();
+    });
+
+    eventBus.on(KafkaEvents.REFRESH_REQUESTED, () => {
+        logger.debug('Refresh requested, refreshing all providers');
+        kafkaExplorerProvider.refresh();
+        consumerGroupProvider.refresh();
+        brokerProvider.refresh();
+    });
+
+    // Load saved clusters from configuration
+    try {
+        await clientManager.loadConfiguration();
+        logger.info('Loaded cluster configurations');
+
+        // Refresh the tree views after loading configuration
+        eventBus.emitSync(KafkaEvents.REFRESH_REQUESTED);
     } catch (error: any) {
-        console.error('Failed to load cluster configurations:', error);
+        logger.error('Failed to load cluster configurations', error);
         vscode.window.showWarningMessage(
             `Failed to load some Kafka clusters: ${error.message}. You can add them again from the Kafka view.`,
-            'Open Kafka View'
+            'Open Kafka View',
+            'Show Logs'
         ).then(selection => {
             if (selection === 'Open Kafka View') {
                 vscode.commands.executeCommand('kafkaExplorer.focus');
+            } else if (selection === 'Show Logs') {
+                logger.show();
             }
         });
     }
@@ -51,22 +88,20 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.addCluster', async () => {
             await clusterCommands.addCluster(clientManager, kafkaExplorerProvider, consumerGroupProvider, context);
-            brokerProvider.refresh();
+            eventBus.emitSync(KafkaEvents.CLUSTER_ADDED);
         })
     );
 
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.removeCluster', async (node) => {
             await clusterCommands.removeCluster(clientManager, kafkaExplorerProvider, node);
-            brokerProvider.refresh();
+            eventBus.emitSync(KafkaEvents.CLUSTER_REMOVED);
         })
     );
 
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.refreshCluster', () => {
-            kafkaExplorerProvider.refresh();
-            consumerGroupProvider.refresh();
-            brokerProvider.refresh();
+            eventBus.emitSync(KafkaEvents.REFRESH_REQUESTED);
             vscode.window.showInformationMessage('Refreshed cluster data');
         })
     );
@@ -157,15 +192,34 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 export async function deactivate() {
-    console.log('Kafka extension is being deactivated...');
+    logger.info('Kafka extension is being deactivated...');
 
     // Clean up all Kafka connections
     if (clientManager) {
         try {
             await clientManager.dispose();
-            console.log('Successfully cleaned up Kafka connections');
+            logger.info('Successfully cleaned up Kafka connections');
         } catch (error) {
-            console.error('Error during Kafka client cleanup:', error);
+            logger.error('Error during Kafka client cleanup', error);
         }
     }
+
+    // Clean up event bus
+    if (eventBus) {
+        eventBus.removeAllListeners();
+    }
+}
+
+/**
+ * Export event bus for use in commands
+ */
+export function getEventBus(): EventBus {
+    return eventBus;
+}
+
+/**
+ * Export credential manager for use in commands
+ */
+export function getCredentialManager(): CredentialManager {
+    return credentialManager;
 }

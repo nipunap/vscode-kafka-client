@@ -7,15 +7,25 @@ import * as ini from 'ini';
 import { ClusterConnection } from '../forms/clusterConnectionForm';
 import { fromIni, fromEnv } from '@aws-sdk/credential-providers';
 import { createMSKIAMAuthMechanism } from './mskIamAuthenticator';
+import { Logger } from '../infrastructure/Logger';
+import { ConnectionPool } from '../infrastructure/ConnectionPool';
+import { CredentialManager } from '../infrastructure/CredentialManager';
 
 // Type alias for cluster configuration
 type ClusterConfig = ClusterConnection;
 
 export class KafkaClientManager {
+    private logger = Logger.getLogger('KafkaClientManager');
     private clusters: Map<string, ClusterConfig> = new Map();
     private kafkaInstances: Map<string, Kafka> = new Map();
     private admins: Map<string, Admin> = new Map();
     private producers: Map<string, Producer> = new Map();
+    private connectionPool: ConnectionPool;
+
+    constructor(private credentialManager?: CredentialManager) {
+        this.logger.info('Initializing Kafka Client Manager');
+        this.connectionPool = new ConnectionPool();
+    }
 
     async addCluster(name: string, brokers: string[], sasl?: any) {
         // Legacy method for backward compatibility
@@ -968,26 +978,33 @@ export class KafkaClientManager {
      * This should be called when the extension is deactivated
      */
     async dispose(): Promise<void> {
-        console.log('Disposing Kafka client manager...');
+        this.logger.info('Disposing Kafka client manager...');
 
-        // Disconnect all admin clients
+        // Dispose connection pool (handles all connections)
+        try {
+            await this.connectionPool.dispose();
+        } catch (error) {
+            this.logger.error('Failed to dispose connection pool', error);
+        }
+
+        // Disconnect all admin clients (legacy)
         for (const [name, admin] of this.admins.entries()) {
             try {
-                console.log(`Disconnecting admin for cluster: ${name}`);
+                this.logger.debug(`Disconnecting admin for cluster: ${name}`);
                 await admin.disconnect();
             } catch (error) {
-                console.error(`Failed to disconnect admin for ${name}:`, error);
+                this.logger.error(`Failed to disconnect admin for ${name}`, error);
             }
         }
         this.admins.clear();
 
-        // Disconnect all producers
+        // Disconnect all producers (legacy)
         for (const [name, producer] of this.producers.entries()) {
             try {
-                console.log(`Disconnecting producer for cluster: ${name}`);
+                this.logger.debug(`Disconnecting producer for cluster: ${name}`);
                 await producer.disconnect();
             } catch (error) {
-                console.error(`Failed to disconnect producer for ${name}:`, error);
+                this.logger.error(`Failed to disconnect producer for ${name}`, error);
             }
         }
         this.producers.clear();
@@ -996,6 +1013,6 @@ export class KafkaClientManager {
         this.kafkaInstances.clear();
         this.clusters.clear();
 
-        console.log('Kafka client manager disposed successfully');
+        this.logger.info('Kafka client manager disposed successfully');
     }
 }

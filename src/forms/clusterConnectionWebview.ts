@@ -974,7 +974,7 @@ export class ClusterConnectionWebview {
                 case 'clustersLoaded':
                     // Determine which auth type based on message
                     const authType = message.authType || 'iam'; // default to iam for backward compatibility
-                    
+
                     let statusId, listId, listContainerId, arnInputId;
                     if (authType === 'sasl_scram') {
                         statusId = 'discoverScramStatus';

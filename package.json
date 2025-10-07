@@ -266,6 +266,22 @@
               }
             }
           }
+        },
+        "kafka.logLevel": {
+          "type": "string",
+          "enum": ["debug", "info", "warn", "error"],
+          "default": "info",
+          "description": "Log level for Kafka extension output"
+        },
+        "kafka.connectionTimeout": {
+          "type": "number",
+          "default": 30000,
+          "description": "Kafka connection timeout in milliseconds"
+        },
+        "kafka.requestTimeout": {
+          "type": "number",
+          "default": 60000,
+          "description": "Kafka request timeout in milliseconds"
         }
       }
     }
