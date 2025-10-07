@@ -686,8 +686,9 @@ export class ClusterConnectionWebview {
             const trimmed = broker.trim();
             if (!trimmed) return 'Broker address cannot be empty';
 
-            // Check for dangerous characters
-            if (/[\r\n\0@/?#]/.test(trimmed)) {
+            // Check for dangerous characters (using RegExp constructor to avoid escaping issues)
+            const dangerousChars = new RegExp('[\\\\r\\\\n\\\\0@/?#]');
+            if (dangerousChars.test(trimmed)) {
                 return 'Broker address contains invalid characters';
             }
 
@@ -700,10 +701,10 @@ export class ClusterConnectionWebview {
             const [host, portStr] = parts;
             if (!host || host.length === 0) return 'Host cannot be empty';
 
-            // Validate host format
-            const hostnameRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/;
-            const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
-            const ipv6Regex = /^\[([0-9a-fA-F:]+)\]$/;
+            // Validate host format (using RegExp constructor to avoid escaping issues)
+            const hostnameRegex = new RegExp('^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\\\\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$');
+            const ipv4Regex = new RegExp('^(\\\\d{1,3}\\\\.){3}\\\\d{1,3}$');
+            const ipv6Regex = new RegExp('^\\\\[([0-9a-fA-F:]+)\\\\]$');
 
             if (!hostnameRegex.test(host) && !ipv4Regex.test(host) && !ipv6Regex.test(host)) {
                 return 'Invalid host format';
