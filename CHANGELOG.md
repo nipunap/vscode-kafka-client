@@ -4,6 +4,26 @@ All notable changes to the "Kafka Client" extension will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/) and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.0](https://github.com/nipunap/vscode-kafka-client/compare/v0.2.0...v0.3.0) (2025-10-07)
+
+
+### ✨ Features
+
+* add cluster discovery for MSK SASL/SCRAM and TLS auth ([70d4542](https://github.com/nipunap/vscode-kafka-client/commit/70d4542b6858a468d0f6e6ad9ec957555c91578f))
+* add MSK TLS authentication support ([4a7053b](https://github.com/nipunap/vscode-kafka-client/commit/4a7053b75c8965de67e95f8041c28ac0aa51a19d))
+* integrate CredentialManager and ConnectionPool into KafkaClientManager ([b7ccd29](https://github.com/nipunap/vscode-kafka-client/commit/b7ccd291c1abf826d499a12aab961fba7b1cb368))
+
+
+### 🐛 Bug Fixes
+
+* regex syntax error in webview causing form to break ([5fe3297](https://github.com/nipunap/vscode-kafka-client/commit/5fe32972e52d258773ff0529ed014e6571ab6a58))
+
+
+### ♻️ Code Refactoring
+
+* complete infrastructure integration - providers and error handling ([f8831dd](https://github.com/nipunap/vscode-kafka-client/commit/f8831dd3cd35b5c33abd3b5d6015a2aedf31b51b))
+* implement architectural improvements for better maintainability ([476fc0d](https://github.com/nipunap/vscode-kafka-client/commit/476fc0d75449f1a469922ec30cb643772864a5bf))
+
 ## [0.2.1](https://github.com/nipunap/vscode-kafka-client/compare/v0.2.0...v0.2.1) (2025-10-07)
 
 
