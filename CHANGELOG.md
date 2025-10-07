@@ -4,6 +4,13 @@ All notable changes to the "Kafka Client" extension will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/) and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.1](https://github.com/nipunap/vscode-kafka-client/compare/v0.2.0...v0.2.1) (2025-10-07)
+
+
+### 🐛 Bug Fixes
+
+* regex syntax error in webview causing form to break ([5fe3297](https://github.com/nipunap/vscode-kafka-client/commit/5fe32972e52d258773ff0529ed014e6571ab6a58))
+
 ## [0.2.0](https://github.com/nipunap/vscode-kafka-client/compare/v0.1.4...v0.2.0) (2025-10-06)
 
 
