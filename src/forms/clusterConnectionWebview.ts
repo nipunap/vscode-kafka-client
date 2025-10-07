@@ -80,7 +80,7 @@ export class ClusterConnectionWebview {
                 break;
 
             case 'listClusters':
-                await this.listMSKClusters(message.profile, message.region, message.assumeRoleArn);
+                await this.listMSKClusters(message.profile, message.region, message.assumeRoleArn, message.authType);
                 break;
 
             case 'submit':
@@ -221,7 +221,7 @@ export class ClusterConnectionWebview {
         return '🟢 Active';
     }
 
-    private async listMSKClusters(profile: string, region: string, assumeRoleArn?: string) {
+    private async listMSKClusters(profile: string, region: string, assumeRoleArn?: string, authType?: string) {
         try {
             const { KafkaClient, ListClustersV2Command } = require('@aws-sdk/client-kafka');
             const { STSClient, AssumeRoleCommand } = require('@aws-sdk/client-sts');
@@ -276,7 +276,8 @@ export class ClusterConnectionWebview {
 
             this.panel?.webview.postMessage({
                 command: 'clustersLoaded',
-                clusters: clusters
+                clusters: clusters,
+                authType: authType || 'iam'
             });
         } catch (error: any) {
             this.panel?.webview.postMessage({
@@ -595,16 +596,50 @@ export class ClusterConnectionWebview {
 
             <div id="mskScramSection" class="hidden">
                 <div class="form-group">
+                    <label for="mskScramProfile">AWS Profile *</label>
+                    <select id="mskScramProfile">
+                        <option value="">Loading profiles...</option>
+                    </select>
+                    <div class="help-text">AWS profile for cluster discovery</div>
+                </div>
+
+                <div class="form-group">
                     <label for="mskRegion">AWS Region *</label>
                     <select id="mskRegion">
+                        <option value="">-- Select Region --</option>
                         <option value="us-east-1">us-east-1</option>
+                        <option value="us-east-2">us-east-2</option>
+                        <option value="us-west-1">us-west-1</option>
                         <option value="us-west-2">us-west-2</option>
+                        <option value="eu-west-1">eu-west-1</option>
+                        <option value="eu-west-2">eu-west-2</option>
+                        <option value="eu-west-3">eu-west-3</option>
+                        <option value="eu-central-1">eu-central-1</option>
+                        <option value="ap-south-1">ap-south-1</option>
+                        <option value="ap-southeast-1">ap-southeast-1</option>
+                        <option value="ap-southeast-2">ap-southeast-2</option>
+                        <option value="ap-northeast-1">ap-northeast-1</option>
+                        <option value="ap-northeast-2">ap-northeast-2</option>
+                        <option value="sa-east-1">sa-east-1</option>
+                        <option value="ca-central-1">ca-central-1</option>
                     </select>
                 </div>
 
                 <div class="form-group">
-                    <label for="mskClusterArn">Cluster ARN *</label>
-                    <input type="text" id="mskClusterArn" placeholder="arn:aws:kafka:...">
+                    <button type="button" id="discoverScramClusters" class="secondary">
+                        Discover Clusters
+                    </button>
+                    <span id="discoverScramStatus"></span>
+                </div>
+
+                <div id="scramClusterList" class="hidden">
+                    <label>Select Cluster *</label>
+                    <div id="scramClusters"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="mskClusterArn">Or Enter Cluster ARN Manually</label>
+                    <input type="text" id="mskClusterArn" placeholder="arn:aws:kafka:region:account:cluster/...">
                 </div>
 
                 <div class="form-group">
@@ -619,6 +654,14 @@ export class ClusterConnectionWebview {
             </div>
 
             <div id="mskTlsSection" class="hidden">
+                <div class="form-group">
+                    <label for="mskTlsProfile">AWS Profile *</label>
+                    <select id="mskTlsProfile">
+                        <option value="">Loading profiles...</option>
+                    </select>
+                    <div class="help-text">AWS profile for cluster discovery</div>
+                </div>
+
                 <div class="form-group">
                     <label for="mskTlsRegion">AWS Region *</label>
                     <select id="mskTlsRegion">
@@ -642,7 +685,19 @@ export class ClusterConnectionWebview {
                 </div>
 
                 <div class="form-group">
-                    <label for="mskTlsClusterArn">Cluster ARN *</label>
+                    <button type="button" id="discoverTlsClusters" class="secondary">
+                        Discover Clusters
+                    </button>
+                    <span id="discoverTlsStatus"></span>
+                </div>
+
+                <div id="tlsClusterList" class="hidden">
+                    <label>Select Cluster *</label>
+                    <div id="tlsClusters"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="mskTlsClusterArn">Or Enter Cluster ARN Manually</label>
                     <input type="text" id="mskTlsClusterArn" placeholder="arn:aws:kafka:region:account:cluster/...">
                     <div class="help-text">MSK cluster ARN for TLS authentication</div>
                 </div>
@@ -712,7 +767,7 @@ export class ClusterConnectionWebview {
             document.getElementById('assumeRoleSection').classList.toggle('hidden', !e.target.checked);
         });
 
-        // Discover clusters button
+        // Discover clusters button (IAM)
         document.getElementById('discoverClusters').addEventListener('click', () => {
             const profile = document.getElementById('awsProfile').value;
             const region = document.getElementById('region').value;
@@ -732,7 +787,50 @@ export class ClusterConnectionWebview {
                 command: 'listClusters',
                 profile,
                 region,
-                assumeRoleArn
+                assumeRoleArn,
+                authType: 'iam'
+            });
+        });
+
+        // Discover clusters button (SASL/SCRAM)
+        document.getElementById('discoverScramClusters').addEventListener('click', () => {
+            const profile = document.getElementById('mskScramProfile').value;
+            const region = document.getElementById('mskRegion').value;
+
+            if (!profile || !region) {
+                alert('Please select profile and region first');
+                return;
+            }
+
+            document.getElementById('discoverScramStatus').textContent = 'Discovering...';
+            document.getElementById('discoverScramStatus').className = 'loading';
+
+            vscode.postMessage({
+                command: 'listClusters',
+                profile,
+                region,
+                authType: 'sasl_scram'
+            });
+        });
+
+        // Discover clusters button (TLS)
+        document.getElementById('discoverTlsClusters').addEventListener('click', () => {
+            const profile = document.getElementById('mskTlsProfile').value;
+            const region = document.getElementById('mskTlsRegion').value;
+
+            if (!profile || !region) {
+                alert('Please select profile and region first');
+                return;
+            }
+
+            document.getElementById('discoverTlsStatus').textContent = 'Discovering...';
+            document.getElementById('discoverTlsStatus').className = 'loading';
+
+            vscode.postMessage({
+                command: 'listClusters',
+                profile,
+                region,
+                authType: 'tls'
             });
         });
 
@@ -827,11 +925,13 @@ export class ClusterConnectionWebview {
                         data.assumeRoleArn = document.getElementById('assumeRoleArn').value;
                     }
                 } else if (data.authMethod === 'sasl_scram') {
+                    data.awsProfile = document.getElementById('mskScramProfile').value;
                     data.region = document.getElementById('mskRegion').value;
                     data.clusterArn = document.getElementById('mskClusterArn').value;
                     data.saslUsername = document.getElementById('mskUsername').value;
                     data.saslPassword = document.getElementById('mskPassword').value;
                 } else if (data.authMethod === 'tls') {
+                    data.awsProfile = document.getElementById('mskTlsProfile').value;
                     data.region = document.getElementById('mskTlsRegion').value;
                     data.clusterArn = document.getElementById('mskTlsClusterArn').value;
                     data.sslCaFile = document.getElementById('mskTlsCaFile').value;
@@ -858,22 +958,46 @@ export class ClusterConnectionWebview {
 
             switch (message.command) {
                 case 'profilesLoaded':
-                    const profileSelect = document.getElementById('awsProfile');
-                    profileSelect.innerHTML = '<option value="">-- Select Profile --</option>';
-                    message.profiles.forEach(p => {
-                        const option = document.createElement('option');
-                        option.value = p.name;
-                        option.textContent = p.name + ' ' + p.status;
-                        profileSelect.appendChild(option);
+                    // Populate all three profile selectors
+                    ['awsProfile', 'mskScramProfile', 'mskTlsProfile'].forEach(selectId => {
+                        const profileSelect = document.getElementById(selectId);
+                        profileSelect.innerHTML = '<option value="">-- Select Profile --</option>';
+                        message.profiles.forEach(p => {
+                            const option = document.createElement('option');
+                            option.value = p.name;
+                            option.textContent = p.name + ' ' + p.status;
+                            profileSelect.appendChild(option);
+                        });
                     });
                     break;
 
                 case 'clustersLoaded':
-                    document.getElementById('discoverStatus').textContent =
-                        message.clusters.length + ' clusters found';
-                    document.getElementById('discoverStatus').className = '';
+                    // Determine which auth type based on message
+                    const authType = message.authType || 'iam'; // default to iam for backward compatibility
+                    
+                    let statusId, listId, listContainerId, arnInputId;
+                    if (authType === 'sasl_scram') {
+                        statusId = 'discoverScramStatus';
+                        listId = 'scramClusters';
+                        listContainerId = 'scramClusterList';
+                        arnInputId = 'mskClusterArn';
+                    } else if (authType === 'tls') {
+                        statusId = 'discoverTlsStatus';
+                        listId = 'tlsClusters';
+                        listContainerId = 'tlsClusterList';
+                        arnInputId = 'mskTlsClusterArn';
+                    } else { // iam
+                        statusId = 'discoverStatus';
+                        listId = 'clusters';
+                        listContainerId = 'clusterList';
+                        arnInputId = 'clusterArn';
+                    }
 
-                    const clusterList = document.getElementById('clusters');
+                    document.getElementById(statusId).textContent =
+                        message.clusters.length + ' clusters found';
+                    document.getElementById(statusId).className = '';
+
+                    const clusterList = document.getElementById(listId);
                     clusterList.innerHTML = '';
 
                     message.clusters.forEach(cluster => {
@@ -885,15 +1009,16 @@ export class ClusterConnectionWebview {
                             <small>\${cluster.clusterType} - \${cluster.clusterArn}</small>
                         \`;
                         div.onclick = () => {
-                            document.querySelectorAll('.cluster-option').forEach(el =>
+                            // Clear selection in this list only
+                            clusterList.querySelectorAll('.cluster-option').forEach(el =>
                                 el.classList.remove('selected'));
                             div.classList.add('selected');
-                            document.getElementById('clusterArn').value = cluster.clusterArn;
+                            document.getElementById(arnInputId).value = cluster.clusterArn;
                         };
                         clusterList.appendChild(div);
                     });
 
-                    document.getElementById('clusterList').classList.remove('hidden');
+                    document.getElementById(listContainerId).classList.remove('hidden');
                     break;
 
                 case 'error':
