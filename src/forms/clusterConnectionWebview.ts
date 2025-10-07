@@ -617,6 +617,60 @@ export class ClusterConnectionWebview {
                     <input type="password" id="mskPassword">
                 </div>
             </div>
+
+            <div id="mskTlsSection" class="hidden">
+                <div class="form-group">
+                    <label for="mskTlsRegion">AWS Region *</label>
+                    <select id="mskTlsRegion">
+                        <option value="">-- Select Region --</option>
+                        <option value="us-east-1">us-east-1</option>
+                        <option value="us-east-2">us-east-2</option>
+                        <option value="us-west-1">us-west-1</option>
+                        <option value="us-west-2">us-west-2</option>
+                        <option value="eu-west-1">eu-west-1</option>
+                        <option value="eu-west-2">eu-west-2</option>
+                        <option value="eu-west-3">eu-west-3</option>
+                        <option value="eu-central-1">eu-central-1</option>
+                        <option value="ap-south-1">ap-south-1</option>
+                        <option value="ap-southeast-1">ap-southeast-1</option>
+                        <option value="ap-southeast-2">ap-southeast-2</option>
+                        <option value="ap-northeast-1">ap-northeast-1</option>
+                        <option value="ap-northeast-2">ap-northeast-2</option>
+                        <option value="sa-east-1">sa-east-1</option>
+                        <option value="ca-central-1">ca-central-1</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="mskTlsClusterArn">Cluster ARN *</label>
+                    <input type="text" id="mskTlsClusterArn" placeholder="arn:aws:kafka:region:account:cluster/...">
+                    <div class="help-text">MSK cluster ARN for TLS authentication</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="mskTlsCaFile">CA Certificate Path</label>
+                    <input type="text" id="mskTlsCaFile" placeholder="/path/to/ca-cert.pem">
+                    <div class="help-text">Optional: CA certificate for server verification</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="mskTlsCertFile">Client Certificate Path *</label>
+                    <input type="text" id="mskTlsCertFile" placeholder="/path/to/client-cert.pem">
+                    <div class="help-text">Client certificate for TLS authentication</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="mskTlsKeyFile">Client Key Path *</label>
+                    <input type="text" id="mskTlsKeyFile" placeholder="/path/to/client-key.pem">
+                    <div class="help-text">Private key file for TLS authentication</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="mskTlsKeyPassword">Key Password</label>
+                    <input type="password" id="mskTlsKeyPassword">
+                    <div class="help-text">Optional: Password for encrypted private key</div>
+                </div>
+            </div>
         </div>
 
         <div class="button-group">
@@ -650,6 +704,7 @@ export class ClusterConnectionWebview {
             const method = e.target.value;
             document.getElementById('mskIamSection').classList.toggle('hidden', method !== 'iam');
             document.getElementById('mskScramSection').classList.toggle('hidden', method !== 'sasl_scram');
+            document.getElementById('mskTlsSection').classList.toggle('hidden', method !== 'tls');
         });
 
         // Handle assume role checkbox
@@ -776,6 +831,13 @@ export class ClusterConnectionWebview {
                     data.clusterArn = document.getElementById('mskClusterArn').value;
                     data.saslUsername = document.getElementById('mskUsername').value;
                     data.saslPassword = document.getElementById('mskPassword').value;
+                } else if (data.authMethod === 'tls') {
+                    data.region = document.getElementById('mskTlsRegion').value;
+                    data.clusterArn = document.getElementById('mskTlsClusterArn').value;
+                    data.sslCaFile = document.getElementById('mskTlsCaFile').value;
+                    data.sslCertFile = document.getElementById('mskTlsCertFile').value;
+                    data.sslKeyFile = document.getElementById('mskTlsKeyFile').value;
+                    data.sslPassword = document.getElementById('mskTlsKeyPassword').value;
                 }
             }
 
