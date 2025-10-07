@@ -43,6 +43,20 @@ export class KafkaClientManager {
     }
 
     async addClusterFromConnection(connection: ClusterConnection) {
+        this.logger.info(`Adding cluster: ${connection.name} (type: ${connection.type})`);
+        
+        // Store sensitive credentials in SecretStorage
+        if (this.credentialManager) {
+            if (connection.saslPassword) {
+                await this.credentialManager.storePassword(connection.name, 'sasl', connection.saslPassword);
+                this.logger.debug(`Stored SASL password for ${connection.name}`);
+            }
+            if (connection.sslPassword) {
+                await this.credentialManager.storePassword(connection.name, 'ssl', connection.sslPassword);
+                this.logger.debug(`Stored SSL password for ${connection.name}`);
+            }
+        }
+
         this.clusters.set(connection.name, connection);
 
         // Handle MSK clusters - fetch bootstrap brokers
@@ -50,6 +64,7 @@ export class KafkaClientManager {
         if (connection.type === 'msk' && connection.clusterArn && connection.region) {
             try {
                 brokers = await this.getMSKBootstrapBrokers(connection.region, connection.clusterArn, connection.saslMechanism, connection.awsProfile);
+                this.logger.debug(`Fetched ${brokers.length} MSK brokers for ${connection.name}`);
             } catch (error: any) {
                 const errorMsg = error?.message || error.toString();
 
@@ -247,8 +262,14 @@ export class KafkaClientManager {
             sslConfig.key = await fs.readFile(connection.sslKeyFile, 'utf-8');
         }
 
-        if (connection.sslPassword) {
-            sslConfig.passphrase = connection.sslPassword;
+        // Retrieve SSL password from SecretStorage or use in-memory value
+        let sslPassword = connection.sslPassword;
+        if (!sslPassword && this.credentialManager) {
+            sslPassword = await this.credentialManager.getPassword(connection.name, 'ssl');
+        }
+
+        if (sslPassword) {
+            sslConfig.passphrase = sslPassword;
         }
 
         return sslConfig;
@@ -268,24 +289,83 @@ export class KafkaClientManager {
             return createMSKIAMAuthMechanism(connection.region, connection.awsProfile, connection.assumeRoleArn) as any;
         }
 
-        // Standard SASL mechanisms
+        // Standard SASL mechanisms - retrieve password from SecretStorage or use in-memory value
+        let saslPassword = connection.saslPassword;
+        if (!saslPassword && this.credentialManager) {
+            saslPassword = await this.credentialManager.getPassword(connection.name, 'sasl');
+        }
+
         const mechanism = connection.saslMechanism.toLowerCase().replace(/-/g, '-') as any;
 
         return {
             mechanism,
             username: connection.saslUsername || '',
-            password: connection.saslPassword || ''
+            password: saslPassword || ''
         };
     }
 
+    /**
+     * Builds Kafka configuration from a cluster connection
+     * @param connection The cluster connection
+     * @param brokers Optional brokers array (if already fetched)
+     * @returns Kafka configuration object
+     */
+    private async buildKafkaConfig(connection: ClusterConnection, brokers?: string[]): Promise<any> {
+        // Use provided brokers or fetch from connection
+        const brokerList = brokers || connection.brokers || [];
+
+        if (brokerList.length === 0) {
+            throw new Error('No brokers available');
+        }
+
+        const kafkaConfig: any = {
+            clientId: `vscode-kafka-${connection.name}`,
+            brokers: brokerList,
+            logLevel: logLevel.ERROR,
+            connectionTimeout: 30000,
+            requestTimeout: 60000,
+            authenticationTimeout: 30000,
+            retry: {
+                initialRetryTime: 1000,
+                retries: 3,
+                maxRetryTime: 30000,
+                multiplier: 2,
+                factor: 0.2
+            },
+            enforceRequestTimeout: true
+        };
+
+        // Configure SSL
+        if (connection.securityProtocol.includes('SSL')) {
+            if (connection.saslMechanism === 'AWS_MSK_IAM' &&
+                !connection.sslCaFile && !connection.sslCertFile && !connection.sslKeyFile) {
+                kafkaConfig.ssl = true;
+            } else {
+                kafkaConfig.ssl = await this.buildSSLConfig(connection);
+            }
+        }
+
+        // Configure SASL
+        if (connection.securityProtocol.includes('SASL')) {
+            kafkaConfig.sasl = await this.buildSASLConfig(connection);
+        }
+
+        return kafkaConfig;
+    }
+
     async removeCluster(name: string) {
-        // Disconnect admin and producer with proper error handling
+        this.logger.info(`Removing cluster: ${name}`);
+        
+        // Disconnect from connection pool
+        await this.connectionPool.disconnect(name);
+
+        // Disconnect admin and producer with proper error handling (fallback for non-pooled connections)
         const admin = this.admins.get(name);
         if (admin) {
             try {
                 await admin.disconnect();
             } catch (error) {
-                console.error(`Error disconnecting admin for cluster ${name}:`, error);
+                this.logger.error(`Error disconnecting admin for cluster ${name}`, error);
             }
             this.admins.delete(name);
         }
@@ -295,9 +375,15 @@ export class KafkaClientManager {
             try {
                 await producer.disconnect();
             } catch (error) {
-                console.error(`Error disconnecting producer for cluster ${name}:`, error);
+                this.logger.error(`Error disconnecting producer for cluster ${name}`, error);
             }
             this.producers.delete(name);
+        }
+
+        // Delete stored credentials
+        if (this.credentialManager) {
+            await this.credentialManager.deleteCredentials(name);
+            this.logger.debug(`Deleted credentials for ${name}`);
         }
 
         this.clusters.delete(name);
@@ -775,45 +861,51 @@ export class KafkaClientManager {
     }
 
     private async getAdmin(clusterName: string): Promise<Admin> {
-        let admin = this.admins.get(clusterName);
-        if (!admin) {
-            const kafka = this.kafkaInstances.get(clusterName);
-            if (!kafka) {
-                throw new Error(`Cluster ${clusterName} not found`);
-            }
-            admin = kafka.admin();
-
-            try {
-                await admin.connect();
-                this.admins.set(clusterName, admin);
-            } catch (error: any) {
-                // Log full error for debugging but don't expose in user-facing message
-                console.error(`Failed to connect to cluster ${clusterName}:`, error);
-                console.error('Error details:', {
-                    message: error?.message,
-                    code: error?.code,
-                    stack: error?.stack
-                });
-                throw new Error(
-                    `Failed to connect to Kafka cluster: ${error?.message || 'Unknown error'}. Please check that the brokers are accessible and your credentials are valid.`
-                );
-            }
+        const connection = this.clusters.get(clusterName);
+        if (!connection) {
+            throw new Error(`Cluster ${clusterName} not found`);
         }
-        return admin;
+
+        try {
+            // Use connection pool for better resource management
+            const kafkaConfig = await this.buildKafkaConfig(connection);
+            
+            const { admin } = await this.connectionPool.get(
+                clusterName,
+                () => new Kafka(kafkaConfig) // Factory function that creates Kafka instance
+            );
+            
+            return admin;
+        } catch (error: any) {
+            this.logger.error(`Failed to connect to cluster ${clusterName}`, error);
+            throw new Error(
+                `Failed to connect to Kafka cluster: ${error?.message || 'Unknown error'}. Please check that the brokers are accessible and your credentials are valid.`
+            );
+        }
     }
 
     private async getProducer(clusterName: string): Promise<Producer> {
-        let producer = this.producers.get(clusterName);
-        if (!producer) {
-            const kafka = this.kafkaInstances.get(clusterName);
-            if (!kafka) {
-                throw new Error(`Cluster ${clusterName} not found`);
-            }
-            producer = kafka.producer();
-            await producer.connect();
-            this.producers.set(clusterName, producer);
+        const connection = this.clusters.get(clusterName);
+        if (!connection) {
+            throw new Error(`Cluster ${clusterName} not found`);
         }
-        return producer;
+
+        try {
+            // Use connection pool for better resource management
+            const kafkaConfig = await this.buildKafkaConfig(connection);
+            
+            const { producer } = await this.connectionPool.get(
+                clusterName,
+                () => new Kafka(kafkaConfig) // Factory function that creates Kafka instance
+            );
+            
+            return producer;
+        } catch (error: any) {
+            this.logger.error(`Failed to get producer for cluster ${clusterName}`, error);
+            throw new Error(
+                `Failed to connect to Kafka producer: ${error?.message || 'Unknown error'}.`
+            );
+        }
     }
 
     private saveConfiguration() {

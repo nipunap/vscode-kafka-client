@@ -9,10 +9,10 @@ export class ErrorHandler {
      */
     static handle(error: any, context: string): void {
         const message = this.formatError(error, context);
-        
+
         // Log for debugging
         this.logger.error(`${context}: ${error?.message || error}`, error);
-        
+
         // Show appropriate UI based on error type
         if (this.isCredentialError(error)) {
             vscode.window.showErrorMessage(
@@ -80,7 +80,7 @@ export class ErrorHandler {
      */
     private static formatError(error: any, context: string): string {
         const errorMsg = error?.message || error?.toString() || 'Unknown error';
-        
+
         // Simplify common error messages
         if (this.isCredentialError(error)) {
             return `AWS credentials error in ${context}: ${this.simplifyCredentialError(errorMsg)}`;
@@ -89,7 +89,7 @@ export class ErrorHandler {
         } else if (this.isKafkaError(error)) {
             return `Kafka error in ${context}: ${this.simplifyKafkaError(errorMsg)}`;
         }
-        
+
         return `Error in ${context}: ${errorMsg}`;
     }
 
@@ -98,8 +98,8 @@ export class ErrorHandler {
      */
     static isCredentialError(error: any): boolean {
         const msg = error?.message?.toLowerCase() || '';
-        return msg.includes('credential') || 
-               msg.includes('expired') || 
+        return msg.includes('credential') ||
+               msg.includes('expired') ||
                msg.includes('expiredtoken') ||
                msg.includes('accessdenied') ||
                msg.includes('unauthorized') ||
@@ -194,4 +194,3 @@ export class ErrorHandler {
         vscode.window.showWarningMessage(`${context}: ${message}`);
     }
 }
-
