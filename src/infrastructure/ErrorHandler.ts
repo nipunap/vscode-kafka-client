@@ -19,7 +19,7 @@ export class ErrorHandler {
                 message,
                 'View AWS Credentials',
                 'Show Logs'
-            ).then(action => {
+            )?.then(action => {
                 if (action === 'Show Logs') {
                     this.logger.show();
                 }
@@ -30,13 +30,13 @@ export class ErrorHandler {
                 'Retry',
                 'Check Connection',
                 'Show Logs'
-            ).then(action => {
+            )?.then(action => {
                 if (action === 'Show Logs') {
                     this.logger.show();
                 }
             });
         } else {
-            vscode.window.showErrorMessage(message, 'Show Logs').then(action => {
+            vscode.window.showErrorMessage(message, 'Show Logs')?.then(action => {
                 if (action === 'Show Logs') {
                     this.logger.show();
                 }

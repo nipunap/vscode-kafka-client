@@ -1,29 +1,23 @@
 import * as vscode from 'vscode';
 import { KafkaClientManager } from '../kafka/kafkaClientManager';
+import { BaseProvider } from './BaseProvider';
 
-export class KafkaExplorerProvider implements vscode.TreeDataProvider<KafkaTreeItem> {
-    private _onDidChangeTreeData: vscode.EventEmitter<KafkaTreeItem | undefined | null | void> =
-        new vscode.EventEmitter<KafkaTreeItem | undefined | null | void>();
-    readonly onDidChangeTreeData: vscode.Event<KafkaTreeItem | undefined | null | void> =
-        this._onDidChangeTreeData.event;
-
-    constructor(private clientManager: KafkaClientManager) {
+export class KafkaExplorerProvider extends BaseProvider<KafkaTreeItem> {
+    constructor(clientManager: KafkaClientManager) {
+        super(clientManager, 'KafkaExplorerProvider');
         // Load saved clusters on startup
         this.clientManager.loadConfiguration();
-    }
-
-    refresh(): void {
-        this._onDidChangeTreeData.fire();
-    }
-
-    getTreeItem(element: KafkaTreeItem): vscode.TreeItem {
-        return element;
     }
 
     async getChildren(element?: KafkaTreeItem): Promise<KafkaTreeItem[]> {
         if (!element) {
             // Root level - show clusters
-            const clusters = this.clientManager.getClusters();
+            const clusters = this.getClusters();
+            
+            if (clusters.length === 0) {
+                return [this.createEmptyItem('No clusters configured. Click + to add one.') as KafkaTreeItem];
+            }
+            
             return clusters.map(
                 cluster =>
                     new KafkaTreeItem(
@@ -37,43 +31,42 @@ export class KafkaExplorerProvider implements vscode.TreeDataProvider<KafkaTreeI
 
         if (element.contextValue === 'cluster') {
             // Show topics for this cluster
-            try {
-                const topics = await this.clientManager.getTopics(element.clusterName);
+            return this.getChildrenSafely(
+                element,
+                async (el) => {
+                    const topics = await this.clientManager.getTopics(el!.clusterName);
 
-                if (topics.length === 0) {
-                    return [
-                        new KafkaTreeItem(
-                            'No topics found',
-                            vscode.TreeItemCollapsibleState.None,
-                            'empty',
-                            element.clusterName
-                        )
-                    ];
-                }
+                    if (topics.length === 0) {
+                        return [
+                            new KafkaTreeItem(
+                                'No topics found',
+                                vscode.TreeItemCollapsibleState.None,
+                                'empty',
+                                el!.clusterName
+                            )
+                        ];
+                    }
 
-                return topics.map(
-                    topic =>
-                        new KafkaTreeItem(
-                            topic,
-                            vscode.TreeItemCollapsibleState.None,
-                            'topic',
-                            element.clusterName,
-                            topic
-                        )
-                );
-            } catch (error: any) {
-                console.error(`Failed to load topics for ${element.label}:`, error);
-
-                // Show error in the tree view
-                return [
-                    new KafkaTreeItem(
-                        `Error: Connection failed`,
-                        vscode.TreeItemCollapsibleState.None,
-                        'error',
-                        element.clusterName
-                    )
-                ];
-            }
+                    return topics.map(
+                        topic =>
+                            new KafkaTreeItem(
+                                topic,
+                                vscode.TreeItemCollapsibleState.None,
+                                'topic',
+                                el!.clusterName,
+                                topic
+                            )
+                    );
+                },
+                `Loading topics for ${element.label}`
+            ).then(items => items.length > 0 ? items : [
+                new KafkaTreeItem(
+                    'Error: Connection failed',
+                    vscode.TreeItemCollapsibleState.None,
+                    'error',
+                    element.clusterName
+                )
+            ]);
         }
 
         return [];

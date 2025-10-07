@@ -59,12 +59,13 @@ suite('Topic Commands Test Suite', () => {
                 .onThirdCall().resolves('1');
 
             clientManager.createTopic.rejects(new Error('Topic already exists'));
-            const errorStub = sandbox.stub(vscode.window, 'showWarningMessage');
+            // Now uses ErrorHandler which calls showErrorMessage
+            const errorStub = sandbox.stub(vscode.window, 'showErrorMessage');
 
             await topicCommands.createTopic(clientManager as any, provider as any, node);
 
             assert.ok(errorStub.called);
-            assert.ok(errorStub.firstCall.args[0].includes('already exists'));
+            assert.ok(errorStub.firstCall.args[0].includes('Creating topic'));
         });
     });
 
