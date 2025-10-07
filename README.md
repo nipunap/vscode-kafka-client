@@ -4,6 +4,8 @@
 [![Release](https://img.shields.io/github/v/release/nipunap/vscode-kafka-client?label=version)](https://github.com/nipunap/vscode-kafka-client/releases/latest)
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/NipunaPerera.vscode-kafka-client?label=VS%20Code%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=NipunaPerera.vscode-kafka-client)
 [![Downloads](https://img.shields.io/visual-studio-marketplace/d/NipunaPerera.vscode-kafka-client)](https://marketplace.visualstudio.com/items?itemName=NipunaPerera.vscode-kafka-client)
+[![Coverage](https://img.shields.io/badge/coverage-32.75%25-yellow.svg)](./coverage)
+[![Tests](https://img.shields.io/badge/tests-187%20passing-brightgreen.svg)](./src/test)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
 
 A comprehensive Kafka client extension for Visual Studio Code with full AWS MSK support, including IAM authentication and role assumption. View and manage Kafka clusters with enterprise-grade features including detailed configuration inspection, color-coded health monitoring, and complete broker visibility.
@@ -526,32 +528,52 @@ npm run publish      # Publish to VS Code Marketplace
 
 ### Testing
 
-The extension includes comprehensive test coverage:
+The extension includes comprehensive test coverage with **187 tests**:
 
 ```bash
-npm test             # Run all tests
-npm run test:watch   # Run tests in watch mode
+npm test                    # Run all tests
+npm run test:coverage       # Run tests with coverage
+npm run test:coverage:report # Generate coverage report
 ```
 
 **Test Structure:**
+- `infrastructure.test.ts` - Logger, ErrorHandler, CredentialManager, EventBus
+- `connectionPool.test.ts` - Connection pooling and lifecycle
+- `baseProvider.test.ts` - Base tree data provider
 - `kafkaClientManager.test.ts` - Core client operations
 - `providers.test.ts` - Tree view providers
 - `commands.test.ts` - Command handlers
 - `formatters.test.ts` - YAML formatting utilities
-- `validators.test.ts` - Input validation and security
+- `validators.test.ts` - Input validation and security (32 security tests)
 - `topicCommands.test.ts` - Topic-specific operations
 - `consumerGroupCommands.test.ts` - Consumer group operations
 - `brokerProvider.test.ts` - Broker provider functionality
+- `brokerCommands.test.ts` - Broker commands
 
-**Coverage Areas:**
+**Test Coverage (187 tests passing):**
+| Category | Coverage |
+|----------|----------|
+| **Overall** | 32.75% |
+| **Infrastructure** | 85.55% ⭐ |
+| **Utilities** | 98.19% ⭐ |
+| **Providers** | 60.27% |
+| **Commands** | 55.95% |
+
+**High Coverage Areas:**
 - ✅ Kafka client integration
 - ✅ AWS MSK IAM authentication
+- ✅ Infrastructure components (Logger, ErrorHandler, CredentialManager, EventBus, ConnectionPool)
 - ✅ Tree view providers (BaseProvider pattern)
 - ✅ Command execution and error handling
-- ✅ Data formatting and sanitization
-- ✅ Input validation and security checks
-- ✅ Connection pooling and lifecycle
-- ✅ Event-driven architecture
+- ✅ Data formatting and sanitization (98% coverage)
+- ✅ Input validation and security checks (97% coverage, 32 security tests)
+- ✅ Connection pooling and lifecycle (82% coverage)
+- ✅ Event-driven architecture (89% coverage)
+
+**Coverage Reports:**
+- Text summary in console
+- HTML report: `./coverage/index.html`
+- LCOV format: `./coverage/lcov.info`
 
 ### Publishing
 

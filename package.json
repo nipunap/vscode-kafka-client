@@ -269,7 +269,12 @@
         },
         "kafka.logLevel": {
           "type": "string",
-          "enum": ["debug", "info", "warn", "error"],
+          "enum": [
+            "debug",
+            "info",
+            "warn",
+            "error"
+          ],
           "default": "info",
           "description": "Log level for Kafka extension output"
         },
@@ -297,6 +302,8 @@
     "lint": "eslint src --ext ts",
     "pretest": "npm run compile && npm run lint",
     "test": "node ./out/test/runTest.js",
+    "test:coverage": "c8 npm test",
+    "test:coverage:report": "c8 report --reporter=text --reporter=lcov --reporter=html",
     "test:unit": "mocha --require ts-node/register 'src/test/suite/**/*.test.ts'",
     "package": "node scripts/package-bundled.js",
     "publish": "node scripts/publish.js",
@@ -314,6 +321,7 @@
     "@typescript-eslint/eslint-plugin": "^8.15.0",
     "@typescript-eslint/parser": "^8.15.0",
     "@vscode/test-electron": "^2.5.2",
+    "c8": "^10.1.3",
     "commit-and-tag-version": "^12.5.0",
     "esbuild": "^0.25.10",
     "eslint": "^9.15.0",
