@@ -208,8 +208,8 @@ suite('ACL Commands Test Suite', () => {
             const call = openTextDocumentStub.firstCall;
             assert.ok(call);
             assert.ok(call.args[0]);
-            assert.strictEqual(call.args[0].language, 'markdown');
-            assert.ok(call.args[0].content && call.args[0].content.includes('# Kafka ACL Management'));
+            assert.strictEqual(call.args[0].language, 'html');
+            assert.ok(call.args[0].content && call.args[0].content.includes('<h1>🔐 Kafka ACL Management</h1>'));
             assert.ok(showTextDocumentStub.calledOnce);
         });
 

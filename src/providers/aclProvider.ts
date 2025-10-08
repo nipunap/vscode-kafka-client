@@ -52,30 +52,22 @@ export class ACLProvider extends BaseProvider<ACLTreeItem> {
                         const groupedACLs = this.groupACLsByResourceType(acls);
                         return this.createResourceTypeItems(groupedACLs, el!.clusterName);
                     } catch (error: any) {
-                        // Handle the expected error for CLI tool requirement
+                        // Handle the expected error for CLI tool requirement silently
                         if (error.message && error.message.includes('kafka-acls CLI tool')) {
                             return [
                                 new ACLTreeItem(
-                                    'ACL Management',
+                                    'No ACLs found',
                                     vscode.TreeItemCollapsibleState.None,
-                                    'info',
+                                    'empty',
                                     el!.clusterName,
                                     undefined,
                                     undefined,
                                     'ACL management requires kafka-acls CLI tool. Use the ACL Help command for guidance.'
-                                ),
-                                new ACLTreeItem(
-                                    'Open ACL Help',
-                                    vscode.TreeItemCollapsibleState.None,
-                                    'help',
-                                    el!.clusterName,
-                                    undefined,
-                                    undefined,
-                                    'Click to open ACL help documentation'
                                 )
                             ];
                         }
                         
+                        // Only log unexpected errors
                         this.logger.error(`Failed to load ACLs for cluster ${el!.clusterName}`, error);
                         return [
                             new ACLTreeItem(
@@ -113,13 +105,13 @@ export class ACLProvider extends BaseProvider<ACLTreeItem> {
 
                         return this.createACLItems(aclsForType, el!.clusterName);
                     } catch (error: any) {
-                        // Handle the expected error for CLI tool requirement
+                        // Handle the expected error for CLI tool requirement silently
                         if (error.message && error.message.includes('kafka-acls CLI tool')) {
                             return [
                                 new ACLTreeItem(
-                                    'ACL Management Required',
+                                    'No ACLs found',
                                     vscode.TreeItemCollapsibleState.None,
-                                    'info',
+                                    'empty',
                                     el!.clusterName,
                                     undefined,
                                     undefined,
@@ -128,6 +120,7 @@ export class ACLProvider extends BaseProvider<ACLTreeItem> {
                             ];
                         }
                         
+                        // Only log unexpected errors
                         this.logger.error(`Failed to load ACLs for resource type ${el!.resourceType}`, error);
                         return [
                             new ACLTreeItem(

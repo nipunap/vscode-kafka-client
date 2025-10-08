@@ -99,7 +99,7 @@ export async function showACLHelp(_clientManager: KafkaClientManager): Promise<v
 
         const doc = await vscode.workspace.openTextDocument({
             content: helpContent,
-            language: 'markdown'
+            language: 'html'
         });
 
         await vscode.window.showTextDocument(doc);

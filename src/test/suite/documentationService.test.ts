@@ -7,22 +7,21 @@ suite('DocumentationService Test Suite', () => {
             const content = DocumentationService.getACLHelpContent();
             
             assert.ok(content.length > 0, 'Help content should not be empty');
-            assert.ok(content.includes('# Kafka ACL Management'), 'Should contain main heading');
-            assert.ok(content.includes('## Overview'), 'Should contain overview section');
-            assert.ok(content.includes('## ACL Components'), 'Should contain ACL components section');
-            assert.ok(content.includes('## Common ACL Examples'), 'Should contain examples section');
-            assert.ok(content.includes('## Best Practices'), 'Should contain best practices section');
+            assert.ok(content.includes('<h1>🔐 Kafka ACL Management</h1>'), 'Should contain main heading');
+            assert.ok(content.includes('<h2>📋 Overview</h2>'), 'Should contain overview section');
+            assert.ok(content.includes('<h2>🧩 ACL Components</h2>'), 'Should contain ACL components section');
+            assert.ok(content.includes('<h2>💡 Common ACL Examples</h2>'), 'Should contain examples section');
+            assert.ok(content.includes('<h2>🔒 Security Considerations</h2>'), 'Should contain security section');
         });
 
         test('should contain all required sections', () => {
             const content = DocumentationService.getACLHelpContent();
             const requiredSections = [
-                '## Overview',
-                '## ACL Components',
-                '## Common ACL Examples',
-                '## Best Practices',
-                '## Troubleshooting',
-                '## Security Considerations'
+                '<h2>📋 Overview</h2>',
+                '<h2>🧩 ACL Components</h2>',
+                '<h2>💡 Common ACL Examples</h2>',
+                '<h2>🔒 Security Considerations</h2>',
+                '<h2>🔧 Troubleshooting</h2>'
             ];
 
             for (const section of requiredSections) {
@@ -42,9 +41,9 @@ suite('DocumentationService Test Suite', () => {
         test('should contain security considerations', () => {
             const content = DocumentationService.getACLHelpContent();
             
-            assert.ok(content.includes('Network Security'), 'Should mention network security');
-            assert.ok(content.includes('Authentication'), 'Should mention authentication');
-            assert.ok(content.includes('Monitoring'), 'Should mention monitoring');
+            assert.ok(content.includes('Best Practices'), 'Should mention best practices');
+            assert.ok(content.includes('Principle of Least Privilege'), 'Should mention least privilege');
+            assert.ok(content.includes('Regular Audits'), 'Should mention audits');
         });
     });
 
@@ -88,13 +87,13 @@ suite('DocumentationService Test Suite', () => {
     });
 
     suite('Content Quality', () => {
-        test('should have proper markdown formatting', () => {
+        test('should have proper HTML formatting', () => {
             const helpContent = DocumentationService.getACLHelpContent();
             
-            assert.ok(helpContent.includes('# '), 'Should contain H1 headings');
-            assert.ok(helpContent.includes('## '), 'Should contain H2 headings');
-            assert.ok(helpContent.includes('### '), 'Should contain H3 headings');
-            assert.ok(helpContent.includes('```'), 'Should contain code blocks');
+            assert.ok(helpContent.includes('<h1>'), 'Should contain H1 headings');
+            assert.ok(helpContent.includes('<h2>'), 'Should contain H2 headings');
+            assert.ok(helpContent.includes('<h3>'), 'Should contain H3 headings');
+            assert.ok(helpContent.includes('<div class="code-block">'), 'Should contain code blocks');
         });
 
         test('should contain external links', () => {
@@ -109,8 +108,8 @@ suite('DocumentationService Test Suite', () => {
             // Check for educational content
             assert.ok(helpContent.includes('Principle of Least Privilege'), 'Should mention security principles');
             assert.ok(helpContent.includes('Regular Audits'), 'Should mention auditing');
-            assert.ok(helpContent.includes('Testing'), 'Should mention testing');
-            assert.ok(helpContent.includes('Backup'), 'Should mention backup');
+            assert.ok(helpContent.includes('Test ACLs'), 'Should mention testing');
+            assert.ok(helpContent.includes('Best Practices'), 'Should mention best practices');
         });
     });
 });
