@@ -72,51 +72,113 @@ export class TopicDashboardWebview {
     }
 
     private calculateTopicMetrics(topicDetails: any): any {
-        if (!topicDetails || !topicDetails.partitions) {
-            return {
-                totalMessages: 0,
-                totalSize: 0,
-                partitionCount: 0,
-                replicationFactor: 0
-            };
+        this.logger.debug('Calculating metrics for topic details:', topicDetails);
+
+        if (!topicDetails) {
+            this.logger.warn('No topic details provided');
+            return this.getEmptyMetrics();
+        }
+
+        // topicDetails.partitions is a number (partition count)
+        // topicDetails.partitionDetails is an object with partition data
+        const partitionCount = topicDetails.partitions || 0;
+        const partitionDetails = topicDetails.partitionDetails || {};
+
+        if (partitionCount === 0) {
+            this.logger.warn('No partitions found in topic details');
+            return this.getEmptyMetrics();
         }
 
         let totalMessages = 0;
         let totalSize = 0;
-        const partitions = topicDetails.partitions;
+        const partitions: any[] = [];
 
-        partitions.forEach((partition: any) => {
-            if (partition.earliestOffset && partition.latestOffset) {
-                const messages = BigInt(partition.latestOffset) - BigInt(partition.earliestOffset);
-                totalMessages += Number(messages);
+        // Process each partition from partitionDetails object
+        Object.keys(partitionDetails).forEach(partitionId => {
+            const partition = partitionDetails[partitionId];
+            
+            if (partition.lowWaterMark && partition.highWaterMark) {
+                try {
+                    const messages = BigInt(partition.highWaterMark) - BigInt(partition.lowWaterMark);
+                    const messageCount = Number(messages);
+                    totalMessages += messageCount;
+                    
+                    partitions.push({
+                        id: partition.partition,
+                        leader: partition.leader,
+                        replicas: partition.replicas || [],
+                        isr: partition.isr || [],
+                        earliestOffset: partition.lowWaterMark,
+                        latestOffset: partition.highWaterMark,
+                        messageCount: messageCount
+                    });
+                } catch (error) {
+                    this.logger.warn(`Error calculating messages for partition ${partition.partition}:`, error);
+                    partitions.push({
+                        id: partition.partition,
+                        leader: partition.leader,
+                        replicas: partition.replicas || [],
+                        isr: partition.isr || [],
+                        earliestOffset: partition.lowWaterMark,
+                        latestOffset: partition.highWaterMark,
+                        messageCount: 0
+                    });
+                }
+            } else {
+                partitions.push({
+                    id: partition.partition,
+                    leader: partition.leader,
+                    replicas: partition.replicas || [],
+                    isr: partition.isr || [],
+                    earliestOffset: partition.lowWaterMark || '0',
+                    latestOffset: partition.highWaterMark || '0',
+                    messageCount: 0
+                });
             }
         });
 
         return {
             totalMessages,
             totalSize: totalSize, // We don't have size info from current API
-            partitionCount: partitions.length,
-            replicationFactor: partitions[0]?.replicas?.length || 0,
-            partitions: partitions.map((p: any) => ({
-                id: p.partition,
-                leader: p.leader,
-                replicas: p.replicas || [],
-                isr: p.isr || [],
-                earliestOffset: p.earliestOffset,
-                latestOffset: p.latestOffset,
-                messageCount: p.earliestOffset && p.latestOffset ? 
-                    Number(BigInt(p.latestOffset) - BigInt(p.earliestOffset)) : 0
-            }))
+            partitionCount: partitionCount,
+            replicationFactor: topicDetails.replicationFactor || 0,
+            partitions: partitions
+        };
+    }
+
+    private getEmptyMetrics(): any {
+        return {
+            totalMessages: 0,
+            totalSize: 0,
+            partitionCount: 0,
+            replicationFactor: 0,
+            partitions: []
         };
     }
 
     private extractPartitionInfo(topicMetadata: any): any {
-        if (!topicMetadata || !topicMetadata.partitions) {
+        this.logger.debug('Extracting partition info from metadata:', topicMetadata);
+
+        if (!topicMetadata) {
+            this.logger.warn('No topic metadata provided');
+            return { partitions: [] };
+        }
+
+        if (!topicMetadata.partitions) {
+            this.logger.warn('No partitions found in topic metadata');
+            return { partitions: [] };
+        }
+
+        const partitions = topicMetadata.partitions;
+        
+        // Ensure partitions is an array
+        if (!Array.isArray(partitions)) {
+            this.logger.error(`Partitions in metadata is not an array: ${typeof partitions}`, partitions);
             return { partitions: [] };
         }
 
         return {
-            partitions: topicMetadata.partitions.map((p: any) => ({
+            partitions: partitions.map((p: any) => ({
                 id: p.partitionId,
                 leader: p.leader,
                 replicas: p.replicas || [],
@@ -417,7 +479,7 @@ export class TopicDashboardWebview {
                         <div class="metric-label">Replication Factor</div>
                     </div>
                     <div class="metric-card">
-                        <div class="metric-value">${metrics.partitions.length > 0 ? 
+                        <div class="metric-value">${metrics.partitions.length > 0 ?
                             Math.round(metrics.totalMessages / metrics.partitionCount).toLocaleString() : 0}</div>
                         <div class="metric-label">Avg Messages/Partition</div>
                     </div>
@@ -442,11 +504,11 @@ export class TopicDashboardWebview {
 
                 <script>
                     const vscode = acquireVsCodeApi();
-                    
+
                     function refresh() {
                         vscode.postMessage({ command: 'refresh' });
                     }
-                    
+
                     function showLogs() {
                         vscode.postMessage({ command: 'showLogs' });
                     }
