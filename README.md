@@ -139,6 +139,23 @@ Press `F5` in VSCode to launch the Extension Development Host.
 
 7. Click **Connect** - Done! 🎉
 
+### AWS MSK with TLS (Simplified)
+
+For AWS MSK clusters with TLS encryption (port 9094), the connection is even simpler:
+
+1. Select **Authentication Method**: TLS
+2. Choose your **AWS Profile** (for cluster discovery)
+3. Select **AWS Region**
+4. **Discover Clusters** and select your cluster
+5. **No certificates needed!** 🎉
+   - AWS MSK includes built-in public certificates
+   - Client certificates are only needed for mutual TLS (mTLS)
+   - Leave certificate fields empty for standard TLS
+
+**When you need client certificates:**
+- Only if you've configured mutual TLS (mTLS) authentication on your MSK cluster
+- Most MSK TLS connections don't require client certificates
+
 ## 🔐 AWS MSK IAM Authentication
 
 ### How It Works

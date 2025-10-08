@@ -430,6 +430,39 @@ export class ClusterConnectionWebview {
             background: var(--vscode-list-activeSelectionBackground);
             border-color: var(--vscode-focusBorder);
         }
+
+        .info-banner {
+            background: var(--vscode-textBlockQuote-background);
+            border-left: 4px solid var(--vscode-textLink-foreground);
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 2px;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .info-banner strong {
+            color: var(--vscode-textLink-foreground);
+        }
+
+        .section-header {
+            margin-top: 24px;
+            margin-bottom: 12px;
+            padding-top: 16px;
+            border-top: 1px solid var(--vscode-panel-border);
+        }
+
+        .section-header h4 {
+            margin: 0 0 4px 0;
+            color: var(--vscode-foreground);
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .section-header .help-text {
+            margin-top: 4px;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
@@ -654,12 +687,18 @@ export class ClusterConnectionWebview {
             </div>
 
             <div id="mskTlsSection" class="hidden">
+                <div class="info-banner">
+                    <strong>ℹ️ AWS MSK TLS Connection</strong><br>
+                    AWS MSK uses port 9094 for TLS connections and includes built-in public certificates.<br>
+                    Client certificates are <strong>only required</strong> if you've configured mutual TLS (mTLS) authentication.
+                </div>
+
                 <div class="form-group">
                     <label for="mskTlsProfile">AWS Profile *</label>
                     <select id="mskTlsProfile">
                         <option value="">Loading profiles...</option>
                     </select>
-                    <div class="help-text">AWS profile for cluster discovery</div>
+                    <div class="help-text">AWS profile for cluster discovery and API access</div>
                 </div>
 
                 <div class="form-group">
@@ -699,31 +738,36 @@ export class ClusterConnectionWebview {
                 <div class="form-group">
                     <label for="mskTlsClusterArn">Or Enter Cluster ARN Manually</label>
                     <input type="text" id="mskTlsClusterArn" placeholder="arn:aws:kafka:region:account:cluster/...">
-                    <div class="help-text">MSK cluster ARN for TLS authentication</div>
+                    <div class="help-text">MSK cluster ARN (bootstrap brokers will use port 9094 for TLS)</div>
+                </div>
+
+                <div class="section-header">
+                    <h4>Client Certificates (Optional - Only for Mutual TLS)</h4>
+                    <div class="help-text">Leave these empty for standard AWS MSK TLS connections. AWS provides public certificates automatically.</div>
                 </div>
 
                 <div class="form-group">
                     <label for="mskTlsCaFile">CA Certificate Path</label>
                     <input type="text" id="mskTlsCaFile" placeholder="/path/to/ca-cert.pem">
-                    <div class="help-text">Optional: CA certificate for server verification</div>
+                    <div class="help-text">Optional: Custom CA certificate (not needed for AWS MSK)</div>
                 </div>
 
                 <div class="form-group">
-                    <label for="mskTlsCertFile">Client Certificate Path *</label>
+                    <label for="mskTlsCertFile">Client Certificate Path</label>
                     <input type="text" id="mskTlsCertFile" placeholder="/path/to/client-cert.pem">
-                    <div class="help-text">Client certificate for TLS authentication</div>
+                    <div class="help-text">Optional: Only required if mutual TLS (mTLS) is configured</div>
                 </div>
 
                 <div class="form-group">
-                    <label for="mskTlsKeyFile">Client Key Path *</label>
+                    <label for="mskTlsKeyFile">Client Key Path</label>
                     <input type="text" id="mskTlsKeyFile" placeholder="/path/to/client-key.pem">
-                    <div class="help-text">Private key file for TLS authentication</div>
+                    <div class="help-text">Optional: Private key for client certificate</div>
                 </div>
 
                 <div class="form-group">
                     <label for="mskTlsKeyPassword">Key Password</label>
                     <input type="password" id="mskTlsKeyPassword">
-                    <div class="help-text">Optional: Password for encrypted private key</div>
+                    <div class="help-text">Optional: Password if your private key is encrypted</div>
                 </div>
             </div>
         </div>
