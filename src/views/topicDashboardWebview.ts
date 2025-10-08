@@ -406,13 +406,19 @@ export class TopicDashboardWebview {
                         color: var(--vscode-descriptionForeground);
                         text-transform: uppercase;
                     }
-                    .chart-container {
-                        background: var(--vscode-panel-background);
-                        border: 1px solid var(--vscode-panel-border);
-                        border-radius: 4px;
-                        padding: 20px;
-                        margin-bottom: 30px;
-                    }
+        .charts-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .chart-container {
+            background: var(--vscode-panel-background);
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 4px;
+            padding: 20px;
+        }
                     .chart-title {
                         font-size: 16px;
                         font-weight: bold;
@@ -485,9 +491,16 @@ export class TopicDashboardWebview {
                     </div>
                 </div>
 
-                <div class="chart-container">
-                    <div class="chart-title">📈 Partition Distribution</div>
-                    <canvas id="partitionChart" width="400" height="200"></canvas>
+                <div class="charts-row">
+                    <div class="chart-container">
+                        <div class="chart-title">📈 Partition Distribution</div>
+                        <canvas id="partitionChart" width="400" height="200"></canvas>
+                    </div>
+                    
+                    <div class="chart-container">
+                        <div class="chart-title">🔄 Replica Distribution</div>
+                        <canvas id="replicaChart" width="400" height="200"></canvas>
+                    </div>
                 </div>
 
                 <div class="partitions-table">
@@ -514,13 +527,13 @@ export class TopicDashboardWebview {
                     }
 
                     // Initialize partition distribution chart
-                    const ctx = document.getElementById('partitionChart').getContext('2d');
+                    const partitionCtx = document.getElementById('partitionChart').getContext('2d');
                     const partitionData = ${JSON.stringify(metrics.partitions.map((p: any) => ({
                         partition: p.id,
                         messages: p.messageCount
                     })))};
 
-                    new Chart(ctx, {
+                    new Chart(partitionCtx, {
                         type: 'bar',
                         data: {
                             labels: partitionData.map(p => \`Partition \${p.partition}\`),
@@ -545,6 +558,71 @@ export class TopicDashboardWebview {
                                     ticks: {
                                         callback: function(value) {
                                             return value.toLocaleString();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                    // Initialize replica distribution pie chart
+                    const replicaCtx = document.getElementById('replicaChart').getContext('2d');
+                    const replicaData = ${JSON.stringify(metrics.partitions.map((p: any) => ({
+                        partition: p.id,
+                        leader: p.leader,
+                        replicas: p.replicas
+                    })))};
+
+                    // Count replicas per broker
+                    const brokerCounts = {};
+                    replicaData.forEach(partition => {
+                        partition.replicas.forEach(brokerId => {
+                            brokerCounts[brokerId] = (brokerCounts[brokerId] || 0) + 1;
+                        });
+                    });
+
+                    const brokerLabels = Object.keys(brokerCounts).sort((a, b) => parseInt(a) - parseInt(b));
+                    const brokerData = brokerLabels.map(brokerId => brokerCounts[brokerId]);
+                    const colors = [
+                        'rgba(255, 99, 132, 0.8)',   // Red
+                        'rgba(54, 162, 235, 0.8)',   // Blue
+                        'rgba(255, 205, 86, 0.8)',   // Yellow
+                        'rgba(75, 192, 192, 0.8)',   // Teal
+                        'rgba(153, 102, 255, 0.8)',  // Purple
+                        'rgba(255, 159, 64, 0.8)',   // Orange
+                        'rgba(199, 199, 199, 0.8)',  // Grey
+                        'rgba(83, 102, 255, 0.8)'    // Indigo
+                    ];
+
+                    new Chart(replicaCtx, {
+                        type: 'pie',
+                        data: {
+                            labels: brokerLabels.map(id => \`Broker \${id}\`),
+                            datasets: [{
+                                data: brokerData,
+                                backgroundColor: colors.slice(0, brokerLabels.length),
+                                borderColor: colors.slice(0, brokerLabels.length).map(color => color.replace('0.8', '1')),
+                                borderWidth: 2
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom',
+                                    labels: {
+                                        padding: 15,
+                                        usePointStyle: true
+                                    }
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            const label = context.label || '';
+                                            const value = context.parsed;
+                                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                            const percentage = ((value / total) * 100).toFixed(1);
+                                            return \`\${label}: \${value} replicas (\${percentage}%)\`;
                                         }
                                     }
                                 }
