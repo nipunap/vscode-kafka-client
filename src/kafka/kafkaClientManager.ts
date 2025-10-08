@@ -8,6 +8,10 @@ import { ConnectionPool } from '../infrastructure/ConnectionPool';
 import { CredentialManager } from '../infrastructure/CredentialManager';
 import { ConfigurationService } from '../infrastructure/ConfigurationService';
 import { MSKAdapter } from './adapters/MSKAdapter';
+import { TopicService } from '../services/TopicService';
+import { ConsumerGroupService } from '../services/ConsumerGroupService';
+import { BrokerService } from '../services/BrokerService';
+import { ProducerService } from '../services/ProducerService';
 import { ACL, ACLDetails, ACLConfig } from '../types/acl';
 
 // Type alias for cluster configuration
@@ -22,12 +26,24 @@ export class KafkaClientManager {
     private connectionPool: ConnectionPool;
     private configurationService: ConfigurationService;
     private mskAdapter: MSKAdapter;
+    
+    // Service layer
+    private topicService: TopicService;
+    private consumerGroupService: ConsumerGroupService;
+    private brokerService: BrokerService;
+    private producerService: ProducerService;
 
     constructor(private credentialManager?: CredentialManager) {
         this.logger.info('Initializing Kafka Client Manager');
         this.connectionPool = new ConnectionPool();
         this.configurationService = new ConfigurationService();
         this.mskAdapter = new MSKAdapter();
+        
+        // Initialize services
+        this.topicService = new TopicService();
+        this.consumerGroupService = new ConsumerGroupService();
+        this.brokerService = new BrokerService();
+        this.producerService = new ProducerService();
     }
 
     async addCluster(name: string, brokers: string[], sasl?: any) {
@@ -295,7 +311,7 @@ export class KafkaClientManager {
 
     async getTopics(clusterName: string): Promise<string[]> {
         const admin = await this.getAdmin(clusterName);
-        return await admin.listTopics();
+        return await this.topicService.getTopics(admin);
     }
 
     async getTopicMetadata(clusterName: string, topic: string): Promise<any> {
@@ -396,42 +412,12 @@ export class KafkaClientManager {
         replicationFactor: number
     ) {
         const admin = await this.getAdmin(clusterName);
-        try {
-            const result = await admin.createTopics({
-                topics: [
-                    {
-                        topic,
-                        numPartitions,
-                        replicationFactor
-                    }
-                ],
-                waitForLeaders: true,
-                timeout: 5000
-            });
-
-            if (!result) {
-                throw new Error('Topic creation returned false - topic may already exist or broker rejected the request');
-            }
-        } catch (error: any) {
-            // Extract more detailed error information
-            if (error.message) {
-                throw new Error(error.message);
-            }
-            if (error.errors) {
-                const errorMessages = error.errors.map((e: any) =>
-                    `${e.topic || topic}: ${e.error || e.message || JSON.stringify(e)}`
-                ).join(', ');
-                throw new Error(errorMessages);
-            }
-            throw error;
-        }
+        return await this.topicService.createTopic(admin, topic, numPartitions, replicationFactor);
     }
 
     async deleteTopic(clusterName: string, topic: string) {
         const admin = await this.getAdmin(clusterName);
-        await admin.deleteTopics({
-            topics: [topic]
-        });
+        return await this.topicService.deleteTopic(admin, topic);
     }
 
     async produceMessage(
@@ -441,16 +427,7 @@ export class KafkaClientManager {
         value: string
     ) {
         const producer = await this.getProducer(clusterName);
-
-        await producer.send({
-            topic,
-            messages: [
-                {
-                    key: key ? Buffer.from(key) : undefined,
-                    value: Buffer.from(value)
-                }
-            ]
-        });
+        return await this.producerService.sendMessage(producer, topic, key, value);
     }
 
     async consumeMessages(
@@ -535,39 +512,12 @@ export class KafkaClientManager {
 
     async getConsumerGroups(clusterName: string): Promise<any[]> {
         const admin = await this.getAdmin(clusterName);
-        const groupsList = await admin.listGroups();
-
-        // Fetch detailed information including state for each group
-        if (groupsList.groups.length === 0) {
-            return [];
-        }
-
-        try {
-            const groupIds = groupsList.groups.map((g: any) => g.groupId);
-            const descriptions = await admin.describeGroups(groupIds);
-
-            // Return groups with state information
-            return descriptions.groups.map((group: any) => ({
-                groupId: group.groupId,
-                state: group.state,
-                protocolType: group.protocolType,
-                protocol: group.protocol,
-                members: group.members
-            }));
-        } catch (error) {
-            console.error('Error fetching consumer group states:', error);
-            // Fallback to basic group list if describe fails
-            return groupsList.groups.map((g: any) => ({
-                groupId: g.groupId,
-                state: 'Unknown',
-                protocolType: g.protocolType
-            }));
-        }
+        return await this.consumerGroupService.getConsumerGroups(admin);
     }
 
     async deleteConsumerGroup(clusterName: string, groupId: string) {
         const admin = await this.getAdmin(clusterName);
-        await admin.deleteGroups([groupId]);
+        return await this.consumerGroupService.deleteConsumerGroup(admin, groupId);
     }
 
     async resetConsumerGroupOffsets(
@@ -688,14 +638,7 @@ export class KafkaClientManager {
 
     async getBrokers(clusterName: string): Promise<any[]> {
         const admin = await this.getAdmin(clusterName);
-        const cluster = await admin.describeCluster();
-
-        return cluster.brokers.map((broker: any) => ({
-            nodeId: broker.nodeId,
-            host: broker.host,
-            port: broker.port,
-            rack: (broker as any).rack || null
-        }));
+        return await this.brokerService.getBrokers(admin);
     }
 
     async getBrokerDetails(clusterName: string, brokerId: number): Promise<any> {
