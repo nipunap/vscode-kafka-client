@@ -5,6 +5,7 @@
 import * as vscode from 'vscode';
 import { KafkaClientManager } from '../kafka/kafkaClientManager';
 import { formatConsumerGroupDetailsYaml } from '../utils/formatters';
+import { ErrorHandler } from '../infrastructure/ErrorHandler';
 
 export async function showConsumerGroupDetails(clientManager: KafkaClientManager, node: any) {
     try {
