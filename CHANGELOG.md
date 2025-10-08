@@ -4,6 +4,31 @@ All notable changes to the "Kafka Client" extension will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/) and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.0](https://github.com/nipunap/vscode-kafka-client/compare/v0.3.0...v0.4.0) (2025-10-08)
+
+
+### ✨ Features
+
+* Add comprehensive ACL management functionality ([dba189a](https://github.com/nipunap/vscode-kafka-client/commit/dba189a4e9974541c393e29180d729c8bc0b57d7))
+* Improve ACL error handling and HTML help ([51f6ad7](https://github.com/nipunap/vscode-kafka-client/commit/51f6ad7e68a25124fe7729de9b4aad093222a696))
+
+
+### 🐛 Bug Fixes
+
+* Improve ACL provider error handling ([88cc1b3](https://github.com/nipunap/vscode-kafka-client/commit/88cc1b331535af9928ff92cb96027a105bc7a459))
+
+
+### ♻️ Code Refactoring
+
+* Add service layer for better separation of concerns ([9ca3fa3](https://github.com/nipunap/vscode-kafka-client/commit/9ca3fa3ac5c93e9e672855a3760cfc144e7f1335))
+* Complete architectural improvements ([6bd97db](https://github.com/nipunap/vscode-kafka-client/commit/6bd97db2d7291c459517a4a024b3b5497f597a3d))
+* Implement architectural improvements ([2849215](https://github.com/nipunap/vscode-kafka-client/commit/284921580be60b4421d6be9f574885ae38413f92))
+
+
+### 📝 Documentation
+
+* Streamline README and add screenshots section ([5f6f03f](https://github.com/nipunap/vscode-kafka-client/commit/5f6f03f1ae308f7d48101890cc5ccc80665aba57))
+
 ## [0.3.0](https://github.com/nipunap/vscode-kafka-client/compare/v0.2.0...v0.3.0) (2025-10-07)
 
 
