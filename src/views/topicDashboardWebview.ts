@@ -96,13 +96,13 @@ export class TopicDashboardWebview {
         // Process each partition from partitionDetails object
         Object.keys(partitionDetails).forEach(partitionId => {
             const partition = partitionDetails[partitionId];
-            
+
             if (partition.lowWaterMark && partition.highWaterMark) {
                 try {
                     const messages = BigInt(partition.highWaterMark) - BigInt(partition.lowWaterMark);
                     const messageCount = Number(messages);
                     totalMessages += messageCount;
-                    
+
                     partitions.push({
                         id: partition.partition,
                         leader: partition.leader,
@@ -170,7 +170,7 @@ export class TopicDashboardWebview {
         }
 
         const partitions = topicMetadata.partitions;
-        
+
         // Ensure partitions is an array
         if (!Array.isArray(partitions)) {
             this.logger.error(`Partitions in metadata is not an array: ${typeof partitions}`, partitions);

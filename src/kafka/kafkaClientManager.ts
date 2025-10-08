@@ -867,8 +867,20 @@ export class KafkaClientManager {
         }
 
         try {
+            // For MSK clusters, we need to fetch brokers first
+            let brokers = connection.brokers || [];
+            if (connection.type === 'msk' && connection.clusterArn && connection.region) {
+                this.logger.debug(`Fetching MSK brokers for ${clusterName}`);
+                brokers = await this.getMSKBootstrapBrokers(
+                    connection.region, 
+                    connection.clusterArn, 
+                    connection.saslMechanism, 
+                    connection.awsProfile
+                );
+            }
+
             // Use connection pool for better resource management
-            const kafkaConfig = await this.buildKafkaConfig(connection);
+            const kafkaConfig = await this.buildKafkaConfig(connection, brokers);
             
             const { admin } = await this.connectionPool.get(
                 clusterName,
@@ -891,8 +903,20 @@ export class KafkaClientManager {
         }
 
         try {
+            // For MSK clusters, we need to fetch brokers first
+            let brokers = connection.brokers || [];
+            if (connection.type === 'msk' && connection.clusterArn && connection.region) {
+                this.logger.debug(`Fetching MSK brokers for ${clusterName}`);
+                brokers = await this.getMSKBootstrapBrokers(
+                    connection.region, 
+                    connection.clusterArn, 
+                    connection.saslMechanism, 
+                    connection.awsProfile
+                );
+            }
+
             // Use connection pool for better resource management
-            const kafkaConfig = await this.buildKafkaConfig(connection);
+            const kafkaConfig = await this.buildKafkaConfig(connection, brokers);
             
             const { producer } = await this.connectionPool.get(
                 clusterName,
