@@ -99,7 +99,13 @@ suite('DocumentationService Test Suite', () => {
         test('should contain external links', () => {
             const helpContent = DocumentationService.getACLHelpContent();
             
-            assert.ok(helpContent.includes('https://kafka.apache.org'), 'Should contain Kafka documentation link');
+            // Validate URL structure more securely with regex pattern
+            const urlPattern = /https:\/\/kafka\.apache\.org\/documentation\/#security_authz/;
+            assert.ok(urlPattern.test(helpContent), 'Should contain properly formatted Kafka documentation URL');
+            
+            // Additional validation for other secure URLs
+            const aclDocsPattern = /https:\/\/kafka\.apache\.org\/documentation\/#security_authz_acl/;
+            assert.ok(aclDocsPattern.test(helpContent), 'Should contain ACL documentation URL');
         });
 
         test('should be educational and comprehensive', () => {
