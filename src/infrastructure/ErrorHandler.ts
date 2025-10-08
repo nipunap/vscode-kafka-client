@@ -24,6 +24,18 @@ export class ErrorHandler {
                     this.logger.show();
                 }
             });
+        } else if (this.isKafkaAuthorizationError(error)) {
+            vscode.window.showErrorMessage(
+                message,
+                'Learn About Kafka ACLs',
+                'Show Logs'
+            )?.then(action => {
+                if (action === 'Learn About Kafka ACLs') {
+                    vscode.env.openExternal(vscode.Uri.parse('https://kafka.apache.org/documentation/#security_authz'));
+                } else if (action === 'Show Logs') {
+                    this.logger.show();
+                }
+            });
         } else if (this.isNetworkError(error)) {
             vscode.window.showErrorMessage(
                 message,
@@ -84,6 +96,8 @@ export class ErrorHandler {
         // Simplify common error messages
         if (this.isCredentialError(error)) {
             return `AWS credentials error in ${context}: ${this.simplifyCredentialError(errorMsg)}`;
+        } else if (this.isKafkaAuthorizationError(error)) {
+            return `🔒 Authorization error in ${context}: ${this.simplifyKafkaError(errorMsg)}`;
         } else if (this.isNetworkError(error)) {
             return `Network error in ${context}: ${this.simplifyNetworkError(errorMsg)}`;
         } else if (this.isKafkaError(error)) {
@@ -164,9 +178,42 @@ export class ErrorHandler {
     }
 
     /**
+     * Check if error is Kafka ACL/authorization related
+     */
+    static isKafkaAuthorizationError(error: any): boolean {
+        const msg = error?.message?.toLowerCase() || '';
+        return msg.includes('authorization_failed') ||
+               msg.includes('topic_authorization_failed') ||
+               msg.includes('group_authorization_failed') ||
+               msg.includes('cluster_authorization_failed') ||
+               msg.includes('transactional_id_authorization_failed') ||
+               msg.includes('not authorized') ||
+               msg.includes('not authorised') ||
+               (msg.includes('kafka') && msg.includes('acl'));
+    }
+
+    /**
      * Simplify Kafka error messages
      */
     private static simplifyKafkaError(msg: string): string {
+        // ACL/Authorization errors
+        if (msg.includes('TOPIC_AUTHORIZATION_FAILED')) {
+            return 'Topic authorization failed. You do not have permission to access this topic. Check your Kafka ACLs.';
+        }
+        if (msg.includes('GROUP_AUTHORIZATION_FAILED')) {
+            return 'Consumer group authorization failed. You do not have permission to access this consumer group. Check your Kafka ACLs.';
+        }
+        if (msg.includes('CLUSTER_AUTHORIZATION_FAILED')) {
+            return 'Cluster authorization failed. You do not have permission to perform cluster operations. Check your Kafka ACLs.';
+        }
+        if (msg.includes('TRANSACTIONAL_ID_AUTHORIZATION_FAILED')) {
+            return 'Transactional ID authorization failed. Check your Kafka ACLs for transactional operations.';
+        }
+        if (msg.includes('not authorized') || msg.includes('not authorised')) {
+            return 'Authorization failed. Check your Kafka ACL permissions.';
+        }
+
+        // Other Kafka errors
         if (msg.includes('TOPIC_ALREADY_EXISTS')) {
             return 'Topic already exists.';
         }
@@ -175,6 +222,12 @@ export class ErrorHandler {
         }
         if (msg.includes('NOT_COORDINATOR')) {
             return 'Not the coordinator for this consumer group.';
+        }
+        if (msg.includes('INVALID_REPLICATION_FACTOR')) {
+            return 'Invalid replication factor. It must be between 1 and the number of available brokers.';
+        }
+        if (msg.includes('INVALID_PARTITIONS')) {
+            return 'Invalid number of partitions. It must be a positive integer.';
         }
         return msg;
     }

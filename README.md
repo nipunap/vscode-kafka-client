@@ -258,6 +258,111 @@ The extension handles this automatically:
 }
 ```
 
+## 🔐 Kafka ACLs (Access Control Lists)
+
+### Understanding ACLs
+
+Kafka ACLs are authorization rules set on the Kafka cluster that control which users/principals can perform which operations. The extension **cannot configure ACLs** - they must be set by your Kafka administrator.
+
+### Required ACL Permissions
+
+For the extension to work properly, your Kafka user/principal needs specific ACL permissions:
+
+#### **Minimum Permissions (Read-Only)**
+```bash
+# View cluster metadata
+kafka-acls --add \
+  --allow-principal User:your-user \
+  --operation Describe --cluster
+
+# List topics
+kafka-acls --add \
+  --allow-principal User:your-user \
+  --operation Describe --topic '*'
+
+# List consumer groups  
+kafka-acls --add \
+  --allow-principal User:your-user \
+  --operation Describe --group '*'
+```
+
+#### **Full Access Permissions**
+```bash
+# Cluster operations (create topics, describe cluster)
+kafka-acls --add \
+  --allow-principal User:your-user \
+  --operation All --cluster
+
+# Topic operations (create, delete, read, write, describe)
+kafka-acls --add \
+  --allow-principal User:your-user \
+  --operation All --topic '*'
+
+# Consumer group operations (read, describe, delete)
+kafka-acls --add \
+  --allow-principal User:your-user \
+  --operation All --group '*'
+```
+
+### AWS MSK ACLs
+
+For AWS MSK with IAM authentication, ensure your IAM policy includes:
+
+```json
+{
+  "Effect": "Allow",
+  "Action": [
+    "kafka-cluster:Connect",
+    "kafka-cluster:DescribeCluster",
+    "kafka-cluster:*Topic*",
+    "kafka-cluster:*Group*",
+    "kafka-cluster:ReadData",
+    "kafka-cluster:WriteData"
+  ],
+  "Resource": [
+    "arn:aws:kafka:region:account:cluster/*",
+    "arn:aws:kafka:region:account:topic/*/*",
+    "arn:aws:kafka:region:account:group/*/*"
+  ]
+}
+```
+
+### ACL Error Handling
+
+When you encounter ACL errors, the extension will:
+- 🔒 Show a clear authorization error message
+- 📚 Provide a link to Kafka ACL documentation
+- 📝 Log detailed error information for debugging
+
+**Common ACL Errors:**
+- `TOPIC_AUTHORIZATION_FAILED` - No permission for topic operations
+- `GROUP_AUTHORIZATION_FAILED` - No permission for consumer group operations
+- `CLUSTER_AUTHORIZATION_FAILED` - No permission for cluster operations
+
+### Checking Your Permissions
+
+You can check your current ACL permissions:
+
+```bash
+# List all ACLs for your user
+kafka-acls --list --principal User:your-user
+
+# Test specific operations
+kafka-topics --list  # Tests topic describe permission
+kafka-consumer-groups --list  # Tests group describe permission
+```
+
+### Connection vs Operation Permissions
+
+**Important**: The extension only tests basic connectivity when adding a connection. ACL permissions are checked when you perform specific operations:
+
+- ✅ **Connection succeeds** - You can connect to Kafka brokers
+- ❌ **Operation fails** - You don't have ACL permission for that specific action
+
+**Example:** You might successfully connect to a cluster but get authorization errors when trying to create topics or delete consumer groups.
+
+---
+
 ## 📚 Usage
 
 ### Working with Topics
