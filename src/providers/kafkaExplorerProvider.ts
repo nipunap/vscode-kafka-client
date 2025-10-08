@@ -1,29 +1,23 @@
 import * as vscode from 'vscode';
 import { KafkaClientManager } from '../kafka/kafkaClientManager';
+import { BaseProvider } from './BaseProvider';
 
-export class KafkaExplorerProvider implements vscode.TreeDataProvider<KafkaTreeItem> {
-    private _onDidChangeTreeData: vscode.EventEmitter<KafkaTreeItem | undefined | null | void> =
-        new vscode.EventEmitter<KafkaTreeItem | undefined | null | void>();
-    readonly onDidChangeTreeData: vscode.Event<KafkaTreeItem | undefined | null | void> =
-        this._onDidChangeTreeData.event;
-
-    constructor(private clientManager: KafkaClientManager) {
+export class KafkaExplorerProvider extends BaseProvider<KafkaTreeItem> {
+    constructor(clientManager: KafkaClientManager) {
+        super(clientManager, 'KafkaExplorerProvider');
         // Load saved clusters on startup
         this.clientManager.loadConfiguration();
-    }
-
-    refresh(): void {
-        this._onDidChangeTreeData.fire();
-    }
-
-    getTreeItem(element: KafkaTreeItem): vscode.TreeItem {
-        return element;
     }
 
     async getChildren(element?: KafkaTreeItem): Promise<KafkaTreeItem[]> {
         if (!element) {
             // Root level - show clusters
-            const clusters = this.clientManager.getClusters();
+            const clusters = this.getClusters();
+
+            if (clusters.length === 0) {
+                return [this.createEmptyItem('No clusters configured. Click + to add one.') as KafkaTreeItem];
+            }
+
             return clusters.map(
                 cluster =>
                     new KafkaTreeItem(
@@ -37,43 +31,62 @@ export class KafkaExplorerProvider implements vscode.TreeDataProvider<KafkaTreeI
 
         if (element.contextValue === 'cluster') {
             // Show topics for this cluster
-            try {
-                const topics = await this.clientManager.getTopics(element.clusterName);
+            return this.getChildrenSafely(
+                element,
+                async (el) => {
+                    const topics = await this.clientManager.getTopics(el!.clusterName);
 
-                if (topics.length === 0) {
-                    return [
-                        new KafkaTreeItem(
-                            'No topics found',
-                            vscode.TreeItemCollapsibleState.None,
-                            'empty',
-                            element.clusterName
-                        )
-                    ];
-                }
+                    if (topics.length === 0) {
+                        return [
+                            new KafkaTreeItem(
+                                'No topics found',
+                                vscode.TreeItemCollapsibleState.None,
+                                'empty',
+                                el!.clusterName
+                            )
+                        ];
+                    }
 
-                return topics.map(
-                    topic =>
-                        new KafkaTreeItem(
-                            topic,
-                            vscode.TreeItemCollapsibleState.None,
-                            'topic',
-                            element.clusterName,
-                            topic
-                        )
-                );
-            } catch (error: any) {
-                console.error(`Failed to load topics for ${element.label}:`, error);
+                    return topics.map(
+                        topic =>
+                            new KafkaTreeItem(
+                                topic,
+                                vscode.TreeItemCollapsibleState.Collapsed,
+                                'topic',
+                                el!.clusterName,
+                                topic
+                            )
+                    );
+                },
+                `Loading topics for ${element.label}`
+            ).then(items => items.length > 0 ? items : [
+                new KafkaTreeItem(
+                    'Error: Connection failed',
+                    vscode.TreeItemCollapsibleState.None,
+                    'error',
+                    element.clusterName
+                )
+            ]);
+        }
 
-                // Show error in the tree view
-                return [
-                    new KafkaTreeItem(
-                        `Error: Connection failed`,
-                        vscode.TreeItemCollapsibleState.None,
-                        'error',
-                        element.clusterName
-                    )
-                ];
-            }
+        if (element.contextValue === 'topic') {
+            // Show dashboard and partition info for this topic
+            return [
+                new KafkaTreeItem(
+                    '📊 Dashboard',
+                    vscode.TreeItemCollapsibleState.None,
+                    'topicDashboard',
+                    element.clusterName,
+                    element.topicName
+                ),
+                new KafkaTreeItem(
+                    '📋 Details',
+                    vscode.TreeItemCollapsibleState.None,
+                    'topicDetails',
+                    element.clusterName,
+                    element.topicName
+                )
+            ];
         }
 
         return [];
@@ -110,6 +123,24 @@ export class KafkaTreeItem extends vscode.TreeItem {
                 arguments: [this]
             };
         }
+
+        // Add click command for topic dashboard
+        if (this.contextValue === 'topicDashboard') {
+            this.command = {
+                command: 'kafka.showTopicDashboard',
+                title: 'Show Topic Dashboard',
+                arguments: [this]
+            };
+        }
+
+        // Add click command for topic details
+        if (this.contextValue === 'topicDetails') {
+            this.command = {
+                command: 'kafka.showTopicDetails',
+                title: 'Show Topic Details',
+                arguments: [this]
+            };
+        }
     }
 
     private getTooltip(): string {
@@ -117,7 +148,13 @@ export class KafkaTreeItem extends vscode.TreeItem {
             return `Cluster: ${this.label}`;
         }
         if (this.contextValue === 'topic') {
-            return `Topic: ${this.label}`;
+            return `Topic: ${this.label}\nClick to expand for dashboard and details`;
+        }
+        if (this.contextValue === 'topicDashboard') {
+            return `📊 Dashboard for ${this.topicName}\nClick to view metrics and charts`;
+        }
+        if (this.contextValue === 'topicDetails') {
+            return `📋 Details for ${this.topicName}\nClick to view configuration and partitions`;
         }
         return this.label;
     }
@@ -128,6 +165,12 @@ export class KafkaTreeItem extends vscode.TreeItem {
         }
         if (this.contextValue === 'topic') {
             return new vscode.ThemeIcon('symbol-struct', new vscode.ThemeColor('charts.yellow')); // Topic as data structure in yellow
+        }
+        if (this.contextValue === 'topicDashboard') {
+            return new vscode.ThemeIcon('graph', new vscode.ThemeColor('charts.blue')); // Dashboard icon in blue
+        }
+        if (this.contextValue === 'topicDetails') {
+            return new vscode.ThemeIcon('info', new vscode.ThemeColor('charts.green')); // Details icon in green
         }
         if (this.contextValue === 'empty') {
             return new vscode.ThemeIcon('info');

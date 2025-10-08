@@ -2,7 +2,7 @@
   "name": "vscode-kafka-client",
   "displayName": "Kafka Client",
   "description": "Full-featured Kafka client with AWS MSK support, IAM authentication, role assumption, and auto-discovery",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "publisher": "NipunaPerera",
   "license": "GPL-3.0",
   "icon": "resources/kafka-icon.png",
@@ -132,6 +132,11 @@
         "icon": "$(info)"
       },
       {
+        "command": "kafka.showTopicDashboard",
+        "title": "Show Topic Dashboard",
+        "icon": "$(graph)"
+      },
+      {
         "command": "kafka.showConsumerGroupDetails",
         "title": "Show Consumer Group Details",
         "icon": "$(info)"
@@ -227,6 +232,11 @@
           "group": "2_actions@2"
         },
         {
+          "command": "kafka.showTopicDashboard",
+          "when": "view == kafkaExplorer && viewItem == topic",
+          "group": "0_info@1"
+        },
+        {
           "command": "kafka.deleteTopic",
           "when": "view == kafkaExplorer && viewItem == topic",
           "group": "9_danger@1"
@@ -266,6 +276,27 @@
               }
             }
           }
+        },
+        "kafka.logLevel": {
+          "type": "string",
+          "enum": [
+            "debug",
+            "info",
+            "warn",
+            "error"
+          ],
+          "default": "info",
+          "description": "Log level for Kafka extension output"
+        },
+        "kafka.connectionTimeout": {
+          "type": "number",
+          "default": 30000,
+          "description": "Kafka connection timeout in milliseconds"
+        },
+        "kafka.requestTimeout": {
+          "type": "number",
+          "default": 60000,
+          "description": "Kafka request timeout in milliseconds"
         }
       }
     }
@@ -281,6 +312,8 @@
     "lint": "eslint src --ext ts",
     "pretest": "npm run compile && npm run lint",
     "test": "node ./out/test/runTest.js",
+    "test:coverage": "c8 npm test",
+    "test:coverage:report": "c8 report --reporter=text --reporter=lcov --reporter=html",
     "test:unit": "mocha --require ts-node/register 'src/test/suite/**/*.test.ts'",
     "package": "node scripts/package-bundled.js",
     "publish": "node scripts/publish.js",
@@ -298,6 +331,7 @@
     "@typescript-eslint/eslint-plugin": "^8.15.0",
     "@typescript-eslint/parser": "^8.15.0",
     "@vscode/test-electron": "^2.5.2",
+    "c8": "^10.1.3",
     "commit-and-tag-version": "^12.5.0",
     "esbuild": "^0.25.10",
     "eslint": "^9.15.0",

@@ -4,6 +4,8 @@
 [![Release](https://img.shields.io/github/v/release/nipunap/vscode-kafka-client?label=version)](https://github.com/nipunap/vscode-kafka-client/releases/latest)
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/NipunaPerera.vscode-kafka-client?label=VS%20Code%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=NipunaPerera.vscode-kafka-client)
 [![Downloads](https://img.shields.io/visual-studio-marketplace/d/NipunaPerera.vscode-kafka-client)](https://marketplace.visualstudio.com/items?itemName=NipunaPerera.vscode-kafka-client)
+[![Coverage](https://img.shields.io/badge/coverage-32.75%25-yellow.svg)](./coverage)
+[![Tests](https://img.shields.io/badge/tests-187%20passing-brightgreen.svg)](./src/test)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
 
 A comprehensive Kafka client extension for Visual Studio Code with full AWS MSK support, including IAM authentication and role assumption. View and manage Kafka clusters with enterprise-grade features including detailed configuration inspection, color-coded health monitoring, and complete broker visibility.
@@ -17,11 +19,15 @@ A comprehensive Kafka client extension for Visual Studio Code with full AWS MSK 
 - 📋 **Topic Management** - Create, delete, and browse topics with full configuration details
 - 🖥️ **Broker Management** - View all brokers with detailed configuration settings
 - 👥 **Consumer Groups** - View consumer groups with color-coded health status and lag information
+- 📊 **Cluster Dashboard** - Interactive dashboard with metrics, statistics, and visual charts
 - 📊 **Comprehensive Configuration Views** - See all settings like `kafka-configs.sh --describe`
 - 🎨 **Visual Health Indicators** - Color-coded consumer group states (🟢 Active, 🟠 Empty, 🔴 Dead/Zombie)
-- 🔒 **Enterprise Security** - Support for SSL/TLS, SASL (PLAIN, SCRAM-SHA-256/512), and AWS IAM
+- 🔒 **Enterprise Security** - Secure credential storage with VSCode SecretStorage
+- 🔐 **Multiple Auth Methods** - SSL/TLS, SASL (PLAIN, SCRAM-SHA-256/512), and AWS IAM
 - 📨 **Produce & Consume** - Send and receive messages with custom keys and values
 - 🔍 **Smart Search** - Find topics, consumer groups, and brokers across clusters
+- ⚡ **Performance** - Connection pooling and optimized data fetching
+- 📝 **Structured Logging** - Configurable log levels with detailed diagnostic output
 
 ## 🎯 What's New
 
@@ -42,8 +48,26 @@ Instantly see consumer group health:
 - 🟠 **Orange** icons for empty groups (no active consumers)
 - 🔴 **Red** icons for dead/zombie groups or groups in rebalancing
 
+### Cluster Dashboard
+Click any cluster to open an interactive dashboard with:
+- 📊 **Real-time Metrics** - Cluster ID, controller, broker count, topic count, partition count
+- 📈 **Visual Charts** - Partition distribution across brokers
+- 📋 **Top Topics** - Ranked by partition count
+- 🖥️ **Broker Details** - Host, port, rack information
+- 🎯 **Consumer Groups** - Summary with state indicators
+- ⚡ **Fast Loading** - Background data fetching with progress indicators
+
 ### Smart Search
 Find any resource across all clusters with fuzzy matching and instant navigation.
+
+### Enterprise Architecture
+Built with production-grade patterns:
+- **Structured Logging** - Configurable log levels (DEBUG, INFO, WARN, ERROR) with context-aware output
+- **Centralized Error Handling** - Consistent error messages with actionable suggestions
+- **Secure Credentials** - VSCode SecretStorage for sensitive data (passwords, tokens)
+- **Connection Pooling** - Reuse connections for better performance
+- **Event-Driven** - Decoupled components communicating via EventBus
+- **Base Provider Pattern** - Consistent tree view behavior across all resources
 
 ## 📦 Installation
 
@@ -114,6 +138,23 @@ Press `F5` in VSCode to launch the Extension Development Host.
    - Select your cluster from the list (or enter ARN manually)
 
 7. Click **Connect** - Done! 🎉
+
+### AWS MSK with TLS (Simplified)
+
+For AWS MSK clusters with TLS encryption (port 9094), the connection is even simpler:
+
+1. Select **Authentication Method**: TLS
+2. Choose your **AWS Profile** (for cluster discovery)
+3. Select **AWS Region**
+4. **Discover Clusters** and select your cluster
+5. **No certificates needed!** 🎉
+   - AWS MSK includes built-in public certificates
+   - Client certificates are only needed for mutual TLS (mTLS)
+   - Leave certificate fields empty for standard TLS
+
+**When you need client certificates:**
+- Only if you've configured mutual TLS (mTLS) authentication on your MSK cluster
+- Most MSK TLS connections don't require client certificates
 
 ## 🔐 AWS MSK IAM Authentication
 
@@ -217,6 +258,111 @@ The extension handles this automatically:
 }
 ```
 
+## 🔐 Kafka ACLs (Access Control Lists)
+
+### Understanding ACLs
+
+Kafka ACLs are authorization rules set on the Kafka cluster that control which users/principals can perform which operations. The extension **cannot configure ACLs** - they must be set by your Kafka administrator.
+
+### Required ACL Permissions
+
+For the extension to work properly, your Kafka user/principal needs specific ACL permissions:
+
+#### **Minimum Permissions (Read-Only)**
+```bash
+# View cluster metadata
+kafka-acls --add \
+  --allow-principal User:your-user \
+  --operation Describe --cluster
+
+# List topics
+kafka-acls --add \
+  --allow-principal User:your-user \
+  --operation Describe --topic '*'
+
+# List consumer groups
+kafka-acls --add \
+  --allow-principal User:your-user \
+  --operation Describe --group '*'
+```
+
+#### **Full Access Permissions**
+```bash
+# Cluster operations (create topics, describe cluster)
+kafka-acls --add \
+  --allow-principal User:your-user \
+  --operation All --cluster
+
+# Topic operations (create, delete, read, write, describe)
+kafka-acls --add \
+  --allow-principal User:your-user \
+  --operation All --topic '*'
+
+# Consumer group operations (read, describe, delete)
+kafka-acls --add \
+  --allow-principal User:your-user \
+  --operation All --group '*'
+```
+
+### AWS MSK ACLs
+
+For AWS MSK with IAM authentication, ensure your IAM policy includes:
+
+```json
+{
+  "Effect": "Allow",
+  "Action": [
+    "kafka-cluster:Connect",
+    "kafka-cluster:DescribeCluster",
+    "kafka-cluster:*Topic*",
+    "kafka-cluster:*Group*",
+    "kafka-cluster:ReadData",
+    "kafka-cluster:WriteData"
+  ],
+  "Resource": [
+    "arn:aws:kafka:region:account:cluster/*",
+    "arn:aws:kafka:region:account:topic/*/*",
+    "arn:aws:kafka:region:account:group/*/*"
+  ]
+}
+```
+
+### ACL Error Handling
+
+When you encounter ACL errors, the extension will:
+- 🔒 Show a clear authorization error message
+- 📚 Provide a link to Kafka ACL documentation
+- 📝 Log detailed error information for debugging
+
+**Common ACL Errors:**
+- `TOPIC_AUTHORIZATION_FAILED` - No permission for topic operations
+- `GROUP_AUTHORIZATION_FAILED` - No permission for consumer group operations
+- `CLUSTER_AUTHORIZATION_FAILED` - No permission for cluster operations
+
+### Checking Your Permissions
+
+You can check your current ACL permissions:
+
+```bash
+# List all ACLs for your user
+kafka-acls --list --principal User:your-user
+
+# Test specific operations
+kafka-topics --list  # Tests topic describe permission
+kafka-consumer-groups --list  # Tests group describe permission
+```
+
+### Connection vs Operation Permissions
+
+**Important**: The extension only tests basic connectivity when adding a connection. ACL permissions are checked when you perform specific operations:
+
+- ✅ **Connection succeeds** - You can connect to Kafka brokers
+- ❌ **Operation fails** - You don't have ACL permission for that specific action
+
+**Example:** You might successfully connect to a cluster but get authorization errors when trying to create topics or delete consumer groups.
+
+---
+
 ## 📚 Usage
 
 ### Working with Topics
@@ -267,6 +413,21 @@ The extension handles this automatically:
 - **Reset Offsets**: Right-click → "Reset Offsets" (⚠️ group must be empty)
 - **Search Groups**: Click search icon to find consumer groups across clusters
 
+### Cluster Dashboard
+
+- **Open Dashboard**: Right-click cluster → "Show Cluster Dashboard" (or click cluster)
+- **View Real-time Metrics**:
+  - Cluster ID and controller information
+  - Total broker, topic, and partition counts
+- **Interactive Charts**:
+  - Partition distribution visualization across brokers
+- **Resource Tables**:
+  - Top 10 topics by partition count
+  - All brokers with host and port information
+  - Consumer groups with state indicators
+- **Background Loading**: Dashboard loads in the background with progress indicators
+- **Refresh**: Click refresh icon to update all metrics
+
 ### Producing Messages
 
 1. Right-click topic → "Produce Message"
@@ -286,6 +447,7 @@ The extension handles this automatically:
 ### Context Menu Actions
 
 **Clusters:**
+- Show Cluster Dashboard
 - Create Topic
 - Remove Cluster
 - Refresh
@@ -313,6 +475,8 @@ All views include a search icon in the toolbar:
 
 ## 🔧 Configuration
 
+### Cluster Configuration
+
 Clusters are saved in VSCode settings (`kafka.clusters`). You can view/edit them:
 
 ```json
@@ -338,9 +502,50 @@ Clusters are saved in VSCode settings (`kafka.clusters`). You can view/edit them
 }
 ```
 
-**Note**: Passwords and temporary credentials are **never saved** for security.
+**Note**: Passwords and other sensitive credentials are securely stored using VSCode's `SecretStorage` API and are never saved in plain text.
+
+### Extension Settings
+
+Customize the extension behavior in VSCode settings:
+
+```json
+{
+  "kafka.logLevel": "info",                    // Logging level: debug, info, warn, error
+  "kafka.connectionTimeout": 30000,            // Connection timeout in milliseconds (default: 30s)
+  "kafka.requestTimeout": 30000,               // Request timeout in milliseconds (default: 30s)
+  "kafka.connectionPoolMaxIdleTime": 300000    // Max idle time for pooled connections (default: 5min)
+}
+```
+
+**Log Levels:**
+- `debug` - Verbose logging for troubleshooting
+- `info` - Normal operational messages (default)
+- `warn` - Warnings and potential issues
+- `error` - Error messages only
+
+**Performance Tuning:**
+- Increase `connectionTimeout` for slow networks
+- Adjust `connectionPoolMaxIdleTime` to control connection lifecycle
+- Use `debug` log level when troubleshooting connection issues
 
 ## 🐛 Troubleshooting
+
+### Viewing Logs
+
+The extension provides detailed logging to help diagnose issues:
+
+1. **Open Output Panel**: View → Output (Ctrl+Shift+U / Cmd+Shift+U)
+2. **Select Logger**: Choose "Kafka: [Component]" from the dropdown
+   - `Kafka: KafkaClientManager` - Connection and data fetching
+   - `Kafka: BrokerProvider` - Broker tree view
+   - `Kafka: ConsumerGroupProvider` - Consumer group tree view
+   - `Kafka: KafkaExplorerProvider` - Topic tree view
+   - `Kafka: ErrorHandler` - Error handling and user notifications
+   - `Kafka: ConnectionPool` - Connection lifecycle
+   - `Kafka: CredentialManager` - Credential storage
+   - `Kafka: EventBus` - Event dispatching
+3. **Adjust Log Level**: Set `kafka.logLevel` to `debug` for verbose output
+4. **View Errors**: Error messages include "Show Logs" button for quick access
 
 ### MSK IAM Authentication Fails
 
@@ -351,6 +556,7 @@ Clusters are saved in VSCode settings (`kafka.clusters`). You can view/edit them
 2. Verify credentials haven't expired (check `x_security_token_expires`)
 3. Refresh credentials: `aws sso login --profile your-profile`
 4. Check environment variables aren't conflicting (extension ignores them, but might cause confusion)
+5. **Enable debug logging** to see credential loading details
 
 ### Empty Brokers Array
 
@@ -393,30 +599,41 @@ aws sso login --profile your-profile
 ```
 vscode-kafka-client/
 ├── src/
-│   ├── extension.ts                    # Extension entry point
+│   ├── extension.ts                        # Extension entry point
+│   ├── infrastructure/                     # Core infrastructure
+│   │   ├── Logger.ts                       # Structured logging
+│   │   ├── ErrorHandler.ts                 # Centralized error handling
+│   │   ├── CredentialManager.ts            # Secure credential storage
+│   │   ├── ConnectionPool.ts               # Connection pooling
+│   │   └── EventBus.ts                     # Event-driven communication
 │   ├── kafka/
-│   │   ├── kafkaClientManager.ts       # Kafka client wrapper
-│   │   └── mskIamAuthenticator.ts      # AWS MSK IAM auth
+│   │   ├── kafkaClientManager.ts           # Kafka client wrapper
+│   │   └── mskIamAuthenticator.ts          # AWS MSK IAM auth
 │   ├── providers/
-│   │   ├── kafkaExplorerProvider.ts    # Topics tree view
-│   │   ├── consumerGroupProvider.ts    # Consumer groups tree view (color-coded)
-│   │   └── brokerProvider.ts           # Brokers tree view
+│   │   ├── BaseProvider.ts                 # Base tree data provider
+│   │   ├── kafkaExplorerProvider.ts        # Topics tree view
+│   │   ├── consumerGroupProvider.ts        # Consumer groups tree view (color-coded)
+│   │   └── brokerProvider.ts               # Brokers tree view
 │   ├── commands/
-│   │   ├── clusterCommands.ts          # Cluster operations
-│   │   ├── topicCommands.ts            # Topic operations
-│   │   ├── consumerGroupCommands.ts    # Consumer group operations
-│   │   └── brokerCommands.ts           # Broker operations
+│   │   ├── clusterCommands.ts              # Cluster operations
+│   │   ├── topicCommands.ts                # Topic operations
+│   │   ├── consumerGroupCommands.ts        # Consumer group operations
+│   │   ├── brokerCommands.ts               # Broker operations
+│   │   └── clusterDashboardCommands.ts     # Dashboard operations
+│   ├── views/
+│   │   └── clusterDashboardWebview.ts      # Interactive dashboard
 │   ├── forms/
-│   │   ├── clusterConnectionForm.ts    # Legacy input boxes
-│   │   └── clusterConnectionWebview.ts # New webview form
+│   │   ├── clusterConnectionForm.ts        # Legacy input boxes
+│   │   └── clusterConnectionWebview.ts     # New webview form
 │   ├── utils/
-│   │   └── formatters.ts               # YAML formatters for details views
-│   └── test/                           # Unit and integration tests
+│   │   ├── formatters.ts                   # YAML formatters for details views
+│   │   └── validators.ts                   # Input validation and sanitization
+│   └── test/                               # Unit and integration tests
 ├── resources/
-│   ├── kafka-icon.svg                  # Extension icon
-│   └── kafka-icon.png                  # Extension icon (PNG)
-├── package.json                        # Extension manifest
-└── tsconfig.json                       # TypeScript config
+│   ├── kafka-icon.svg                      # Extension icon
+│   └── kafka-icon.png                      # Extension icon (PNG)
+├── package.json                            # Extension manifest
+└── tsconfig.json                           # TypeScript config
 ```
 
 ### Build Commands
@@ -426,9 +643,59 @@ npm install          # Install dependencies
 npm run compile      # Compile TypeScript
 npm run watch        # Watch mode for development
 npm run lint         # Run ESLint
+npm test             # Run unit tests
 npm run package      # Package extension (creates .vsix)
 npm run publish      # Publish to VS Code Marketplace
 ```
+
+### Testing
+
+The extension includes comprehensive test coverage with **187 tests**:
+
+```bash
+npm test                    # Run all tests
+npm run test:coverage       # Run tests with coverage
+npm run test:coverage:report # Generate coverage report
+```
+
+**Test Structure:**
+- `infrastructure.test.ts` - Logger, ErrorHandler, CredentialManager, EventBus
+- `connectionPool.test.ts` - Connection pooling and lifecycle
+- `baseProvider.test.ts` - Base tree data provider
+- `kafkaClientManager.test.ts` - Core client operations
+- `providers.test.ts` - Tree view providers
+- `commands.test.ts` - Command handlers
+- `formatters.test.ts` - YAML formatting utilities
+- `validators.test.ts` - Input validation and security (32 security tests)
+- `topicCommands.test.ts` - Topic-specific operations
+- `consumerGroupCommands.test.ts` - Consumer group operations
+- `brokerProvider.test.ts` - Broker provider functionality
+- `brokerCommands.test.ts` - Broker commands
+
+**Test Coverage (187 tests passing):**
+| Category | Coverage |
+|----------|----------|
+| **Overall** | 32.75% |
+| **Infrastructure** | 85.55% ⭐ |
+| **Utilities** | 98.19% ⭐ |
+| **Providers** | 60.27% |
+| **Commands** | 55.95% |
+
+**High Coverage Areas:**
+- ✅ Kafka client integration
+- ✅ AWS MSK IAM authentication
+- ✅ Infrastructure components (Logger, ErrorHandler, CredentialManager, EventBus, ConnectionPool)
+- ✅ Tree view providers (BaseProvider pattern)
+- ✅ Command execution and error handling
+- ✅ Data formatting and sanitization (98% coverage)
+- ✅ Input validation and security checks (97% coverage, 32 security tests)
+- ✅ Connection pooling and lifecycle (82% coverage)
+- ✅ Event-driven architecture (89% coverage)
+
+**Coverage Reports:**
+- Text summary in console
+- HTML report: `./coverage/index.html`
+- LCOV format: `./coverage/lcov.info`
 
 ### Publishing
 
@@ -452,6 +719,20 @@ See `scripts/README.md` for detailed publishing instructions.
 - **@aws-sdk/credential-providers** - AWS credential loading
 - **aws-msk-iam-sasl-signer-js** - MSK IAM token generation
 - **ini** - Parse AWS credentials files
+- **chart.js** - Interactive charts for dashboard
+
+### Architecture Patterns
+
+The extension is built using production-grade patterns:
+
+- **Singleton Pattern** - Logger instances are singletons per component
+- **Factory Pattern** - ConnectionPool creates and manages Kafka instances
+- **Observer Pattern** - EventBus for decoupled event handling
+- **Strategy Pattern** - Multiple authentication strategies (SASL, SSL, IAM)
+- **Template Method** - BaseProvider defines common provider behavior
+- **Dependency Injection** - Components receive dependencies via constructors
+- **Secure by Default** - Credentials stored in VSCode SecretStorage
+- **Structured Logging** - Context-aware logging with log levels
 
 ## 🤝 Contributing
 

@@ -1,27 +1,21 @@
 import * as vscode from 'vscode';
 import { KafkaClientManager } from '../kafka/kafkaClientManager';
+import { BaseProvider } from './BaseProvider';
 
-export class ConsumerGroupProvider implements vscode.TreeDataProvider<ConsumerGroupTreeItem> {
-    private _onDidChangeTreeData: vscode.EventEmitter<
-        ConsumerGroupTreeItem | undefined | null | void
-    > = new vscode.EventEmitter<ConsumerGroupTreeItem | undefined | null | void>();
-    readonly onDidChangeTreeData: vscode.Event<ConsumerGroupTreeItem | undefined | null | void> =
-        this._onDidChangeTreeData.event;
-
-    constructor(private clientManager: KafkaClientManager) {}
-
-    refresh(): void {
-        this._onDidChangeTreeData.fire();
-    }
-
-    getTreeItem(element: ConsumerGroupTreeItem): vscode.TreeItem {
-        return element;
+export class ConsumerGroupProvider extends BaseProvider<ConsumerGroupTreeItem> {
+    constructor(clientManager: KafkaClientManager) {
+        super(clientManager, 'ConsumerGroupProvider');
     }
 
     async getChildren(element?: ConsumerGroupTreeItem): Promise<ConsumerGroupTreeItem[]> {
         if (!element) {
             // Root level - show clusters
-            const clusters = this.clientManager.getClusters();
+            const clusters = this.getClusters();
+            
+            if (clusters.length === 0) {
+                return [this.createEmptyItem('No clusters configured.') as ConsumerGroupTreeItem];
+            }
+            
             return clusters.map(
                 cluster =>
                     new ConsumerGroupTreeItem(
@@ -35,46 +29,43 @@ export class ConsumerGroupProvider implements vscode.TreeDataProvider<ConsumerGr
 
         if (element.contextValue === 'cluster') {
             // Show consumer groups for this cluster
-            try {
-                const groups = await this.clientManager.getConsumerGroups(element.clusterName);
+            return this.getChildrenSafely(
+                element,
+                async (el) => {
+                    const groups = await this.clientManager.getConsumerGroups(el!.clusterName);
 
-                if (groups.length === 0) {
-                    // Show a placeholder item when no consumer groups exist
-                    return [
-                        new ConsumerGroupTreeItem(
-                            'No consumer groups found',
-                            vscode.TreeItemCollapsibleState.None,
-                            'empty',
-                            element.clusterName
-                        )
-                    ];
-                }
+                    if (groups.length === 0) {
+                        return [
+                            new ConsumerGroupTreeItem(
+                                'No consumer groups found',
+                                vscode.TreeItemCollapsibleState.None,
+                                'empty',
+                                el!.clusterName
+                            )
+                        ];
+                    }
 
-                return groups.map(
-                    group =>
-                        new ConsumerGroupTreeItem(
-                            group.groupId,
-                            vscode.TreeItemCollapsibleState.None,
-                            'consumerGroup',
-                            element.clusterName,
-                            group.groupId,
-                            group.state
-                        )
-                );
-            } catch (error: any) {
-                console.error(`Failed to load consumer groups for ${element.label}:`, error);
-                vscode.window.showErrorMessage(
-                    `Failed to load consumer groups for ${element.label}: ${error?.message || error}`
-                );
-                return [
-                    new ConsumerGroupTreeItem(
-                        `Error: ${error?.message || 'Failed to load consumer groups'}`,
-                        vscode.TreeItemCollapsibleState.None,
-                        'error',
-                        element.clusterName
-                    )
-                ];
-            }
+                    return groups.map(
+                        group =>
+                            new ConsumerGroupTreeItem(
+                                group.groupId,
+                                vscode.TreeItemCollapsibleState.None,
+                                'consumerGroup',
+                                el!.clusterName,
+                                group.groupId,
+                                group.state
+                            )
+                    );
+                },
+                `Loading consumer groups for ${element.label}`
+            ).then(items => items.length > 0 ? items : [
+                new ConsumerGroupTreeItem(
+                    'Error: Failed to load consumer groups',
+                    vscode.TreeItemCollapsibleState.None,
+                    'error',
+                    element.clusterName
+                )
+            ]);
         }
 
         return [];

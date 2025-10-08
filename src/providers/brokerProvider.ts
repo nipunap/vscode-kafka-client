@@ -1,26 +1,21 @@
 import * as vscode from 'vscode';
 import { KafkaClientManager } from '../kafka/kafkaClientManager';
+import { BaseProvider } from './BaseProvider';
 
-export class BrokerProvider implements vscode.TreeDataProvider<BrokerTreeItem> {
-    private _onDidChangeTreeData: vscode.EventEmitter<BrokerTreeItem | undefined | null | void> =
-        new vscode.EventEmitter<BrokerTreeItem | undefined | null | void>();
-    readonly onDidChangeTreeData: vscode.Event<BrokerTreeItem | undefined | null | void> =
-        this._onDidChangeTreeData.event;
-
-    constructor(private clientManager: KafkaClientManager) {}
-
-    refresh(): void {
-        this._onDidChangeTreeData.fire();
-    }
-
-    getTreeItem(element: BrokerTreeItem): vscode.TreeItem {
-        return element;
+export class BrokerProvider extends BaseProvider<BrokerTreeItem> {
+    constructor(clientManager: KafkaClientManager) {
+        super(clientManager, 'BrokerProvider');
     }
 
     async getChildren(element?: BrokerTreeItem): Promise<BrokerTreeItem[]> {
         if (!element) {
             // Root level - show clusters
-            const clusters = this.clientManager.getClusters();
+            const clusters = this.getClusters();
+            
+            if (clusters.length === 0) {
+                return [this.createEmptyItem('No clusters configured.') as BrokerTreeItem];
+            }
+            
             return clusters.map(
                 cluster =>
                     new BrokerTreeItem(
@@ -34,41 +29,42 @@ export class BrokerProvider implements vscode.TreeDataProvider<BrokerTreeItem> {
 
         if (element.contextValue === 'cluster') {
             // Show brokers for this cluster
-            try {
-                const brokers = await this.clientManager.getBrokers(element.clusterName);
+            return this.getChildrenSafely(
+                element,
+                async (el) => {
+                    const brokers = await this.clientManager.getBrokers(el!.clusterName);
 
-                if (brokers.length === 0) {
-                    return [
-                        new BrokerTreeItem(
-                            'No brokers found',
-                            vscode.TreeItemCollapsibleState.None,
-                            'empty',
-                            element.clusterName
-                        )
-                    ];
-                }
+                    if (brokers.length === 0) {
+                        return [
+                            new BrokerTreeItem(
+                                'No brokers found',
+                                vscode.TreeItemCollapsibleState.None,
+                                'empty',
+                                el!.clusterName
+                            )
+                        ];
+                    }
 
-                return brokers.map(
-                    broker =>
-                        new BrokerTreeItem(
-                            `Broker ${broker.nodeId} (${broker.host}:${broker.port})`,
-                            vscode.TreeItemCollapsibleState.None,
-                            'broker',
-                            element.clusterName,
-                            broker.nodeId
-                        )
-                );
-            } catch (error: any) {
-                console.error(`Failed to load brokers for ${element.label}:`, error);
-                return [
-                    new BrokerTreeItem(
-                        `Error: Connection failed`,
-                        vscode.TreeItemCollapsibleState.None,
-                        'error',
-                        element.clusterName
-                    )
-                ];
-            }
+                    return brokers.map(
+                        broker =>
+                            new BrokerTreeItem(
+                                `Broker ${broker.nodeId} (${broker.host}:${broker.port})`,
+                                vscode.TreeItemCollapsibleState.None,
+                                'broker',
+                                el!.clusterName,
+                                broker.nodeId
+                            )
+                    );
+                },
+                `Loading brokers for ${element.label}`
+            ).then(items => items.length > 0 ? items : [
+                new BrokerTreeItem(
+                    'Error: Connection failed',
+                    vscode.TreeItemCollapsibleState.None,
+                    'error',
+                    element.clusterName
+                )
+            ]);
         }
 
         return [];

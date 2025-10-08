@@ -6,6 +6,8 @@ import * as vscode from 'vscode';
 import { KafkaClientManager } from '../kafka/kafkaClientManager';
 import { KafkaExplorerProvider } from '../providers/kafkaExplorerProvider';
 import { formatMessages, formatTopicDetailsYaml } from '../utils/formatters';
+import { ErrorHandler } from '../infrastructure/ErrorHandler';
+import { TopicDashboardWebview } from '../views/topicDashboardWebview';
 
 export async function createTopic(
     clientManager: KafkaClientManager,
@@ -41,42 +43,19 @@ export async function createTopic(
         return;
     }
 
-    try {
-        await clientManager.createTopic(
-            node.clusterName,
-            topicName,
-            Number(partitions),
-            Number(replicationFactor)
-        );
-        provider.refresh();
-        vscode.window.showInformationMessage(`✓ Topic "${topicName}" created successfully!`);
-    } catch (error: any) {
-        const errorMsg = error?.message || error?.toString() || 'Unknown error';
-
-        if (errorMsg.includes('expired') || errorMsg.includes('credentials')) {
-            vscode.window.showErrorMessage(
-                `⚠️ AWS credentials expired. Please reconnect the cluster with fresh credentials.`,
-                'Reconnect'
-            ).then(selection => {
-                if (selection === 'Reconnect') {
-                    vscode.commands.executeCommand('kafka.addCluster');
-                }
-            });
-        } else if (errorMsg.includes('replication') || errorMsg.includes('INVALID_REPLICATION_FACTOR')) {
-            vscode.window.showErrorMessage(
-                `Failed to create topic: ${errorMsg}. Try using replication factor = 1 for single-broker setups.`
+    await ErrorHandler.wrap(
+        async () => {
+            await clientManager.createTopic(
+                node.clusterName,
+                topicName,
+                Number(partitions),
+                Number(replicationFactor)
             );
-        } else if (errorMsg.includes('already exists') || errorMsg.includes('TOPIC_ALREADY_EXISTS')) {
-            vscode.window.showWarningMessage(`Topic "${topicName}" already exists in the cluster`);
-        } else if (errorMsg.includes('authorization') || errorMsg.includes('AUTHORIZATION_FAILED')) {
-            vscode.window.showErrorMessage(
-                `Access denied: ${errorMsg}. Check if you have permission to create topics.`
-            );
-        } else {
-            vscode.window.showErrorMessage(`Failed to create topic: ${errorMsg}`);
-        }
-        console.error('Topic creation error:', error);
-    }
+            provider.refresh();
+            vscode.window.showInformationMessage(`✓ Topic "${topicName}" created successfully!`);
+        },
+        `Creating topic "${topicName}"`
+    );
 }
 
 export async function deleteTopic(
@@ -91,35 +70,14 @@ export async function deleteTopic(
     );
 
     if (confirm === 'Yes') {
-        try {
-            await clientManager.deleteTopic(node.clusterName, node.topicName);
-            provider.refresh();
-            vscode.window.showInformationMessage(`✓ Topic "${node.label}" deleted successfully.`);
-        } catch (error: any) {
-            const errorMsg = error?.message || error?.toString() || 'Unknown error';
-
-            if (errorMsg.includes('expired') || errorMsg.includes('credentials')) {
-                vscode.window.showErrorMessage(
-                    `⚠️ AWS credentials expired. Please reconnect the cluster.`,
-                    'Reconnect'
-                ).then(selection => {
-                    if (selection === 'Reconnect') {
-                        vscode.commands.executeCommand('kafka.addCluster');
-                    }
-                });
-            } else if (errorMsg.includes('not found') || errorMsg.includes('UnknownTopicOrPartition')) {
-                vscode.window.showWarningMessage(
-                    `Topic "${node.label}" not found. It may have been already deleted.`,
-                    'Refresh'
-                ).then(selection => {
-                    if (selection === 'Refresh') {
-                        provider.refresh();
-                    }
-                });
-            } else {
-                vscode.window.showErrorMessage(`Failed to delete topic: ${errorMsg}`);
-            }
-        }
+        await ErrorHandler.wrap(
+            async () => {
+                await clientManager.deleteTopic(node.clusterName, node.topicName);
+                provider.refresh();
+                vscode.window.showInformationMessage(`✓ Topic "${node.label}" deleted successfully.`);
+            },
+            `Deleting topic "${node.label}"`
+        );
     }
 }
 
@@ -138,12 +96,13 @@ export async function produceMessage(clientManager: KafkaClientManager, node: an
         return;
     }
 
-    try {
-        await clientManager.produceMessage(node.clusterName, node.topicName, key, value);
-        vscode.window.showInformationMessage(`Message sent to topic "${node.topicName}"`);
-    } catch (error) {
-        vscode.window.showErrorMessage(`Failed to produce message: ${error}`);
-    }
+    await ErrorHandler.wrap(
+        async () => {
+            await clientManager.produceMessage(node.clusterName, node.topicName, key, value);
+            vscode.window.showInformationMessage(`Message sent to topic "${node.topicName}"`);
+        },
+        `Producing message to topic "${node.topicName}"`
+    );
 }
 
 export async function consumeMessages(clientManager: KafkaClientManager, node: any) {
@@ -185,8 +144,9 @@ export async function consumeMessages(clientManager: KafkaClientManager, node: a
 
     const limit = Number(limitStr);
 
-    try {
-        await vscode.window.withProgress(
+    await ErrorHandler.wrap(
+        async () => {
+            await vscode.window.withProgress(
             {
                 location: vscode.ProgressLocation.Notification,
                 title: `Consuming messages from ${node.topicName}`,
@@ -259,139 +219,132 @@ export async function consumeMessages(clientManager: KafkaClientManager, node: a
                 }
             }
         );
-    } catch (error: any) {
-        const errorMsg = error?.message || error?.toString() || 'Unknown error';
-        vscode.window.showErrorMessage(`Failed to consume messages: ${errorMsg}`);
-    }
+        },
+        `Consuming messages from topic "${node.topicName}"`
+    );
 }
 
 export async function showTopicDetails(clientManager: KafkaClientManager, node: any) {
-    try {
-        await vscode.window.withProgress(
-            {
-                location: vscode.ProgressLocation.Notification,
-                title: `Loading details for topic "${node.topicName}"`,
-                cancellable: false
-            },
-            async (_progress) => {
-                const details = await clientManager.getTopicDetails(
-                    node.clusterName,
-                    node.topicName
-                );
+    await ErrorHandler.wrap(
+        async () => {
+            await vscode.window.withProgress(
+                {
+                    location: vscode.ProgressLocation.Notification,
+                    title: `Loading details for topic "${node.topicName}"`,
+                    cancellable: false
+                },
+                async (_progress) => {
+                    const details = await clientManager.getTopicDetails(
+                        node.clusterName,
+                        node.topicName
+                    );
 
-                // Format the details nicely
-                const formattedDetails = formatTopicDetailsYaml(details);
+                    // Format the details nicely
+                    const formattedDetails = formatTopicDetailsYaml(details);
 
-                const document = await vscode.workspace.openTextDocument({
-                    content: formattedDetails,
-                    language: 'yaml'
-                });
-                await vscode.window.showTextDocument(document);
-            }
-        );
-    } catch (error: any) {
-        const errorMsg = error?.message || error?.toString() || 'Unknown error';
-
-        if (errorMsg.includes('expired') || errorMsg.includes('credentials')) {
-            vscode.window.showErrorMessage(
-                `⚠️ AWS credentials expired. Please reconnect the cluster.`,
-                'Reconnect'
-            ).then(selection => {
-                if (selection === 'Reconnect') {
-                    vscode.commands.executeCommand('kafka.addCluster');
+                    const document = await vscode.workspace.openTextDocument({
+                        content: formattedDetails,
+                        language: 'yaml'
+                    });
+                    await vscode.window.showTextDocument(document);
                 }
-            });
-        } else {
-            vscode.window.showErrorMessage(`Failed to get topic details: ${errorMsg}`);
-        }
-    }
+            );
+        },
+        `Loading details for topic "${node.topicName}"`
+    );
 }
 
 /**
  * Find/search for a topic across all clusters
  */
 export async function findTopic(clientManager: KafkaClientManager) {
-    try {
-        const clusters = clientManager.getClusters();
+    await ErrorHandler.wrap(
+        async () => {
+            const clusters = clientManager.getClusters();
 
-        if (clusters.length === 0) {
-            vscode.window.showInformationMessage('No clusters configured. Please add a cluster first.');
-            return;
-        }
-
-        // If multiple clusters, let user select one first
-        let selectedCluster: string;
-        if (clusters.length === 1) {
-            selectedCluster = clusters[0];
-        } else {
-            const clusterChoice = await vscode.window.showQuickPick(clusters, {
-                placeHolder: 'Select cluster to search topics',
-                ignoreFocusOut: true
-            });
-            if (!clusterChoice) {
+            if (clusters.length === 0) {
+                vscode.window.showInformationMessage('No clusters configured. Please add a cluster first.');
                 return;
             }
-            selectedCluster = clusterChoice;
-        }
 
-        // Get all topics with timeout
-        const topics = await vscode.window.withProgress(
-            {
-                location: vscode.ProgressLocation.Notification,
-                title: `Loading topics from ${selectedCluster}...`,
-                cancellable: true
-            },
-            async (_progress, token) => {
-                // Add cancellation support
-                if (token.isCancellationRequested) {
-                    return [];
+            // If multiple clusters, let user select one first
+            let selectedCluster: string;
+            if (clusters.length === 1) {
+                selectedCluster = clusters[0];
+            } else {
+                const clusterChoice = await vscode.window.showQuickPick(clusters, {
+                    placeHolder: 'Select cluster to search topics',
+                    ignoreFocusOut: true
+                });
+                if (!clusterChoice) {
+                    return;
                 }
+                selectedCluster = clusterChoice;
+            }
 
-                try {
+            // Get all topics with timeout
+            const topics = await vscode.window.withProgress(
+                {
+                    location: vscode.ProgressLocation.Notification,
+                    title: `Loading topics from ${selectedCluster}...`,
+                    cancellable: true
+                },
+                async (_progress, token) => {
+                    // Add cancellation support
+                    if (token.isCancellationRequested) {
+                        return [];
+                    }
+
                     const result = await clientManager.getTopics(selectedCluster);
                     return result || [];
-                } catch (error: any) {
-                    // Provide more specific error messages
-                    const errorMsg = error?.message || error?.toString() || 'Unknown error';
-                    if (errorMsg.includes('expired') || errorMsg.includes('credentials')) {
-                        throw new Error('AWS credentials expired. Please reconnect the cluster.');
-                    } else if (errorMsg.includes('timeout')) {
-                        throw new Error('Connection timeout. Check that the cluster is accessible.');
-                    } else {
-                        throw error;
-                    }
                 }
-            }
-        );
+            );
 
-        if (!topics || topics.length === 0) {
-            vscode.window.showInformationMessage(`No topics found in cluster "${selectedCluster}"`);
-            return;
+            if (!topics || topics.length === 0) {
+                vscode.window.showInformationMessage(`No topics found in cluster "${selectedCluster}"`);
+                return;
+            }
+
+            // Show searchable list with fuzzy matching
+            const selectedTopic = await vscode.window.showQuickPick(
+                topics.map(topic => ({
+                    label: topic,
+                    description: `Cluster: ${selectedCluster}`,
+                    detail: undefined
+                })),
+                {
+                    placeHolder: `Search topics in ${selectedCluster} (${topics.length} total)`,
+                    matchOnDescription: true,
+                    ignoreFocusOut: true
+                }
+            );
+
+            if (selectedTopic) {
+                // Show topic details
+                await showTopicDetails(clientManager, {
+                    clusterName: selectedCluster,
+                    topicName: selectedTopic.label
+                });
+            }
+        },
+        'Searching for topics'
+    );
+}
+
+export async function showTopicDashboard(
+    clientManager: KafkaClientManager,
+    context: vscode.ExtensionContext,
+    node: any
+) {
+    return ErrorHandler.wrap(async () => {
+        const clusterName = node.clusterName;
+        const topicName = node.topicName || node.label;
+
+        if (!clusterName || !topicName) {
+            throw new Error('Cluster name and topic name are required');
         }
 
-        // Show searchable list with fuzzy matching
-        const selectedTopic = await vscode.window.showQuickPick(
-            topics.map(topic => ({
-                label: topic,
-                description: `Cluster: ${selectedCluster}`,
-                detail: undefined
-            })),
-            {
-                placeHolder: `Search topics in ${selectedCluster} (${topics.length} total)`,
-                matchOnDescription: true,
-                ignoreFocusOut: true
-            }
-        );
-
-        if (selectedTopic) {
-            // Show topic details
-            await showTopicDetails(clientManager, {
-                clusterName: selectedCluster,
-                topicName: selectedTopic.label
-            });
-        }
-    } catch (error: any) {
-        const errorMsg = error?.message || error?.toString() || 'Unknown error';
-        vscode.window.showErrorMessage(`Failed to search topics: ${errorMsg}`);
-    }
+        const dashboard = new TopicDashboardWebview(context, clientManager);
+        await dashboard.show(clusterName, topicName);
+    }, 'Show Topic Dashboard');
 }

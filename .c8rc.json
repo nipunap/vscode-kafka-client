@@ -1,0 +1,32 @@
+{
+  "all": true,
+  "include": [
+    "out/extension.js",
+    "out/kafka/**/*.js",
+    "out/providers/**/*.js",
+    "out/commands/**/*.js",
+    "out/forms/**/*.js",
+    "out/views/**/*.js",
+    "out/utils/**/*.js",
+    "out/infrastructure/**/*.js"
+  ],
+  "exclude": [
+    "out/test/**",
+    "out/**/*.test.js",
+    "out/**/runTest.js"
+  ],
+  "reporter": [
+    "text",
+    "lcov",
+    "html",
+    "json-summary"
+  ],
+  "check-coverage": true,
+  "lines": 30,
+  "functions": 50,
+  "branches": 70,
+  "statements": 30,
+  "report-dir": "./coverage",
+  "temp-directory": "./coverage/.nyc_output"
+}
+

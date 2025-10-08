@@ -4,6 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 0.3.x   | :white_check_mark: |
 | 0.2.x   | :white_check_mark: |
 | < 0.2   | :x:                |
 
@@ -90,6 +91,58 @@ Detected by GitHub Advanced Security (CodeQL) and Copilot code review.
 
 ---
 
+## Security Improvements in v0.3.0
+
+Version 0.3.0 introduces a major security overhaul with enterprise-grade architecture:
+
+### 1. Secure Credential Management
+- **CredentialManager**: All passwords now stored using VSCode's SecretStorage API
+- **Encrypted at Rest**: Credentials encrypted by VSCode/OS keychain
+- **Migration Support**: Automatic migration from any old plain-text passwords
+- **Per-Cluster Isolation**: Credentials isolated by cluster name
+- **Automatic Cleanup**: Credentials deleted when cluster is removed
+
+### 2. Connection Security
+- **ConnectionPool**: Centralized connection management with secure lifecycle
+  - Connections reused securely across operations
+  - Automatic cleanup of idle connections (prevents resource exhaustion)
+  - Proper error handling prevents connection leaks
+  - Failed connections cleaned up immediately
+
+### 3. Error Handling & Information Disclosure
+- **Centralized ErrorHandler**: Prevents sensitive information leakage in error messages
+  - Generic error messages to users
+  - Detailed logs only in debug mode
+  - Credential errors detected and handled specially
+  - Network errors sanitized
+
+### 4. Logging Security
+- **Structured Logging**: Context-aware logging with configurable levels
+  - Sensitive data never logged (passwords, tokens)
+  - Separate log channels per component
+  - Debug logs clearly marked and optional
+  - Log levels: DEBUG, INFO, WARN, ERROR
+
+### 5. Input Validation
+- Already implemented in v0.2.1, maintained in v0.3.0
+- 32 security tests validate all broker inputs
+- Both client and server-side validation
+
+### 6. Architecture Security
+- **Event-Driven**: Reduced coupling reduces attack surface
+- **Base Provider**: Consistent error handling prevents information leakage
+- **Dependency Injection**: Clear component boundaries
+- **Immutable Events**: Events can't be tampered with
+
+### Security Testing
+- 187 total tests (up from 132 in v0.2.x)
+- 55 new tests for security features
+- 85.55% coverage on infrastructure components
+- 98.19% coverage on validators
+- Continuous integration tests on multiple OS platforms
+
+---
+
 ## Reporting a Vulnerability
 
 If you discover a security vulnerability in this project, please report it by:
@@ -116,18 +169,52 @@ When using this extension:
 3. **TLS/SSL**: Enable encryption for production clusters
 4. **Network**: Use VPNs or private networks for sensitive deployments
 5. **Updates**: Keep the extension updated to receive security patches
+6. **Logging**: Use INFO or WARN log levels in production (avoid DEBUG to prevent sensitive data logging)
+7. **Connection Pool**: The extension automatically manages connections securely
 
 ## Security Features
 
-Current security features:
-- ✅ Comprehensive broker URL validation
-- ✅ AWS IAM authentication support with role assumption
-- ✅ TLS/SSL encryption support
-- ✅ SASL authentication (PLAIN, SCRAM-SHA-256, SCRAM-SHA-512)
-- ✅ Credential validation before connection
-- ✅ Secure credential storage via VS Code Secret Storage API
-- ✅ Input sanitization across all user inputs
-- ✅ No hardcoded credentials or secrets
+### Authentication & Credentials (v0.3.0+)
+- ✅ **Secure Credential Storage**: Passwords stored in VSCode SecretStorage API (encrypted at rest)
+- ✅ **No Plain-Text Storage**: Sensitive credentials never saved to configuration files
+- ✅ **Automatic Migration**: Old plain-text passwords migrated to secure storage
+- ✅ **Credential Manager**: Centralized secure credential handling
+- ✅ **AWS IAM Authentication**: Support for role assumption with temporary credentials
+- ✅ **Multiple Auth Methods**: SASL (PLAIN, SCRAM-SHA-256/512), TLS/SSL, AWS IAM
+
+### Input Validation & Sanitization (v0.2.1+)
+- ✅ **Comprehensive Broker URL Validation**: 32 security tests covering:
+  - Hostname/IPv4/IPv6 validation
+  - Port range validation (1-65535)
+  - Dangerous character blocking (`\r`, `\n`, `\0`, `@`, `/`, `?`, `#`)
+  - CRLF injection prevention
+  - Null byte injection prevention
+  - URL injection prevention
+- ✅ **Client-Side & Server-Side Validation**: Defense in depth
+- ✅ **YAML Output Escaping**: Proper backslash and quote escaping
+- ✅ **Input Sanitization**: All user inputs validated before use
+
+### Infrastructure & Architecture (v0.3.0+)
+- ✅ **Connection Pooling**: Secure connection lifecycle management
+  - Automatic idle connection cleanup (5-minute timeout)
+  - Proper disconnection on errors
+  - No connection leaks
+- ✅ **Centralized Error Handling**: Prevents error information leakage
+- ✅ **Structured Logging**: Context-aware logging without sensitive data
+- ✅ **Event-Driven Architecture**: Reduced attack surface through decoupling
+- ✅ **Base Provider Pattern**: Consistent error handling across all providers
+
+### Network Security
+- ✅ **TLS/SSL Support**: Full encryption support for all connections
+- ✅ **AWS MSK TLS**: Simplified configuration with built-in public certificates
+- ✅ **Mutual TLS (mTLS)**: Support for client certificate authentication
+- ✅ **Certificate Validation**: Proper CA, client cert, and key handling
+
+### Code Quality & Testing
+- ✅ **187 Tests**: Comprehensive test coverage including 32 security tests
+- ✅ **85% Infrastructure Coverage**: High coverage on security-critical components
+- ✅ **Static Analysis**: ESLint and TypeScript strict mode
+- ✅ **No Hardcoded Secrets**: All credentials managed securely
 
 ## Dependency Security
 
