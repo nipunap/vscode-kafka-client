@@ -601,7 +601,7 @@ export class ClusterDashboardWebview {
                     <h2>📊 Broker Details</h2>
                     <table>
                         <thead><tr><th>Broker ID</th><th>Host</th><th>Port</th><th>Rack</th><th>Partition Leaders</th></tr></thead>
-                        <tbody>\${stats.brokers.map(b => \`<tr><td><strong>\${b.id}</strong></td><td>\${b.host}</td><td>\${b.port}</td><td>\${b.rack}</td><td><strong>\${b.partitionCount}</strong> partitions</td></tr>\`).join('')}</tbody>
+                        <tbody>\${stats.brokers.sort((a, b) => a.id - b.id).map(b => \`<tr><td><strong>\${b.id}</strong></td><td>\${b.host}</td><td>\${b.port}</td><td>\${b.rack}</td><td><strong>\${b.partitionCount}</strong> partitions</td></tr>\`).join('')}</tbody>
                     </table>
                 </div>
 
@@ -628,9 +628,10 @@ export class ClusterDashboardWebview {
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
             });
 
+            const sortedBrokers = stats.brokers.sort((a, b) => a.id - b.id);
             new Chart(document.getElementById('brokerChart'), {
                 type: 'bar',
-                data: { labels: stats.brokers.map(b => 'Broker ' + b.id), datasets: [{ label: 'Partition Leaders', data: stats.brokers.map(b => b.partitionCount), backgroundColor: 'rgba(54, 162, 235, 0.8)', borderWidth: 0 }] },
+                data: { labels: sortedBrokers.map(b => 'Broker ' + b.id), datasets: [{ label: 'Partition Leaders', data: sortedBrokers.map(b => b.partitionCount), backgroundColor: 'rgba(54, 162, 235, 0.8)', borderWidth: 0 }] },
                 options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => 'Partitions: ' + ctx.parsed.y } } } }
             });
 
@@ -985,13 +986,15 @@ export class ClusterDashboardWebview {
 
         // Broker Partition Distribution Chart
         const brokers = ${JSON.stringify(stats.brokers)};
+        // Sort brokers by ID for consistent display
+        const sortedBrokers = brokers.sort((a, b) => a.id - b.id);
         new Chart(document.getElementById('brokerChart'), {
             type: 'bar',
             data: {
-                labels: brokers.map(b => 'Broker ' + b.id),
+                labels: sortedBrokers.map(b => 'Broker ' + b.id),
                 datasets: [{
                     label: 'Partition Leaders',
-                    data: brokers.map(b => b.partitionCount),
+                    data: sortedBrokers.map(b => b.partitionCount),
                     backgroundColor: 'rgba(54, 162, 235, 0.8)',
                     borderWidth: 0
                 }]

@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import { KafkaClientManager } from '../kafka/kafkaClientManager';
-import { ErrorHandler } from '../infrastructure/ErrorHandler';
 import { Logger } from '../infrastructure/Logger';
 
 export class TopicDashboardWebview {
@@ -187,15 +186,19 @@ export class TopicDashboardWebview {
         };
     }
 
-    private updateDashboard(topicName: string, metrics: any, partitionInfo: any, topicDetails: any) {
-        if (!this.panel) return;
+    private updateDashboard(topicName: string, metrics: any, _partitionInfo: any, _topicDetails: any) {
+        if (!this.panel) {
+            return;
+        }
 
-        const html = this.getDashboardHtml(topicName, metrics, partitionInfo, topicDetails);
+        const html = this.getDashboardHtml(topicName, metrics, _partitionInfo, _topicDetails);
         this.panel.webview.html = html;
     }
 
     private showError(message: string) {
-        if (!this.panel) return;
+        if (!this.panel) {
+            return;
+        }
 
         this.panel.webview.html = this.getErrorHtml(message);
     }
@@ -336,7 +339,7 @@ export class TopicDashboardWebview {
         `;
     }
 
-    private getDashboardHtml(topicName: string, metrics: any, partitionInfo: any, topicDetails: any): string {
+    private getDashboardHtml(topicName: string, metrics: any, _partitionInfo: any, _topicDetails: any): string {
         return `
             <!DOCTYPE html>
             <html>
@@ -493,10 +496,10 @@ export class TopicDashboardWebview {
 
                 <div class="charts-row">
                     <div class="chart-container">
-                        <div class="chart-title">📈 Partition Distribution</div>
+                        <div class="chart-title">📈 Message Distribution Over Partitions</div>
                         <canvas id="partitionChart" width="400" height="200"></canvas>
                     </div>
-                    
+
                     <div class="chart-container">
                         <div class="chart-title">🔄 Replica Distribution</div>
                         <canvas id="replicaChart" width="400" height="200"></canvas>
@@ -595,34 +598,31 @@ export class TopicDashboardWebview {
                     ];
 
                     new Chart(replicaCtx, {
-                        type: 'pie',
+                        type: 'bar',
                         data: {
                             labels: brokerLabels.map(id => \`Broker \${id}\`),
                             datasets: [{
+                                label: 'Replicas',
                                 data: brokerData,
                                 backgroundColor: colors.slice(0, brokerLabels.length),
                                 borderColor: colors.slice(0, brokerLabels.length).map(color => color.replace('0.8', '1')),
-                                borderWidth: 2
+                                borderWidth: 1
                             }]
                         },
                         options: {
                             responsive: true,
                             plugins: {
                                 legend: {
-                                    position: 'bottom',
-                                    labels: {
-                                        padding: 15,
-                                        usePointStyle: true
-                                    }
-                                },
-                                tooltip: {
-                                    callbacks: {
-                                        label: function(context) {
-                                            const label = context.label || '';
-                                            const value = context.parsed;
-                                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                            const percentage = ((value / total) * 100).toFixed(1);
-                                            return \`\${label}: \${value} replicas (\${percentage}%)\`;
+                                    display: false
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        stepSize: 1,
+                                        callback: function(value) {
+                                            return Math.floor(value);
                                         }
                                     }
                                 }
