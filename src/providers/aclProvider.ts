@@ -51,7 +51,31 @@ export class ACLProvider extends BaseProvider<ACLTreeItem> {
                         // Group ACLs by resource type
                         const groupedACLs = this.groupACLsByResourceType(acls);
                         return this.createResourceTypeItems(groupedACLs, el!.clusterName);
-                    } catch (error) {
+                    } catch (error: any) {
+                        // Handle the expected error for CLI tool requirement
+                        if (error.message && error.message.includes('kafka-acls CLI tool')) {
+                            return [
+                                new ACLTreeItem(
+                                    'ACL Management',
+                                    vscode.TreeItemCollapsibleState.None,
+                                    'info',
+                                    el!.clusterName,
+                                    undefined,
+                                    undefined,
+                                    'ACL management requires kafka-acls CLI tool. Use the ACL Help command for guidance.'
+                                ),
+                                new ACLTreeItem(
+                                    'Open ACL Help',
+                                    vscode.TreeItemCollapsibleState.None,
+                                    'help',
+                                    el!.clusterName,
+                                    undefined,
+                                    undefined,
+                                    'Click to open ACL help documentation'
+                                )
+                            ];
+                        }
+                        
                         this.logger.error(`Failed to load ACLs for cluster ${el!.clusterName}`, error);
                         return [
                             new ACLTreeItem(
@@ -88,7 +112,22 @@ export class ACLProvider extends BaseProvider<ACLTreeItem> {
                         }
 
                         return this.createACLItems(aclsForType, el!.clusterName);
-                    } catch (error) {
+                    } catch (error: any) {
+                        // Handle the expected error for CLI tool requirement
+                        if (error.message && error.message.includes('kafka-acls CLI tool')) {
+                            return [
+                                new ACLTreeItem(
+                                    'ACL Management Required',
+                                    vscode.TreeItemCollapsibleState.None,
+                                    'info',
+                                    el!.clusterName,
+                                    undefined,
+                                    undefined,
+                                    'ACL management requires kafka-acls CLI tool. Use the ACL Help command for guidance.'
+                                )
+                            ];
+                        }
+                        
                         this.logger.error(`Failed to load ACLs for resource type ${el!.resourceType}`, error);
                         return [
                             new ACLTreeItem(
@@ -214,17 +253,24 @@ export class ACLTreeItem extends vscode.TreeItem {
         public readonly contextValue: string,
         public readonly clusterName: string,
         public readonly acl?: ACL,
-        public readonly resourceType?: string
+        public readonly resourceType?: string,
+        public readonly customTooltip?: string
     ) {
         super(label, collapsibleState);
 
-        this.tooltip = this.label;
+        this.tooltip = customTooltip || this.label;
         this.contextValue = contextValue;
 
         if (contextValue === 'acl') {
             this.command = {
                 command: 'kafka.showACLDetails',
                 title: 'Show ACL Details',
+                arguments: [this]
+            };
+        } else if (contextValue === 'help') {
+            this.command = {
+                command: 'kafka.showACLHelp',
+                title: 'Show ACL Help',
                 arguments: [this]
             };
         }
