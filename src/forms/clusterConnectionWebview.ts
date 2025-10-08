@@ -83,6 +83,17 @@ export class ClusterConnectionWebview {
                 await this.listMSKClusters(message.profile, message.region, message.assumeRoleArn, message.authType);
                 break;
 
+            case 'reloadProfiles':
+                const reloadedProfiles = await this.getAWSProfiles();
+                this.panel?.webview.postMessage({
+                    command: 'profilesLoaded',
+                    profiles: reloadedProfiles.map(p => ({
+                        name: p.name,
+                        status: this.getProfileStatus(p)
+                    }))
+                });
+                break;
+
             case 'submit':
                 const connection = this.buildConnection(message.data);
                 if (this.resolvePromise) {
@@ -207,8 +218,12 @@ export class ClusterConnectionWebview {
 
             if (minutesLeft < 0) {
                 return '🔴 Expired';
+            } else if (minutesLeft < 15) {
+                // Critical: Less than 15 minutes - about to expire
+                return `🔴 ${minutesLeft}m left`;
             } else if (minutesLeft < 60) {
-                return `🔴 Expires in ${minutesLeft}m`;
+                // Warning: 15-59 minutes - expiring soon
+                return `🟡 ${minutesLeft}m left`;
             } else if (minutesLeft < 1440) { // Less than 24 hours
                 const hoursLeft = Math.floor(minutesLeft / 60);
                 const remainingMinutes = minutesLeft % 60;
@@ -804,6 +819,11 @@ export class ClusterConnectionWebview {
             document.getElementById('mskIamSection').classList.toggle('hidden', method !== 'iam');
             document.getElementById('mskScramSection').classList.toggle('hidden', method !== 'sasl_scram');
             document.getElementById('mskTlsSection').classList.toggle('hidden', method !== 'tls');
+
+            // Reload AWS profiles with current credential status when auth method changes
+            if (method === 'iam' || method === 'sasl_scram' || method === 'tls') {
+                reloadAWSProfiles();
+            }
         });
 
         // Handle assume role checkbox
@@ -995,6 +1015,13 @@ export class ClusterConnectionWebview {
         document.getElementById('cancelBtn').addEventListener('click', () => {
             vscode.postMessage({ command: 'cancel' });
         });
+
+        // Function to reload AWS profiles with current credential status
+        function reloadAWSProfiles() {
+            vscode.postMessage({
+                command: 'reloadProfiles'
+            });
+        }
 
         // Handle messages from extension
         window.addEventListener('message', event => {

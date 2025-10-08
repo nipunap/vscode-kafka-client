@@ -536,8 +536,13 @@ export class ClusterConnectionForm {
                 if (minutesLeft < 0) {
                     description = '🔴 Expired';
                     detail = `Expired on ${profile.expiresAt.toLocaleString()}`;
-                } else if (minutesLeft < 60) {
+                } else if (minutesLeft < 15) {
+                    // Critical: Less than 15 minutes - about to expire
                     description = `🔴 ${minutesLeft} minutes left`;
+                    detail = `Expires at ${profile.expiresAt.toLocaleTimeString()}`;
+                } else if (minutesLeft < 60) {
+                    // Warning: 15-59 minutes - expiring soon
+                    description = `🟡 ${minutesLeft} minutes left`;
                     detail = `Expires at ${profile.expiresAt.toLocaleTimeString()}`;
                 } else if (minutesLeft < 1440) { // Less than 24 hours
                     const hoursLeft = Math.floor(minutesLeft / 60);
