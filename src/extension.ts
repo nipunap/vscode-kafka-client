@@ -2,11 +2,13 @@ import * as vscode from 'vscode';
 import { KafkaExplorerProvider } from './providers/kafkaExplorerProvider';
 import { ConsumerGroupProvider } from './providers/consumerGroupProvider';
 import { BrokerProvider } from './providers/brokerProvider';
+import { ACLProvider } from './providers/aclProvider';
 import { KafkaClientManager } from './kafka/kafkaClientManager';
 import * as clusterCommands from './commands/clusterCommands';
 import * as topicCommands from './commands/topicCommands';
 import * as consumerGroupCommands from './commands/consumerGroupCommands';
 import * as brokerCommands from './commands/brokerCommands';
+import * as aclCommands from './commands/aclCommands';
 import * as clusterDashboardCommands from './commands/clusterDashboardCommands';
 import { Logger, LogLevel } from './infrastructure/Logger';
 import { EventBus, KafkaEvents } from './infrastructure/EventBus';
@@ -35,10 +37,12 @@ export async function activate(context: vscode.ExtensionContext) {
     const kafkaExplorerProvider = new KafkaExplorerProvider(clientManager);
     const consumerGroupProvider = new ConsumerGroupProvider(clientManager);
     const brokerProvider = new BrokerProvider(clientManager);
+    const aclProvider = new ACLProvider(clientManager);
 
     vscode.window.registerTreeDataProvider('kafkaExplorer', kafkaExplorerProvider);
     vscode.window.registerTreeDataProvider('kafkaConsumerGroups', consumerGroupProvider);
     vscode.window.registerTreeDataProvider('kafkaBrokers', brokerProvider);
+    vscode.window.registerTreeDataProvider('kafkaACLs', aclProvider);
 
     // Set up event listeners for auto-refresh
     eventBus.on(KafkaEvents.CLUSTER_ADDED, () => {
@@ -46,6 +50,7 @@ export async function activate(context: vscode.ExtensionContext) {
         kafkaExplorerProvider.refresh();
         consumerGroupProvider.refresh();
         brokerProvider.refresh();
+        aclProvider.refresh();
     });
 
     eventBus.on(KafkaEvents.CLUSTER_REMOVED, () => {
@@ -53,6 +58,7 @@ export async function activate(context: vscode.ExtensionContext) {
         kafkaExplorerProvider.refresh();
         consumerGroupProvider.refresh();
         brokerProvider.refresh();
+        aclProvider.refresh();
     });
 
     eventBus.on(KafkaEvents.REFRESH_REQUESTED, () => {
@@ -60,6 +66,7 @@ export async function activate(context: vscode.ExtensionContext) {
         kafkaExplorerProvider.refresh();
         consumerGroupProvider.refresh();
         brokerProvider.refresh();
+        aclProvider.refresh();
     });
 
     // Load saved clusters from configuration
@@ -181,6 +188,37 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.findBroker', async () => {
             await brokerCommands.findBroker(clientManager);
+        })
+    );
+
+    // ACL commands
+    context.subscriptions.push(
+        vscode.commands.registerCommand('kafka.showACLDetails', async (node) => {
+            await aclCommands.showACLDetails(clientManager, node);
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('kafka.createACL', async (node) => {
+            await aclCommands.createACL(clientManager, node);
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('kafka.deleteACL', async (node) => {
+            await aclCommands.deleteACL(clientManager, node);
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('kafka.findACL', async () => {
+            await aclCommands.findACL(clientManager);
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('kafka.showACLHelp', async () => {
+            await aclCommands.showACLHelp(clientManager);
         })
     );
 

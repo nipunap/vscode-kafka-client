@@ -43,6 +43,7 @@
     "onView:kafkaExplorer",
     "onView:kafkaConsumerGroups",
     "onView:kafkaBrokers",
+    "onView:kafkaACLs",
     "onCommand:kafka.addCluster"
   ],
   "main": "./out/extension.js",
@@ -72,6 +73,11 @@
           "id": "kafkaBrokers",
           "name": "Brokers",
           "icon": "$(server)"
+        },
+        {
+          "id": "kafkaACLs",
+          "name": "ACLs",
+          "icon": "$(shield)"
         }
       ]
     },
@@ -150,6 +156,31 @@
         "command": "kafka.findConsumerGroup",
         "title": "Kafka: Find Consumer Group",
         "icon": "$(search)"
+      },
+      {
+        "command": "kafka.showACLDetails",
+        "title": "Show ACL Details",
+        "icon": "$(info)"
+      },
+      {
+        "command": "kafka.createACL",
+        "title": "Create ACL",
+        "icon": "$(add)"
+      },
+      {
+        "command": "kafka.deleteACL",
+        "title": "Delete ACL",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "kafka.findACL",
+        "title": "Kafka: Find ACL",
+        "icon": "$(search)"
+      },
+      {
+        "command": "kafka.showACLHelp",
+        "title": "ACL Help",
+        "icon": "$(question)"
       },
       {
         "command": "kafka.showBrokerDetails",

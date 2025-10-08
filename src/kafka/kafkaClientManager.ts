@@ -10,6 +10,7 @@ import { createMSKIAMAuthMechanism } from './mskIamAuthenticator';
 import { Logger } from '../infrastructure/Logger';
 import { ConnectionPool } from '../infrastructure/ConnectionPool';
 import { CredentialManager } from '../infrastructure/CredentialManager';
+import { ACL, ACLDetails, ACLConfig } from '../types/acl';
 
 // Type alias for cluster configuration
 type ClusterConfig = ClusterConnection;
@@ -65,6 +66,9 @@ export class KafkaClientManager {
             try {
                 brokers = await this.getMSKBootstrapBrokers(connection.region, connection.clusterArn, connection.saslMechanism, connection.awsProfile);
                 this.logger.debug(`Fetched ${brokers.length} MSK brokers for ${connection.name}`);
+                // Cache the brokers in the connection object to avoid re-fetching from AWS
+                // This is important for TLS connections where AWS credentials are only needed once
+                connection.brokers = brokers;
             } catch (error: any) {
                 const errorMsg = error?.message || error.toString();
 
@@ -860,6 +864,65 @@ export class KafkaClientManager {
         };
     }
 
+    async getACLs(clusterName: string): Promise<ACL[]> {
+        try {
+            // Note: KafkaJS doesn't have built-in ACL support
+            // ACL management requires direct Kafka admin API access through kafka-acls CLI
+            this.logger.warn('ACL management requires direct Kafka admin API access, which is not available through KafkaJS');
+            throw new Error('ACL management requires kafka-acls CLI tool. Use the ACL Help command for guidance.');
+        } catch (error: any) {
+            this.logger.error(`Failed to get ACLs for cluster ${clusterName}`, error);
+            throw error;
+        }
+    }
+
+    async createACL(clusterName: string, _aclConfig: ACLConfig): Promise<void> {
+        try {
+            // Note: This would require direct Kafka admin API access
+            // KafkaJS doesn't support ACL operations directly
+            this.logger.warn('ACL creation requires direct Kafka admin API access, which is not available through KafkaJS');
+            throw new Error('ACL management requires kafka-acls CLI tool. Use the ACL Help command for guidance.');
+        } catch (error: any) {
+            this.logger.error(`Failed to create ACL for cluster ${clusterName}`, error);
+            throw error;
+        }
+    }
+
+    async deleteACL(clusterName: string, _aclConfig: Omit<ACLConfig, 'permissionType'>): Promise<void> {
+        try {
+            // Note: This would require direct Kafka admin API access
+            this.logger.warn('ACL deletion requires direct Kafka admin API access, which is not available through KafkaJS');
+            throw new Error('ACL management requires kafka-acls CLI tool. Use the ACL Help command for guidance.');
+        } catch (error: any) {
+            this.logger.error(`Failed to delete ACL for cluster ${clusterName}`, error);
+            throw error;
+        }
+    }
+
+    async getACLDetails(clusterName: string, acl: ACL): Promise<ACLDetails> {
+        // Return detailed ACL information
+        return {
+            principal: acl.principal || 'Unknown',
+            operation: acl.operation || 'Unknown',
+            resourceType: acl.resourceType || 'Unknown',
+            resourceName: acl.resourceName || 'Unknown',
+            permissionType: acl.permissionType || 'Unknown',
+            host: acl.host || '*',
+            resourcePatternType: acl.resourcePatternType || 'LITERAL',
+            description: this.getACLDescription(acl)
+        };
+    }
+
+    private getACLDescription(acl: ACL): string {
+        const principal = acl.principal || 'Unknown';
+        const operation = acl.operation || 'Unknown';
+        const resource = acl.resourceName || 'Unknown';
+        const permission = acl.permissionType || 'Unknown';
+        const host = acl.host || '*';
+        
+        return `Principal ${principal} is ${permission}ed to ${operation} on ${resource} from host ${host}`;
+    }
+
     private async getAdmin(clusterName: string): Promise<Admin> {
         const connection = this.clusters.get(clusterName);
         if (!connection) {
@@ -867,16 +930,20 @@ export class KafkaClientManager {
         }
 
         try {
-            // For MSK clusters, we need to fetch brokers first
+            // For MSK clusters, fetch brokers if not already cached
+            // Note: For TLS connections (non-IAM), brokers are cached after initial fetch
+            // and AWS credentials are not needed for subsequent connections
             let brokers = connection.brokers || [];
-            if (connection.type === 'msk' && connection.clusterArn && connection.region) {
-                this.logger.debug(`Fetching MSK brokers for ${clusterName}`);
+            if (connection.type === 'msk' && connection.clusterArn && connection.region && brokers.length === 0) {
+                this.logger.debug(`Fetching MSK brokers for ${clusterName} (not cached)`);
                 brokers = await this.getMSKBootstrapBrokers(
                     connection.region, 
                     connection.clusterArn, 
                     connection.saslMechanism, 
                     connection.awsProfile
                 );
+                // Cache the brokers to avoid re-fetching from AWS
+                connection.brokers = brokers;
             }
 
             // Use connection pool for better resource management
@@ -903,16 +970,20 @@ export class KafkaClientManager {
         }
 
         try {
-            // For MSK clusters, we need to fetch brokers first
+            // For MSK clusters, fetch brokers if not already cached
+            // Note: For TLS connections (non-IAM), brokers are cached after initial fetch
+            // and AWS credentials are not needed for subsequent connections
             let brokers = connection.brokers || [];
-            if (connection.type === 'msk' && connection.clusterArn && connection.region) {
-                this.logger.debug(`Fetching MSK brokers for ${clusterName}`);
+            if (connection.type === 'msk' && connection.clusterArn && connection.region && brokers.length === 0) {
+                this.logger.debug(`Fetching MSK brokers for ${clusterName} (not cached)`);
                 brokers = await this.getMSKBootstrapBrokers(
                     connection.region, 
                     connection.clusterArn, 
                     connection.saslMechanism, 
                     connection.awsProfile
                 );
+                // Cache the brokers to avoid re-fetching from AWS
+                connection.brokers = brokers;
             }
 
             // Use connection pool for better resource management
