@@ -110,7 +110,7 @@ export class KafkaTreeItem extends vscode.TreeItem {
             return `Cluster: ${this.label}`;
         }
         if (this.contextValue === 'topic') {
-            return `Topic: ${this.label}`;
+            return `Topic: ${this.label}\nClick to view details\n📈 Right-click for dashboard`;
         }
         return this.label;
     }

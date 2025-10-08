@@ -280,7 +280,7 @@ kafka-acls --add \
   --allow-principal User:your-user \
   --operation Describe --topic '*'
 
-# List consumer groups  
+# List consumer groups
 kafka-acls --add \
   --allow-principal User:your-user \
   --operation Describe --group '*'

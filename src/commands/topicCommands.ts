@@ -7,6 +7,7 @@ import { KafkaClientManager } from '../kafka/kafkaClientManager';
 import { KafkaExplorerProvider } from '../providers/kafkaExplorerProvider';
 import { formatMessages, formatTopicDetailsYaml } from '../utils/formatters';
 import { ErrorHandler } from '../infrastructure/ErrorHandler';
+import { TopicDashboardWebview } from '../views/topicDashboardWebview';
 
 export async function createTopic(
     clientManager: KafkaClientManager,
@@ -328,4 +329,22 @@ export async function findTopic(clientManager: KafkaClientManager) {
         },
         'Searching for topics'
     );
+}
+
+export async function showTopicDashboard(
+    clientManager: KafkaClientManager,
+    context: vscode.ExtensionContext,
+    node: any
+) {
+    return ErrorHandler.wrap(async () => {
+        const clusterName = node.clusterName;
+        const topicName = node.topicName || node.label;
+
+        if (!clusterName || !topicName) {
+            throw new Error('Cluster name and topic name are required');
+        }
+
+        const dashboard = new TopicDashboardWebview(context, clientManager);
+        await dashboard.show(clusterName, topicName);
+    }, 'Show Topic Dashboard');
 }

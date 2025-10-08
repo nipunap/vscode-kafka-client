@@ -187,6 +187,10 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.showClusterDashboard', async (node) => {
             await clusterDashboardCommands.showClusterDashboard(clientManager, context, node);
+        }),
+
+        vscode.commands.registerCommand('kafka.showTopicDashboard', async (node) => {
+            await topicCommands.showTopicDashboard(clientManager, context, node);
         })
     );
 }
