@@ -48,10 +48,10 @@ export async function showKTableDetails(
 
             // Create HTML view
             const detailsView = new DetailsWebview(context, `KTable: ${node.topicName}`, '📊');
-            
+
             // Check if AI features are available
             const aiAvailable = await AIAdvisor.checkAvailability();
-            
+
             // Calculate total messages across all partitions
             let totalMessages = 0;
             if (details.partitionDetails) {
@@ -61,7 +61,7 @@ export async function showKTableDetails(
                     }
                 }
             }
-            
+
             const data: DetailsData = {
                 title: node.topicName,
                 showCopyButton: true,
@@ -245,4 +245,3 @@ export async function findKTable(clientManager: KafkaClientManager, provider: an
         ErrorHandler.handle(error, 'Find KTable');
     }
 }
-

@@ -80,24 +80,40 @@ export class AIAdvisor {
 
             const model = models[0];
             const messages = [
-                vscode.LanguageModelChatMessage.User(`You are a Kafka expert. Analyze this Kafka topic configuration and provide specific recommendations:
+                vscode.LanguageModelChatMessage.User(`You are a Kafka expert consultant. Analyze this topic and provide CONCISE, actionable recommendations.
 
-Topic Name: ${topicConfig.name}
-Partitions: ${topicConfig.partitions}
-Replication Factor: ${topicConfig.replicationFactor}
-Total Messages: ${topicConfig.totalMessages.toLocaleString()}
+**Topic Configuration:**
+- Name: ${topicConfig.name}
+- Partitions: ${topicConfig.partitions}
+- Replication Factor: ${topicConfig.replicationFactor}
+- Total Messages: ${topicConfig.totalMessages.toLocaleString()}
 
-Key Configurations:
-${topicConfig.configurations.slice(0, 15).map(c => `- ${c.configName}: ${c.configValue} (source: ${c.configSource})`).join('\n')}
+**Key Settings:**
+${topicConfig.configurations.slice(0, 12).filter(c => 
+    !c.configName.includes('segment.') && 
+    !c.configName.includes('file.delete.') &&
+    c.configSource !== 'DEFAULT_CONFIG'
+).map(c => '- ' + c.configName + ': ' + c.configValue).join('\n') || '(Using default configurations)'}
 
-Please provide:
-1. **Configuration Analysis**: Assess current settings (partitions, replication, retention, etc.)
-2. **Performance Optimization**: Specific suggestions to improve throughput and latency
-3. **Reliability Recommendations**: How to improve durability and fault tolerance
-4. **Resource Optimization**: Memory and disk usage improvements
-5. **Best Practices**: Any deviations from Kafka best practices
+**Instructions:**
+Provide a brief analysis in this EXACT format:
 
-Keep recommendations concise, actionable, and prioritized by impact.`)
+## Status
+[One sentence: Is this configuration production-ready? Any critical issues?]
+
+## Critical Issues ⚠️
+[List ONLY critical problems that could cause data loss or outages. If none, write "None identified."]
+
+## Quick Wins 🎯
+[2-3 immediate improvements with biggest impact. Format: "**Setting**: value → recommended_value (reason)"]
+
+## Performance Tips ⚡
+[2-3 specific optimizations for throughput/latency]
+
+## Best Practices 📋
+[2-3 important recommendations]
+
+Keep each bullet point to ONE LINE. Be specific with numbers and settings. No fluff.`)
             ];
 
             const chatRequest = await model.sendRequest(messages, {}, new vscode.CancellationTokenSource().token);
@@ -146,23 +162,41 @@ Keep recommendations concise, actionable, and prioritized by impact.`)
 
             const model = models[0];
             const messages = [
-                vscode.LanguageModelChatMessage.User(`You are a Kafka expert. Analyze this Kafka broker configuration and provide specific recommendations:
+                vscode.LanguageModelChatMessage.User(`You are a Kafka expert consultant. Analyze this broker and provide CONCISE, actionable recommendations.
 
-Broker ID: ${brokerConfig.nodeId}
-Address: ${brokerConfig.host}:${brokerConfig.port}
+**Broker Configuration:**
+- Broker ID: ${brokerConfig.nodeId}
+- Address: ${brokerConfig.host}:${brokerConfig.port}
 
-Key Configurations:
-${brokerConfig.configurations.slice(0, 20).map(c => `- ${c.configName}: ${c.configValue} (source: ${c.configSource})`).join('\n')}
+**Key Settings:**
+${brokerConfig.configurations.slice(0, 15).filter(c => 
+    !c.configName.startsWith('log.segment') && 
+    !c.configName.startsWith('log.retention') &&
+    c.configSource !== 'DEFAULT_CONFIG'
+).map(c => '- ' + c.configName + ': ' + c.configValue).join('\n') || '(Using default configurations)'}
 
-Please provide:
-1. **Configuration Analysis**: Review critical broker settings
-2. **Performance Tuning**: JVM, network, and disk I/O optimizations
-3. **Security Recommendations**: SSL, SASL, and authentication settings
-4. **High Availability**: Replication and failover configuration
-5. **Monitoring & Alerts**: Key metrics to watch
-6. **Potential Issues**: Any concerning configurations
+**Instructions:**
+Provide a brief analysis in this EXACT format:
 
-Keep recommendations specific, actionable, and prioritized by importance.`)
+## Status
+[One sentence: Is this broker production-ready? Any critical issues?]
+
+## Critical Issues ⚠️
+[List ONLY critical problems. If none, write "None identified."]
+
+## Quick Wins 🎯
+[2-3 immediate improvements. Format: "**Setting**: value → recommended_value (reason)"]
+
+## Performance ⚡
+[2-3 specific JVM, network, or I/O optimizations]
+
+## Security 🔒
+[2-3 security recommendations (SSL, SASL, ACLs)]
+
+## Monitoring 📊
+[Top 3 metrics to watch]
+
+Keep each bullet to ONE LINE. Be specific with numbers. No fluff.`)
             ];
 
             const chatRequest = await model.sendRequest(messages, {}, new vscode.CancellationTokenSource().token);
@@ -212,22 +246,37 @@ Keep recommendations specific, actionable, and prioritized by importance.`)
 
             const model = models[0];
             const messages = [
-                vscode.LanguageModelChatMessage.User(`You are a Kafka expert. Analyze this consumer group and provide optimization recommendations:
+                vscode.LanguageModelChatMessage.User(`You are a Kafka expert consultant. Analyze this consumer group and provide CONCISE, actionable recommendations.
 
-Group ID: ${groupInfo.groupId}
-State: ${groupInfo.state}
-Active Members: ${groupInfo.members}
-Total Lag: ${groupInfo.totalLag.toLocaleString()} messages
-Topics: ${groupInfo.topics.join(', ')}
+**Consumer Group:**
+- Group ID: ${groupInfo.groupId}
+- State: ${groupInfo.state}
+- Active Members: ${groupInfo.members}
+- Total Lag: ${groupInfo.totalLag.toLocaleString()} messages
+- Topics: ${groupInfo.topics.join(', ')}
 
-Please provide:
-1. **Lag Analysis**: Is the current lag acceptable? What's the risk level?
-2. **Scaling Recommendations**: Should we add/remove consumers?
-3. **Performance Optimization**: Consumer configuration improvements
-4. **Partition Assignment**: Is the current distribution optimal?
-5. **Monitoring Strategy**: Key metrics and alerts to set up
+**Instructions:**
+Provide a brief analysis in this EXACT format:
 
-Be specific and actionable in your recommendations.`)
+## Status
+[One sentence: Is this consumer group healthy? Any immediate concerns?]
+
+## Lag Analysis 📊
+[Assess lag severity: Healthy (<1000), Warning (1000-10000), Critical (>10000). What's the impact?]
+
+## Critical Issues ⚠️
+[List ONLY critical problems. If none, write "None identified."]
+
+## Scaling Recommendations 📈
+[Should you scale? Format: "Current: X consumers → Recommended: Y consumers (reason)"]
+
+## Performance Tips ⚡
+[2-3 specific consumer configuration improvements]
+
+## Monitoring 👀
+[Top 3 metrics to watch]
+
+Keep each bullet to ONE LINE. Be specific with numbers. No fluff.`)
             ];
 
             const chatRequest = await model.sendRequest(messages, {}, new vscode.CancellationTokenSource().token);
@@ -271,14 +320,19 @@ Be specific and actionable in your recommendations.`)
 
             const model = models[0];
             
-            const contextMessage = context ? `\n\nContext:\n${context}` : '';
+            const contextMessage = context ? `\n\n**Context:**\n${context}` : '';
             
             const messages = [
-                vscode.LanguageModelChatMessage.User(`You are a Kafka expert assistant. Answer this question about Apache Kafka:
+                vscode.LanguageModelChatMessage.User(`You are a Kafka expert assistant. Answer this question CONCISELY:
 
-${question}${contextMessage}
+**Question:** ${question}${contextMessage}
 
-Provide a clear, concise, and actionable answer with specific examples or commands where applicable.`)
+**Instructions:**
+- Keep answer under 150 words
+- Use bullet points for lists
+- Include specific commands/settings when relevant
+- Format: Use **bold** for key terms, \`code\` for settings
+- No fluff or marketing speak`)
             ];
 
             const chatRequest = await model.sendRequest(messages, {}, new vscode.CancellationTokenSource().token);

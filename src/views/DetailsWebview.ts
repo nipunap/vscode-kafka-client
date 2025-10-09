@@ -312,20 +312,43 @@ export class DetailsWebview {
             });
 
             function formatAIResponse(text) {
-                // Simple markdown-like formatting
+                // Enhanced markdown-like formatting
                 let formatted = text;
                 const backtick = String.fromCharCode(96);
+                
+                // Headers with bottom border for better separation
+                formatted = formatted.replace(/^### (.+)$/gm, '<h4 style="margin-top: 20px; margin-bottom: 10px; color: var(--primary-color); font-weight: 600;">$1</h4>');
+                formatted = formatted.replace(/^## (.+)$/gm, '<h3 style="margin-top: 25px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid var(--border-color); color: var(--primary-color); font-weight: 700;">$1</h3>');
+                formatted = formatted.replace(/^# (.+)$/gm, '<h2 style="margin-top: 30px; margin-bottom: 15px; color: var(--primary-color); font-weight: 800;">$1</h2>');
+                
                 // Bold text
-                formatted = formatted.replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>');
-                // Headers
-                formatted = formatted.replace(/^### (.+)$/gm, '<h4>$1</h4>');
-                formatted = formatted.replace(/^## (.+)$/gm, '<h3>$1</h3>');
-                formatted = formatted.replace(/^# (.+)$/gm, '<h2>$1</h2>');
-                // Code blocks - use backtick character
+                formatted = formatted.replace(/\\*\\*([^*]+)\\*\\*/g, '<strong style="color: var(--text-color); font-weight: 600;">$1</strong>');
+                
+                // Code blocks with better styling
                 const codeRegex = new RegExp(backtick + '([^' + backtick + ']+)' + backtick, 'g');
-                formatted = formatted.replace(codeRegex, '<code>$1</code>');
-                // Line breaks
-                formatted = formatted.split('\\n').join('<br>');
+                formatted = formatted.replace(codeRegex, '<code style="background: var(--background); padding: 2px 6px; border-radius: 3px; font-size: 13px; border: 1px solid var(--border-color); color: var(--primary-color); font-family: monospace;">$1</code>');
+                
+                // Bullet points with custom styling
+                formatted = formatted.replace(/^- (.+)$/gm, '<div style="margin: 8px 0; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: var(--primary-color);">•</span>$1</div>');
+                
+                // Numbered lists
+                formatted = formatted.replace(/^(\\d+)\\. (.+)$/gm, '<div style="margin: 8px 0; padding-left: 25px; position: relative;"><span style="position: absolute; left: 0; color: var(--primary-color); font-weight: 600;">$1.</span>$2</div>');
+                
+                // Line breaks (but not after divs)
+                formatted = formatted.split('\\n').map((line, i, arr) => {
+                    // Don't add br after div elements or before headers
+                    if (line.includes('</div>') || line.includes('</h') || 
+                        (i < arr.length - 1 && arr[i + 1].includes('<h'))) {
+                        return line;
+                    }
+                    return line + '<br>';
+                }).join('');
+                
+                // Clean up extra br tags
+                formatted = formatted.replace(/<br><br>/g, '<br>');
+                formatted = formatted.replace(/<\\/div><br>/g, '</div>');
+                formatted = formatted.replace(/<\\/h\\d><br>/g, match => match.replace('<br>', ''));
+                
                 return formatted;
             }
         `;
