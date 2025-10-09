@@ -50,10 +50,11 @@ export async function showBrokerDetails(clientManager: KafkaClientManager, node:
                     title: 'Overview',
                     icon: '📊',
                     properties: [
-                        { label: 'Broker ID', value: String(details.id || node.brokerId) },
+                        { label: 'Broker ID', value: String(details.nodeId ?? node.brokerId) },
                         { label: 'Host', value: details.host || 'N/A', code: true },
                         { label: 'Port', value: String(details.port || 'N/A') },
-                        { label: 'Rack', value: details.rack || 'Not configured' }
+                        { label: 'Rack', value: details.rack || 'Not configured' },
+                        { label: 'Cluster', value: node.clusterName, code: true }
                     ]
                 },
                 {
@@ -61,9 +62,9 @@ export async function showBrokerDetails(clientManager: KafkaClientManager, node:
                     icon: '⚙️',
                     table: {
                         headers: ['Property', 'Value', 'Source'],
-                        rows: details.configs
-                            ? Object.entries(details.configs).map(([name, config]: [string, any]) => [
-                                name,
+                        rows: details.configuration && details.configuration.length > 0
+                            ? details.configuration.map((config: any) => [
+                                config.configName || config.name || 'N/A',
                                 config.configValue || config.value || 'N/A',
                                 config.configSource || config.source || 'default'
                             ])

@@ -68,7 +68,10 @@ export async function showConsumerGroupDetails(clientManager: KafkaClientManager
                         },
                         { label: 'Protocol Type', value: details.protocolType || 'N/A' },
                         { label: 'Protocol', value: details.protocol || 'N/A' },
-                        { label: 'Coordinator', value: `Broker ${details.coordinator?.id || 'N/A'}` }
+                        { label: 'Coordinator', value: `Broker ${details.coordinator?.id || 'N/A'}` },
+                        { label: 'Total Lag', value: details.totalLag !== undefined ? details.totalLag.toLocaleString() : 'N/A' },
+                        { label: 'Active Members', value: String(details.members?.length || 0) },
+                        { label: 'Cluster', value: node.clusterName, code: true }
                     ]
                 },
                 {
@@ -87,18 +90,28 @@ export async function showConsumerGroupDetails(clientManager: KafkaClientManager
                         : undefined
                 },
                 {
-                    title: 'Partition Offsets',
+                    title: 'Partition Offsets & Lag',
                     icon: '📍',
                     table: details.offsets && details.offsets.length > 0 ? {
-                        headers: ['Topic', 'Partition', 'Current Offset', 'Log End Offset', 'Lag'],
+                        headers: ['Topic', 'Partition', 'Current Offset', 'High Watermark', 'Lag'],
                         rows: details.offsets.map((offset: any) => {
+                            // Support both field names for compatibility
+                            const currentOffset = offset.currentOffset || offset.offset;
+                            const highWatermark = offset.highWaterMark || offset.logEndOffset;
                             const lag = offset.lag !== undefined ? offset.lag :
-                                       (offset.logEndOffset && offset.offset) ? offset.logEndOffset - offset.offset : 'N/A';
+                                       (highWatermark !== undefined && currentOffset !== undefined) 
+                                       ? (typeof highWatermark === 'string' ? parseInt(highWatermark) : highWatermark) - 
+                                         (typeof currentOffset === 'string' ? parseInt(currentOffset) : currentOffset)
+                                       : 'N/A';
                             return [
                                 offset.topic || 'N/A',
-                                String(offset.partition || 0),
-                                offset.offset !== undefined ? offset.offset.toLocaleString() : 'N/A',
-                                offset.logEndOffset !== undefined ? offset.logEndOffset.toLocaleString() : 'N/A',
+                                String(offset.partition ?? 0),
+                                currentOffset !== undefined ? 
+                                    (typeof currentOffset === 'string' ? parseInt(currentOffset).toLocaleString() : currentOffset.toLocaleString()) 
+                                    : 'N/A',
+                                highWatermark !== undefined ? 
+                                    (typeof highWatermark === 'string' ? parseInt(highWatermark).toLocaleString() : highWatermark.toLocaleString()) 
+                                    : 'N/A',
                                 typeof lag === 'number' ? lag.toLocaleString() : lag
                             ];
                         })

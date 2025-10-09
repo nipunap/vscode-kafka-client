@@ -258,6 +258,17 @@ export async function showTopicDetails(clientManager: KafkaClientManager, node: 
 
             // Create HTML view
             const detailsView = new DetailsWebview(context, `Topic: ${node.topicName}`, '📋');
+            
+            // Calculate total messages across all partitions
+            let totalMessages = 0;
+            if (details.partitionDetails) {
+                for (const partition of Object.values(details.partitionDetails) as any[]) {
+                    if (partition.highWaterMark && partition.lowWaterMark) {
+                        totalMessages += parseInt(partition.highWaterMark) - parseInt(partition.lowWaterMark);
+                    }
+                }
+            }
+            
             const data: DetailsData = {
                 title: node.topicName,
                 showCopyButton: true,
@@ -276,7 +287,12 @@ export async function showTopicDetails(clientManager: KafkaClientManager, node: 
                             { label: 'Replication Factor', value: String(details.replicationFactor || 0) },
                             {
                                 label: 'Total Messages',
-                                value: details.totalMessages ? details.totalMessages.toLocaleString() : '0'
+                                value: totalMessages.toLocaleString()
+                            },
+                            {
+                                label: 'Cluster',
+                                value: node.clusterName,
+                                code: true
                             }
                         ]
                     },
@@ -284,16 +300,18 @@ export async function showTopicDetails(clientManager: KafkaClientManager, node: 
                         title: 'Partition Details',
                         icon: '🔀',
                         table: {
-                            headers: ['Partition', 'Leader', 'Replicas', 'ISR', 'Messages'],
+                            headers: ['Partition', 'Leader', 'Replicas', 'ISR', 'Low Offset', 'High Offset', 'Messages'],
                             rows: details.partitionDetails
                                 ? Object.entries(details.partitionDetails).map(([id, partition]: [string, any]) => [
                                     id,
-                                    partition.leader || 'N/A',
+                                    String(partition.leader ?? 'N/A'),
                                     partition.replicas?.join(', ') || 'N/A',
                                     partition.isr?.join(', ') || 'N/A',
+                                    partition.lowWaterMark ? parseInt(partition.lowWaterMark).toLocaleString() : '0',
+                                    partition.highWaterMark ? parseInt(partition.highWaterMark).toLocaleString() : '0',
                                     partition.highWaterMark && partition.lowWaterMark
-                                        ? (partition.highWaterMark - partition.lowWaterMark).toLocaleString()
-                                        : 'N/A'
+                                        ? (parseInt(partition.highWaterMark) - parseInt(partition.lowWaterMark)).toLocaleString()
+                                        : '0'
                                 ])
                                 : []
                         }
@@ -303,11 +321,11 @@ export async function showTopicDetails(clientManager: KafkaClientManager, node: 
                         icon: '⚙️',
                         table: {
                             headers: ['Property', 'Value', 'Source'],
-                            rows: details.configs
-                                ? details.configs.map((config: any) => [
-                                    config.name || config.configName,
-                                    config.value || config.configValue || 'N/A',
-                                    config.source || config.configSource || 'default'
+                            rows: details.configuration && details.configuration.length > 0
+                                ? details.configuration.map((config: any) => [
+                                    config.configName || config.name || 'N/A',
+                                    config.configValue || config.value || 'N/A',
+                                    config.configSource || config.source || 'default'
                                 ])
                                 : []
                         }
