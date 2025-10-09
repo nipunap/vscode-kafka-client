@@ -4,10 +4,10 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 0.5.x   | :white_check_mark: |
 | 0.4.x   | :white_check_mark: |
-| 0.3.x   | :white_check_mark: |
-| 0.2.x   | :x:                |
-| < 0.2   | :x:                |
+| 0.3.x   | :x:                |
+| < 0.3   | :x:                |
 
 ## Security Vulnerabilities
 
@@ -144,11 +144,11 @@ Version 0.3.0 introduces a major security overhaul with enterprise-grade archite
 
 ---
 
-## Security Audit Report (v0.4.0) - October 2025
+## Security Audit Report (v0.5.0) - October 2025
 
-**Audit Date**: October 9, 2025  
-**Auditor**: Senior Security Engineer  
-**Scope**: Comprehensive security review of codebase and CI/CD  
+**Audit Date**: October 9, 2025
+**Auditor**: Senior Security Engineer
+**Scope**: Comprehensive security review of codebase and CI/CD
 **Status**: ✅ **PASSED** - All critical issues resolved
 
 ### Findings Summary
@@ -158,10 +158,10 @@ Version 0.3.0 introduces a major security overhaul with enterprise-grade archite
 - ✅ Fixed: Useless assignment to local variable (Warning)
 - ✅ Fixed: 4x Workflow permissions not defined (Medium)
 
-**Security Review**: 
+**Security Review**:
 - ✅ Credential Management: SECURE
 - ✅ Input Validation: EXCELLENT
-- ✅ Error Handling: EXCELLENT  
+- ✅ Error Handling: EXCELLENT
 - ✅ AI Data Transmission: SECURE
 - ✅ Dependencies: UP-TO-DATE
 - ✅ Test Coverage: 296 tests passing (85%+ coverage)
@@ -186,23 +186,23 @@ Version 0.3.0 introduces a major security overhaul with enterprise-grade archite
 - **Severity**: Medium (4 alerts)
 - **Location**: `.github/workflows/ci.yml` and `publish-release.yml`
 - **Issue**: GitHub Actions workflows lacked explicit permission declarations
-- **Fix**: 
+- **Fix**:
   - `ci.yml`: Added `permissions: contents: read` (minimal, read-only)
   - `publish-release.yml`: Added `permissions: contents: write, pull-requests: read`
 - **Security Benefit**: Follows principle of least privilege, prevents token abuse
 
 ### Security Verification
 
-✅ **All 296 tests passing** after fixes  
-✅ **No new vulnerabilities introduced**  
-✅ **Compilation successful**  
+✅ **All 296 tests passing** after fixes
+✅ **No new vulnerabilities introduced**
+✅ **Compilation successful**
 ✅ **ESLint passing**
 
 ---
 
-## Security Enhancements in v0.4.0
+## Security Enhancements in v0.5.0
 
-Version 0.4.0 introduces advanced features with security considerations:
+Version 0.5.0 introduces advanced features with comprehensive security improvements:
 
 ### 1. AI-Powered Recommendations
 - **GitHub Copilot Integration**: Uses VS Code Language Model API for intelligent recommendations
@@ -241,6 +241,7 @@ Version 0.4.0 introduces advanced features with security considerations:
 - **109 New Tests** for new features (KStreams, KTables, AI integration)
 - **Maintained Coverage**: 85%+ on infrastructure components
 - **All Tests Passing**: Continuous integration on multiple platforms
+- **Security Fixes**: All 6 CodeQL alerts resolved
 
 ---
 
