@@ -18,6 +18,26 @@ export class ConsumerGroupService {
             const groups = await admin.listGroups();
             
             this.logger.debug(`Found ${groups.groups.length} consumer groups`);
+            
+            // If we have groups, describe them to get their states
+            if (groups.groups.length > 0) {
+                try {
+                    const groupIds = groups.groups.map((g: any) => g.groupId);
+                    const descriptions = await admin.describeGroups(groupIds);
+                    
+                    // Map descriptions back to groups with state information
+                    return descriptions.groups.map((desc: any) => ({
+                        groupId: desc.groupId,
+                        protocolType: desc.protocolType,
+                        state: desc.state
+                    }));
+                } catch (describeError) {
+                    this.logger.warn('Failed to describe consumer groups for state info, returning basic info', describeError);
+                    // Fall back to basic list if describe fails
+                    return groups.groups;
+                }
+            }
+            
             return groups.groups;
         } catch (error) {
             this.logger.error('Failed to fetch consumer groups', error);

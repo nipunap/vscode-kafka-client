@@ -3,6 +3,7 @@ import { KafkaClientManager } from '../kafka/kafkaClientManager';
 import { KStreamTreeItem } from '../providers/kstreamProvider';
 import { ErrorHandler } from '../infrastructure/ErrorHandler';
 import { DetailsWebview, DetailsData } from '../views/DetailsWebview';
+import { AIAdvisor } from '../services/AIAdvisor';
 
 /**
  * Show KStream details in an HTML view
@@ -48,6 +49,9 @@ export async function showKStreamDetails(
             // Create HTML view
             const detailsView = new DetailsWebview(context, `KStream: ${node.topicName}`, '🌊');
             
+            // Check if AI features are available
+            const aiAvailable = await AIAdvisor.checkAvailability();
+            
             // Calculate total messages across all partitions
             let totalMessages = 0;
             if (details.partitionDetails) {
@@ -62,9 +66,12 @@ export async function showKStreamDetails(
                 title: node.topicName,
                 showCopyButton: true,
                 showRefreshButton: false,
+                showAIAdvisor: aiAvailable,
                 notice: {
                     type: 'info',
-                    text: '🌊 This is a Kafka Streams topic. KStreams represent an unbounded, continuously updating data stream. Use this view to monitor stream processing.'
+                    text: aiAvailable
+                        ? '🌊 This is a Kafka Streams topic. 🤖 Try AI Advisor for stream processing recommendations!'
+                        : '🌊 This is a Kafka Streams topic. KStreams represent an unbounded, continuously updating data stream.'
                 },
                 sections: [
                     {
@@ -122,6 +129,20 @@ export async function showKStreamDetails(
                     }
                 ]
             };
+
+            // Set up AI request handler only if AI is available
+            if (aiAvailable) {
+                detailsView.setAIRequestHandler(async () => {
+                    const recommendations = await AIAdvisor.analyzeTopicConfiguration({
+                        name: node.topicName!,
+                        partitions: details.partitions || 0,
+                        replicationFactor: details.replicationFactor || 0,
+                        configurations: details.configuration || [],
+                        totalMessages
+                    });
+                    detailsView.updateWithAIRecommendations(recommendations);
+                });
+            }
 
             detailsView.show(data);
         },

@@ -260,6 +260,9 @@ export async function showTopicDetails(clientManager: KafkaClientManager, node: 
             // Create HTML view
             const detailsView = new DetailsWebview(context, `Topic: ${node.topicName}`, '📋');
 
+            // Check if AI features are available
+            const aiAvailable = await AIAdvisor.checkAvailability();
+
             // Calculate total messages across all partitions
             let totalMessages = 0;
             if (details.partitionDetails) {
@@ -274,10 +277,12 @@ export async function showTopicDetails(clientManager: KafkaClientManager, node: 
                 title: node.topicName,
                 showCopyButton: true,
                 showRefreshButton: false,
-                showAIAdvisor: true,
+                showAIAdvisor: aiAvailable,
                 notice: {
                     type: 'info',
-                    text: '🤖 Try the AI Advisor for intelligent configuration recommendations! ✏️ Edit mode coming soon.'
+                    text: aiAvailable 
+                        ? '🤖 Try the AI Advisor for intelligent configuration recommendations! ✏️ Edit mode coming soon.'
+                        : '✏️ Edit mode coming soon! You\'ll be able to modify topic configurations directly from this view.'
                 },
                 sections: [
                     {
@@ -335,17 +340,19 @@ export async function showTopicDetails(clientManager: KafkaClientManager, node: 
                 ]
             };
 
-            // Set up AI request handler
-            detailsView.setAIRequestHandler(async () => {
-                const recommendations = await AIAdvisor.analyzeTopicConfiguration({
-                    name: node.topicName,
-                    partitions: details.partitions || 0,
-                    replicationFactor: details.replicationFactor || 0,
-                    configurations: details.configuration || [],
-                    totalMessages
+            // Set up AI request handler only if AI is available
+            if (aiAvailable) {
+                detailsView.setAIRequestHandler(async () => {
+                    const recommendations = await AIAdvisor.analyzeTopicConfiguration({
+                        name: node.topicName,
+                        partitions: details.partitions || 0,
+                        replicationFactor: details.replicationFactor || 0,
+                        configurations: details.configuration || [],
+                        totalMessages
+                    });
+                    detailsView.updateWithAIRecommendations(recommendations);
                 });
-                detailsView.updateWithAIRecommendations(recommendations);
-            });
+            }
 
             detailsView.show(data);
         },

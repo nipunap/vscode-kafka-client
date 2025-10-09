@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import { KafkaClientManager } from '../kafka/kafkaClientManager';
 import { DetailsWebview, DetailsData } from '../views/DetailsWebview';
 import { ErrorHandler } from '../infrastructure/ErrorHandler';
+import { AIAdvisor } from '../services/AIAdvisor';
 
 export async function showBrokerDetails(clientManager: KafkaClientManager, node: any, context?: vscode.ExtensionContext) {
     await ErrorHandler.wrap(async () => {
@@ -37,13 +38,20 @@ export async function showBrokerDetails(clientManager: KafkaClientManager, node:
 
         // Create HTML view
         const detailsView = new DetailsWebview(context, `Broker: ${node.brokerId}`, '🖥️');
+        
+        // Check if AI features are available
+        const aiAvailable = await AIAdvisor.checkAvailability();
+        
         const data: DetailsData = {
             title: `Broker ${node.brokerId}`,
             showCopyButton: true,
             showRefreshButton: false,
+            showAIAdvisor: aiAvailable,
             notice: {
                 type: 'info',
-                text: '✏️ Edit mode coming soon! You\'ll be able to modify broker configurations directly from this view.'
+                text: aiAvailable
+                    ? '🤖 Try the AI Advisor for broker optimization recommendations! ✏️ Edit mode coming soon.'
+                    : '✏️ Edit mode coming soon! You\'ll be able to modify broker configurations directly from this view.'
             },
             sections: [
                 {
@@ -73,6 +81,19 @@ export async function showBrokerDetails(clientManager: KafkaClientManager, node:
                 }
             ]
         };
+
+        // Set up AI request handler only if AI is available
+        if (aiAvailable) {
+            detailsView.setAIRequestHandler(async () => {
+                const recommendations = await AIAdvisor.analyzeBrokerConfiguration({
+                    nodeId: details.nodeId ?? node.brokerId,
+                    host: details.host || 'N/A',
+                    port: details.port || 0,
+                    configurations: details.configuration || []
+                });
+                detailsView.updateWithAIRecommendations(recommendations);
+            });
+        }
 
         detailsView.show(data);
     }, `Loading broker details for broker ${node.brokerId}`);

@@ -3,6 +3,7 @@ import { KafkaClientManager } from '../kafka/kafkaClientManager';
 import { KTableTreeItem } from '../providers/ktableProvider';
 import { ErrorHandler } from '../infrastructure/ErrorHandler';
 import { DetailsWebview, DetailsData } from '../views/DetailsWebview';
+import { AIAdvisor } from '../services/AIAdvisor';
 
 /**
  * Show KTable details in an HTML view
@@ -48,6 +49,9 @@ export async function showKTableDetails(
             // Create HTML view
             const detailsView = new DetailsWebview(context, `KTable: ${node.topicName}`, '📊');
             
+            // Check if AI features are available
+            const aiAvailable = await AIAdvisor.checkAvailability();
+            
             // Calculate total messages across all partitions
             let totalMessages = 0;
             if (details.partitionDetails) {
@@ -62,9 +66,12 @@ export async function showKTableDetails(
                 title: node.topicName,
                 showCopyButton: true,
                 showRefreshButton: false,
+                showAIAdvisor: aiAvailable,
                 notice: {
                     type: 'info',
-                    text: '📊 This is a KTable changelog topic. KTables represent a changelog of updates to a table/state store. Each record represents the latest state for a key.'
+                    text: aiAvailable
+                        ? '📊 This is a KTable changelog topic. 🤖 Try AI Advisor for state store optimization!'
+                        : '📊 This is a KTable changelog topic. KTables represent a changelog of updates to a table/state store. Each record represents the latest state for a key.'
                 },
                 sections: [
                     {
@@ -122,6 +129,20 @@ export async function showKTableDetails(
                     }
                 ]
             };
+
+            // Set up AI request handler only if AI is available
+            if (aiAvailable) {
+                detailsView.setAIRequestHandler(async () => {
+                    const recommendations = await AIAdvisor.analyzeTopicConfiguration({
+                        name: node.topicName!,
+                        partitions: details.partitions || 0,
+                        replicationFactor: details.replicationFactor || 0,
+                        configurations: details.configuration || [],
+                        totalMessages
+                    });
+                    detailsView.updateWithAIRecommendations(recommendations);
+                });
+            }
 
             detailsView.show(data);
         },
