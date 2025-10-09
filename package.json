@@ -43,6 +43,8 @@
     "onView:kafkaExplorer",
     "onView:kafkaConsumerGroups",
     "onView:kafkaBrokers",
+    "onView:kafkaStreams",
+    "onView:kafkaTables",
     "onCommand:kafka.addCluster"
   ],
   "main": "./out/extension.js",
@@ -72,6 +74,16 @@
           "id": "kafkaBrokers",
           "name": "Brokers",
           "icon": "$(server)"
+        },
+        {
+          "id": "kafkaStreams",
+          "name": "Kafka Streams",
+          "icon": "$(symbol-event)"
+        },
+        {
+          "id": "kafkaTables",
+          "name": "KTables",
+          "icon": "$(table)"
         }
       ]
     },
@@ -187,6 +199,26 @@
         "icon": "$(search)"
       },
       {
+        "command": "kafka.findKStream",
+        "title": "Kafka: Find KStream",
+        "icon": "$(search)"
+      },
+      {
+        "command": "kafka.findKTable",
+        "title": "Kafka: Find KTable",
+        "icon": "$(search)"
+      },
+      {
+        "command": "kafka.showKStreamDetails",
+        "title": "Show KStream Details",
+        "icon": "$(info)"
+      },
+      {
+        "command": "kafka.showKTableDetails",
+        "title": "Show KTable Details",
+        "icon": "$(info)"
+      },
+      {
         "command": "kafka.showClusterDashboard",
         "title": "Show Cluster Dashboard",
         "icon": "$(dashboard)"
@@ -232,6 +264,26 @@
         {
           "command": "kafka.findBroker",
           "when": "view == kafkaBrokers",
+          "group": "navigation"
+        },
+        {
+          "command": "kafka.refreshCluster",
+          "when": "view == kafkaStreams",
+          "group": "navigation"
+        },
+        {
+          "command": "kafka.findKStream",
+          "when": "view == kafkaStreams",
+          "group": "navigation"
+        },
+        {
+          "command": "kafka.refreshCluster",
+          "when": "view == kafkaTables",
+          "group": "navigation"
+        },
+        {
+          "command": "kafka.findKTable",
+          "when": "view == kafkaTables",
           "group": "navigation"
         }
       ],
@@ -290,6 +342,36 @@
           "command": "kafka.showACLHelp",
           "when": "view == kafkaExplorer && viewItem == topicACLContainer",
           "group": "0_info@1"
+        },
+        {
+          "command": "kafka.showKStreamDetails",
+          "when": "view == kafkaStreams && viewItem == kstream",
+          "group": "0_info@1"
+        },
+        {
+          "command": "kafka.produceMessage",
+          "when": "view == kafkaStreams && viewItem == kstream",
+          "group": "2_actions@1"
+        },
+        {
+          "command": "kafka.consumeMessages",
+          "when": "view == kafkaStreams && viewItem == kstream",
+          "group": "2_actions@2"
+        },
+        {
+          "command": "kafka.showKTableDetails",
+          "when": "view == kafkaTables && viewItem == ktable",
+          "group": "0_info@1"
+        },
+        {
+          "command": "kafka.produceMessage",
+          "when": "view == kafkaTables && viewItem == ktable",
+          "group": "2_actions@1"
+        },
+        {
+          "command": "kafka.consumeMessages",
+          "when": "view == kafkaTables && viewItem == ktable",
+          "group": "2_actions@2"
         }
       ]
     },
