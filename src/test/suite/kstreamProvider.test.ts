@@ -14,7 +14,7 @@ suite('KStream Provider Test Suite', () => {
         // Create stub instance which returns stub methods
         clientManager = sinon.createStubInstance(KafkaClientManager);
         provider = new KStreamProvider(clientManager as any);
-        
+
         // Get the stub methods that were created by createStubInstance
         getTopicsStub = clientManager.getTopics as sinon.SinonStub;
         getClustersStub = clientManager.getClusters as sinon.SinonStub;
@@ -338,4 +338,3 @@ suite('KStream Provider Test Suite', () => {
         });
     });
 });
-

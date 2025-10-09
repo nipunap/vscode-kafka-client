@@ -6,6 +6,8 @@ import * as vscode from 'vscode';
  */
 export class DetailsWebview {
     private panel: vscode.WebviewPanel | undefined;
+    private currentData: DetailsData | undefined;
+    private aiRequestHandler: (() => Promise<void>) | undefined;
 
     constructor(
         private context: vscode.ExtensionContext,
@@ -17,6 +19,8 @@ export class DetailsWebview {
      * Show the details view with the provided data
      */
     public show(data: DetailsData): void {
+        this.currentData = data;
+
         // Create or reuse webview panel
         if (this.panel) {
             this.panel.reveal(vscode.ViewColumn.One);
@@ -33,6 +37,8 @@ export class DetailsWebview {
 
             this.panel.onDidDispose(() => {
                 this.panel = undefined;
+                this.currentData = undefined;
+                this.aiRequestHandler = undefined;
             });
 
             // Handle messages from webview
@@ -46,6 +52,17 @@ export class DetailsWebview {
                         case 'showMessage':
                             vscode.window.showInformationMessage(message.text);
                             break;
+                        case 'requestAIAdvice':
+                            // Call the AI request handler if set
+                            if (this.aiRequestHandler) {
+                                try {
+                                    await this.aiRequestHandler();
+                                } catch (error: any) {
+                                    vscode.window.showErrorMessage(`AI Advisor: ${error.message}`);
+                                    this.updateWithAIRecommendations(`Error: ${error.message}\n\nPlease ensure GitHub Copilot is installed and active.`);
+                                }
+                            }
+                            break;
                     }
                 },
                 undefined,
@@ -55,6 +72,28 @@ export class DetailsWebview {
 
         // Set HTML content
         this.panel.webview.html = this.getHtml(data);
+    }
+
+    /**
+     * Set the AI request handler
+     */
+    public setAIRequestHandler(handler: () => Promise<void>): void {
+        this.aiRequestHandler = handler;
+    }
+
+    /**
+     * Update the webview with AI recommendations
+     */
+    public updateWithAIRecommendations(recommendations: string): void {
+        if (!this.panel) {
+            return;
+        }
+
+        // Send the recommendations to the webview
+        this.panel.webview.postMessage({
+            command: 'showAIRecommendations',
+            recommendations
+        });
     }
 
     /**
@@ -233,6 +272,62 @@ export class DetailsWebview {
                     document.getElementById('searchInput').focus();
                 }
             });
+
+            // AI Advisor functions
+            function getAIAdvice() {
+                const aiButton = document.getElementById('aiButton');
+                const aiRecommendations = document.getElementById('aiRecommendations');
+                const aiContent = document.getElementById('aiContent');
+                
+                if (!aiButton || !aiRecommendations || !aiContent) return;
+                
+                // Show loading state
+                aiButton.disabled = true;
+                aiButton.textContent = '🤖 Analyzing...';
+                aiRecommendations.classList.add('visible');
+                aiContent.innerHTML = '<div class="ai-loading"><div class="spinner"></div><span>Analyzing configuration and generating recommendations...</span></div>';
+                
+                // Request AI recommendations from extension
+                vscode.postMessage({ command: 'requestAIAdvice' });
+            }
+
+            // Listen for AI recommendations from the extension
+            window.addEventListener('message', event => {
+                const message = event.data;
+                if (message.command === 'showAIRecommendations') {
+                    const aiButton = document.getElementById('aiButton');
+                    const aiRecommendations = document.getElementById('aiRecommendations');
+                    const aiContent = document.getElementById('aiContent');
+                    
+                    if (aiButton && aiRecommendations && aiContent) {
+                        aiButton.disabled = false;
+                        aiButton.textContent = '🤖 AI Advisor';
+                        aiRecommendations.classList.add('visible');
+                        
+                        // Format markdown-like text to HTML
+                        const formattedText = formatAIResponse(message.recommendations);
+                        aiContent.innerHTML = formattedText;
+                    }
+                }
+            });
+
+            function formatAIResponse(text) {
+                // Simple markdown-like formatting
+                let formatted = text;
+                const backtick = String.fromCharCode(96);
+                // Bold text
+                formatted = formatted.replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>');
+                // Headers
+                formatted = formatted.replace(/^### (.+)$/gm, '<h4>$1</h4>');
+                formatted = formatted.replace(/^## (.+)$/gm, '<h3>$1</h3>');
+                formatted = formatted.replace(/^# (.+)$/gm, '<h2>$1</h2>');
+                // Code blocks - use backtick character
+                const codeRegex = new RegExp(backtick + '([^' + backtick + ']+)' + backtick, 'g');
+                formatted = formatted.replace(codeRegex, '<code>$1</code>');
+                // Line breaks
+                formatted = formatted.split('\\n').join('<br>');
+                return formatted;
+            }
         `;
     }
 
@@ -558,12 +653,99 @@ export class DetailsWebview {
                     .highlight.current {
                         background-color: rgba(255, 165, 0, 0.5);
                     }
+
+                    .btn-ai {
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white;
+                        font-weight: 600;
+                    }
+
+                    .btn-ai:hover {
+                        background: linear-gradient(135deg, #5568d3 0%, #663a8f 100%);
+                    }
+
+                    .btn-ai:disabled {
+                        background: var(--panel-background);
+                        opacity: 0.5;
+                    }
+
+                    .ai-recommendations {
+                        display: none;
+                        background: var(--panel-background);
+                        border: 2px solid var(--primary-color);
+                        border-radius: 8px;
+                        padding: 20px;
+                        margin: 20px 0;
+                        animation: fadeIn 0.3s ease-out;
+                    }
+
+                    .ai-recommendations.visible {
+                        display: block;
+                    }
+
+                    .ai-recommendations h3 {
+                        margin: 0 0 15px 0;
+                        color: var(--primary-color);
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                    }
+
+                    .ai-recommendations-content {
+                        line-height: 1.8;
+                        white-space: pre-wrap;
+                        word-wrap: break-word;
+                    }
+
+                    .ai-recommendations-content h1,
+                    .ai-recommendations-content h2,
+                    .ai-recommendations-content h3 {
+                        color: var(--primary-color);
+                        margin-top: 15px;
+                        margin-bottom: 10px;
+                    }
+
+                    .ai-recommendations-content ul,
+                    .ai-recommendations-content ol {
+                        margin-left: 20px;
+                        margin-bottom: 10px;
+                    }
+
+                    .ai-recommendations-content code {
+                        background: var(--background);
+                        padding: 2px 6px;
+                        border-radius: 3px;
+                        font-size: 12px;
+                        border: 1px solid var(--border-color);
+                    }
+
+                    .ai-loading {
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                        color: var(--secondary-text);
+                    }
+
+                    .spinner {
+                        border: 3px solid var(--border-color);
+                        border-top: 3px solid var(--primary-color);
+                        border-radius: 50%;
+                        width: 20px;
+                        height: 20px;
+                        animation: spin 1s linear infinite;
+                    }
+
+                    @keyframes spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
                 </style>
             </head>
             <body>
                 <div class="header">
                     <h1>${this.icon} ${data.title || this.title}</h1>
                     <div class="header-actions">
+                        ${data.showAIAdvisor ? '<button class="btn btn-ai" onclick="getAIAdvice()" id="aiButton">🤖 AI Advisor</button>' : ''}
                         ${data.showCopyButton ? '<button class="btn btn-secondary" onclick="copyAsJson()">📋 Copy as JSON</button>' : ''}
                         ${data.showRefreshButton ? '<button class="btn" onclick="refresh()">🔄 Refresh</button>' : ''}
                         <button class="btn btn-secondary" disabled title="Edit mode coming soon">✏️ Edit</button>
@@ -587,6 +769,18 @@ export class DetailsWebview {
                 ${data.notice ? `
                 <div class="notice notice-${data.notice.type || 'info'}">
                     <div class="notice-text">${data.notice.text}</div>
+                </div>
+                ` : ''}
+
+                ${data.showAIAdvisor ? `
+                <div class="ai-recommendations" id="aiRecommendations">
+                    <h3>🤖 AI Recommendations</h3>
+                    <div class="ai-recommendations-content" id="aiContent">
+                        <div class="ai-loading">
+                            <div class="spinner"></div>
+                            <span>Analyzing configuration and generating recommendations...</span>
+                        </div>
+                    </div>
                 </div>
                 ` : ''}
 
@@ -702,6 +896,7 @@ export interface DetailsData {
     };
     showCopyButton?: boolean;
     showRefreshButton?: boolean;
+    showAIAdvisor?: boolean;
     sections: Section[];
 }
 

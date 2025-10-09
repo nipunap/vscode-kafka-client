@@ -10,13 +10,15 @@ A comprehensive Kafka management extension for Visual Studio Code with full AWS 
 
 ## ✨ Features
 
+- 🤖 **AI-Powered Advisor** - Get intelligent recommendations for topics, brokers, and consumer groups using GitHub Copilot
 - 🔌 **Multi-Cluster Management** - Apache Kafka and AWS MSK with IAM authentication
 - ☁️ **AWS Integration** - Auto-discovery, profile management, role assumption, credential tracking
-- 🛡️ **ACL Management** - View, create, delete access control lists with interactive help
-- 📋 **Topic Operations** - Create, delete, produce, consume with full configuration inspection
-- 🖥️ **Broker Monitoring** - View configurations like `kafka-configs.sh --describe`
-- 👥 **Consumer Groups** - Color-coded health status (🟢 Active, 🟠 Empty, 🔴 Dead), lag tracking, offset management
-- 📊 **Cluster Dashboard** - Interactive metrics, charts, and real-time statistics
+- 🛡️ **ACL Management** - View, create, delete access control lists integrated with topics
+- 📋 **Topic Operations** - Create, delete, produce, consume with rich HTML detail views
+- 🌊 **Kafka Streams** - Dedicated views for KStreams and KTables with pattern-based filtering
+- 🖥️ **Broker Monitoring** - Rich detail views with all configurations and metadata
+- 👥 **Consumer Groups** - Color-coded health status, lag tracking, detailed HTML views
+- 📊 **Rich Detail Views** - Interactive HTML panels with search (Cmd+F), copy as JSON, and AI recommendations
 - 🔐 **Security** - Multiple auth methods (SSL/TLS, SASL, AWS IAM), secure credential storage
 - 🔍 **Smart Search** - Find resources across clusters with fuzzy matching
 - ⚡ **Performance** - Connection pooling and optimized data fetching
@@ -202,31 +204,60 @@ kafka-acls --list --principal User:your-user
 
 ## 📚 Usage
 
+### 🤖 AI-Powered Recommendations
+
+**Requirements**: VS Code 1.85+ and active GitHub Copilot subscription
+
+Get intelligent, context-aware recommendations for your Kafka resources:
+
+- **Topics**: Click 🤖 AI Advisor in topic details → Get configuration, performance, and reliability recommendations
+- **Brokers**: Click 🤖 AI Advisor in broker details → Get JVM, network, security, and monitoring guidance
+- **Consumer Groups**: Click 🤖 AI Advisor → Get lag analysis, scaling, and optimization suggestions
+
+**What AI Analyzes**:
+- Configuration best practices
+- Performance bottlenecks
+- Security vulnerabilities
+- Resource optimization
+- Capacity planning
+- Industry standards
+
+**Response Time**: 5-15 seconds for comprehensive analysis
+
 ### Topics
 - **Create**: Right-click cluster → "Create Topic"
-- **View Details**: Click topic → See partitions, offsets, ISR, configurations
+- **View Details**: Click topic → Rich HTML view with partitions, offsets, configurations, and AI recommendations
 - **Produce**: Right-click → "Produce Message" → Enter key/value
 - **Consume**: Right-click → "Consume Messages" → From Beginning/Latest
 - **Delete**: Right-click → "Delete Topic" (requires confirmation)
+- **Search**: Use Cmd+F / Ctrl+F in detail view to find configurations
+- **Export**: Click "Copy as JSON" to export all details
+
+### Kafka Streams & Tables
+- **KStreams View**: Shows topics matching stream patterns (`-stream-`, `KSTREAM`, `-repartition`)
+- **KTables View**: Shows topics matching table patterns (`-changelog`, `-ktable-`, `-state-`)
+- **Same Operations**: Produce, consume, view details like regular topics
+- **Smart Filtering**: Automatically categorizes topics based on naming conventions
 
 ### Brokers
-- **View Details**: Click broker → See all configurations grouped by source
+- **View Details**: Click broker → Rich HTML view with all configurations, metadata, and AI advisor
 - **Search**: Find brokers by ID or host across clusters
+- **Export**: Copy configurations as JSON
 
 ### Consumer Groups
 - **Visual Status**: 🟢 Active | 🟠 Empty | 🔴 Dead/Rebalancing
-- **View Details**: Click group → See members, offsets, lag per partition
+- **View Details**: Click group → HTML view with members, offsets, lag, and AI recommendations
 - **Delete**: Right-click → "Delete Consumer Group"
 - **Reset Offsets**: Right-click → "Reset Offsets" (group must be empty)
+- **Lag Tracking**: See total lag and per-partition breakdown
 
 ### ACLs
 - **Integrated View**: ACLs are displayed under each topic in the Clusters view
 - **Topic-Specific**: Expand any topic → Click "🔒 ACLs" to view permissions for that topic
-- **Dashboard Display**: Topic dashboards show ACLs with visual indicators (✓ for allow, ✗ for deny)
-- **Details**: Click on any ACL to view formatted details in HTML
+- **Rich Details**: Click ACL → See formatted details in HTML with resource, principal, operation, and permission type
 - **Create**: Right-click cluster → "Create ACL" → Copy CLI command
 - **Delete**: Right-click ACL → "Delete ACL" → Copy CLI command
-- **Help**: Right-click ACL container → "ACL Help"
+- **Help**: Right-click ACL container → "ACL Help" for interactive documentation
 
 ### Cluster Dashboard
 - Right-click cluster → "Show Cluster Dashboard"
@@ -302,6 +333,13 @@ kafka-acls --list --principal User:your-user
 - Common errors: `TOPIC_AUTHORIZATION_FAILED`, `GROUP_AUTHORIZATION_FAILED`
 - Check permissions: `kafka-acls --list --principal User:your-user`
 
+**AI Advisor Not Available**
+- Ensure GitHub Copilot extension is installed and activated
+- Check status bar for Copilot icon (should be active)
+- Sign in to GitHub Copilot if prompted
+- Verify active subscription at https://github.com/settings/copilot
+- Restart VS Code if needed
+
 ## 💻 Development
 
 ### Project Structure
@@ -322,6 +360,7 @@ src/
 │   └── adapters/
 │       └── MSKAdapter.ts           # AWS-specific logic
 ├── services/                       # Business logic layer
+│   ├── AIAdvisor.ts                # AI-powered recommendations (GitHub Copilot)
 │   ├── TopicService.ts             # Topic operations
 │   ├── ConsumerGroupService.ts     # Consumer group operations
 │   ├── BrokerService.ts            # Broker operations
@@ -332,6 +371,8 @@ src/
 │   ├── kafkaExplorerProvider.ts    # Topics view (with integrated ACLs)
 │   ├── consumerGroupProvider.ts    # Consumer groups view
 │   ├── brokerProvider.ts           # Brokers view
+│   ├── kstreamProvider.ts          # Kafka Streams view
+│   ├── ktableProvider.ts           # KTables view
 │   └── aclProvider.ts              # ACL provider (legacy, not registered)
 ├── commands/                       # Command handlers
 │   ├── clusterCommands.ts
@@ -339,8 +380,11 @@ src/
 │   ├── consumerGroupCommands.ts
 │   ├── brokerCommands.ts
 │   ├── aclCommands.ts
+│   ├── kstreamCommands.ts          # KStream operations
+│   ├── ktableCommands.ts           # KTable operations
 │   └── clusterDashboardCommands.ts
 ├── views/
+│   ├── DetailsWebview.ts           # Reusable rich HTML detail view with AI, search, export
 │   ├── clusterDashboardWebview.ts  # Interactive dashboard
 │   └── topicDashboardWebview.ts    # Topic dashboard
 ├── forms/
@@ -350,8 +394,8 @@ src/
 │   └── validators.ts               # Input validation
 ├── types/
 │   ├── acl.ts                      # ACL interfaces
-│   └── nodes.ts                    # Tree node types
-└── test/                           # Test suite (252 tests)
+│   └── nodes.ts                    # Tree node types (including KStream/KTable nodes)
+└── test/                           # Test suite (296 tests)
 ```
 
 ### Architecture Patterns
@@ -372,20 +416,21 @@ npm install             # Install dependencies
 npm run compile         # Compile TypeScript
 npm run watch           # Watch mode
 npm run lint            # ESLint
-npm test                # Run all 252 tests
+npm test                # Run all 296 tests
 npm run package         # Create .vsix
 npm run publish         # Publish to marketplace
 ```
 
 ### Test Coverage
 
-**252 tests passing** across:
+**296 tests passing** across:
 - Infrastructure (Logger, ErrorHandler, CredentialManager, EventBus, ConnectionPool)
 - Services (Topic, ConsumerGroup, Broker, Producer, Documentation)
-- Providers (Topics, Consumer Groups, Brokers, ACLs)
-- Commands (All operations)
+- Providers (Topics, Consumer Groups, Brokers, ACLs, KStreams, KTables)
+- Commands (All operations including KStreams and KTables)
 - Utilities (Formatters, Validators)
 - Security (ACL management, input sanitization)
+- AI Integration (Availability checks, error handling)
 
 ### Key Dependencies
 
@@ -413,7 +458,7 @@ npm run publish         # Publish to marketplace
 All PRs must pass:
 - ✅ ESLint
 - ✅ TypeScript compilation
-- ✅ 252 tests
+- ✅ 296 tests
 - ✅ Multi-OS (Ubuntu, Windows, macOS)
 - ✅ Multi-Node (18.x, 20.x)
 
@@ -430,10 +475,17 @@ GPL-3.0 - See [LICENSE](LICENSE)
 
 ## 🔗 Resources
 
+### Documentation
 - [KafkaJS Documentation](https://kafka.js.org/)
 - [AWS MSK Documentation](https://aws.amazon.com/msk/)
+- [Apache Kafka Documentation](https://kafka.apache.org/documentation/)
 - [Extension Marketplace](https://marketplace.visualstudio.com/items?itemName=NipunaPerera.vscode-kafka-client)
 - [GitHub Repository](https://github.com/nipunap/vscode-kafka-client)
+
+### AI Features
+- [GitHub Copilot](https://github.com/features/copilot)
+- [VS Code Language Model API](https://code.visualstudio.com/api/extension-guides/language-model)
+- [Get GitHub Copilot](https://github.com/settings/copilot)
 
 ---
 

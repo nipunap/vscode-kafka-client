@@ -11,6 +11,7 @@ import { TopicDashboardWebview } from '../views/topicDashboardWebview';
 import { DetailsWebview, DetailsData } from '../views/DetailsWebview';
 import { TopicNode, ClusterNode } from '../types/nodes';
 import { ACL } from '../types/acl';
+import { AIAdvisor } from '../services/AIAdvisor';
 
 export async function createTopic(
     clientManager: KafkaClientManager,
@@ -273,9 +274,10 @@ export async function showTopicDetails(clientManager: KafkaClientManager, node: 
                 title: node.topicName,
                 showCopyButton: true,
                 showRefreshButton: false,
+                showAIAdvisor: true,
                 notice: {
                     type: 'info',
-                    text: '✏️ Edit mode coming soon! You\'ll be able to modify topic configurations directly from this view.'
+                    text: '🤖 Try the AI Advisor for intelligent configuration recommendations! ✏️ Edit mode coming soon.'
                 },
                 sections: [
                     {
@@ -332,6 +334,18 @@ export async function showTopicDetails(clientManager: KafkaClientManager, node: 
                     }
                 ]
             };
+
+            // Set up AI request handler
+            detailsView.setAIRequestHandler(async () => {
+                const recommendations = await AIAdvisor.analyzeTopicConfiguration({
+                    name: node.topicName,
+                    partitions: details.partitions || 0,
+                    replicationFactor: details.replicationFactor || 0,
+                    configurations: details.configuration || [],
+                    totalMessages
+                });
+                detailsView.updateWithAIRecommendations(recommendations);
+            });
 
             detailsView.show(data);
         },
