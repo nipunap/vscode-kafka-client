@@ -10,28 +10,14 @@ export class ACLProvider extends BaseProvider<ACLTreeItem> {
 
     async getChildren(element?: ACLTreeItem): Promise<ACLTreeItem[]> {
         if (!element) {
-            // Root level - show deprecation notice and clusters
+            // Root level - show clusters
             const clusters = this.getClusters();
-
+            
             if (clusters.length === 0) {
                 return [this.createEmptyItem('No clusters configured.') as ACLTreeItem];
             }
-
-            // Add deprecation notice at the top
-            const items: ACLTreeItem[] = [
-                new ACLTreeItem(
-                    '💡 Tip: ACLs are now integrated with topics',
-                    vscode.TreeItemCollapsibleState.None,
-                    'acl-info',
-                    '',
-                    undefined,
-                    undefined,
-                    'ACLs are now displayed under each topic in the Clusters view. This view shows all ACLs across resource types.'
-                )
-            ];
-
-            // Add clusters
-            items.push(...clusters.map(
+            
+            return clusters.map(
                 cluster =>
                     new ACLTreeItem(
                         cluster,
@@ -39,9 +25,7 @@ export class ACLProvider extends BaseProvider<ACLTreeItem> {
                         'cluster',
                         cluster
                     )
-            ));
-
-            return items;
+            );
         }
 
         if (element.contextValue === 'cluster') {

@@ -36,39 +36,39 @@ export async function showACLDetails(clientManager: KafkaClientManager, node: { 
                     title: 'ACL Information',
                     icon: '🔒',
                     properties: [
-                        { 
-                            label: 'Principal', 
-                            value: aclDetails.principal, 
-                            code: true 
+                        {
+                            label: 'Principal',
+                            value: aclDetails.principal,
+                            code: true
                         },
-                        { 
-                            label: 'Operation', 
-                            value: aclDetails.operation 
+                        {
+                            label: 'Operation',
+                            value: aclDetails.operation
                         },
-                        { 
-                            label: 'Permission Type', 
+                        {
+                            label: 'Permission Type',
                             value: aclDetails.permissionType,
                             badge: {
                                 type: aclDetails.permissionType.toLowerCase() === 'allow' ? 'success' : 'danger',
                                 text: aclDetails.permissionType.toUpperCase()
                             }
                         },
-                        { 
-                            label: 'Resource Type', 
-                            value: aclDetails.resourceType 
+                        {
+                            label: 'Resource Type',
+                            value: aclDetails.resourceType
                         },
-                        { 
-                            label: 'Resource Name', 
-                            value: aclDetails.resourceName, 
-                            code: true 
+                        {
+                            label: 'Resource Name',
+                            value: aclDetails.resourceName,
+                            code: true
                         },
-                        { 
-                            label: 'Host', 
-                            value: aclDetails.host 
+                        {
+                            label: 'Host',
+                            value: aclDetails.host
                         },
-                        { 
-                            label: 'Pattern Type', 
-                            value: aclDetails.resourcePatternType 
+                        {
+                            label: 'Pattern Type',
+                            value: aclDetails.resourcePatternType
                         }
                     ]
                 },
@@ -134,7 +134,7 @@ kafka-acls --bootstrap-server <broker> --remove \\
 export async function findACL(clientManager: KafkaClientManager): Promise<void> {
     try {
         const clusters = clientManager.getClusters();
-        
+
         if (clusters.length === 0) {
             vscode.window.showInformationMessage('No clusters configured');
             return;

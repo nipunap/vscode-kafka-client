@@ -37,7 +37,7 @@ export async function showConsumerGroupDetails(clientManager: KafkaClientManager
 
         // Create HTML view
         const detailsView = new DetailsWebview(context, `Consumer Group: ${node.groupId}`, '👥');
-        
+
         // Get state badge
         const getStateBadge = (state: string) => {
             const stateUpper = state.toUpperCase();
@@ -61,8 +61,8 @@ export async function showConsumerGroupDetails(clientManager: KafkaClientManager
                     icon: '📊',
                     properties: [
                         { label: 'Group ID', value: details.groupId || node.groupId, code: true },
-                        { 
-                            label: 'State', 
+                        {
+                            label: 'State',
                             value: details.state || 'Unknown',
                             badge: getStateBadge(details.state || 'Unknown')
                         },
@@ -82,8 +82,8 @@ export async function showConsumerGroupDetails(clientManager: KafkaClientManager
                             member.clientHost || 'N/A'
                         ])
                     } : undefined,
-                    html: (!details.members || details.members.length === 0) 
-                        ? '<div class="empty-state">No active members</div>' 
+                    html: (!details.members || details.members.length === 0)
+                        ? '<div class="empty-state">No active members</div>'
                         : undefined
                 },
                 {
@@ -92,7 +92,7 @@ export async function showConsumerGroupDetails(clientManager: KafkaClientManager
                     table: details.offsets && details.offsets.length > 0 ? {
                         headers: ['Topic', 'Partition', 'Current Offset', 'Log End Offset', 'Lag'],
                         rows: details.offsets.map((offset: any) => {
-                            const lag = offset.lag !== undefined ? offset.lag : 
+                            const lag = offset.lag !== undefined ? offset.lag :
                                        (offset.logEndOffset && offset.offset) ? offset.logEndOffset - offset.offset : 'N/A';
                             return [
                                 offset.topic || 'N/A',
@@ -103,8 +103,8 @@ export async function showConsumerGroupDetails(clientManager: KafkaClientManager
                             ];
                         })
                     } : undefined,
-                    html: (!details.offsets || details.offsets.length === 0) 
-                        ? '<div class="empty-state">No offset information available</div>' 
+                    html: (!details.offsets || details.offsets.length === 0)
+                        ? '<div class="empty-state">No offset information available</div>'
                         : undefined
                 }
             ]

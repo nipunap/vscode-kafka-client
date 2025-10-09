@@ -161,15 +161,14 @@ x_security_token_expires = 2025-10-01T15:30:00Z
 
 ## 🛡️ ACL Management
 
-View and manage Kafka Access Control Lists with topic integration and built-in help documentation.
+View and manage Kafka Access Control Lists integrated directly with topics.
 
 ### Features
 - 🔗 **Topic Integration** - ACLs displayed directly under topics for better context
-- 📋 **View ACLs** - Browse topic-specific ACLs or all ACLs grouped by resource type
+- 📋 **View ACLs** - Browse topic-specific ACLs with rich HTML formatting
 - 📊 **Dashboard Display** - Topic dashboards show ACL permissions with visual indicators
 - ➕ **Create ACLs** - Interactive CLI command generation
 - ❌ **Delete ACLs** - Safe removal with command preview
-- 🔍 **Find ACLs** - Search with filters (principal, operation, permission)
 - 📚 **Interactive Help** - Rich HTML documentation with examples
 
 ### Required Permissions
@@ -221,13 +220,12 @@ kafka-acls --list --principal User:your-user
 - **Reset Offsets**: Right-click → "Reset Offsets" (group must be empty)
 
 ### ACLs
-- **Integrated View**: ACLs are now displayed under each topic in the Clusters view
+- **Integrated View**: ACLs are displayed under each topic in the Clusters view
 - **Topic-Specific**: Expand any topic → Click "🔒 ACLs" to view permissions for that topic
-- **Dashboard Display**: Topic dashboards now show ACLs with visual indicators (✓/✗)
-- **Legacy View**: Browse all ACLs across resource types in the dedicated ACL view
+- **Dashboard Display**: Topic dashboards show ACLs with visual indicators (✓ for allow, ✗ for deny)
+- **Details**: Click on any ACL to view formatted details in HTML
 - **Create**: Right-click cluster → "Create ACL" → Copy CLI command
 - **Delete**: Right-click ACL → "Delete ACL" → Copy CLI command
-- **Find**: Click search → Filter by principal/operation
 - **Help**: Right-click ACL container → "ACL Help"
 
 ### Cluster Dashboard
@@ -331,10 +329,10 @@ src/
 │   └── DocumentationService.ts     # Help content
 ├── providers/                      # Tree view providers
 │   ├── BaseProvider.ts             # Abstract base
-│   ├── kafkaExplorerProvider.ts    # Topics view
+│   ├── kafkaExplorerProvider.ts    # Topics view (with integrated ACLs)
 │   ├── consumerGroupProvider.ts    # Consumer groups view
 │   ├── brokerProvider.ts           # Brokers view
-│   └── aclProvider.ts              # ACLs view
+│   └── aclProvider.ts              # ACL provider (legacy, not registered)
 ├── commands/                       # Command handlers
 │   ├── clusterCommands.ts
 │   ├── topicCommands.ts

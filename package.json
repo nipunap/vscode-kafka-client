@@ -43,7 +43,6 @@
     "onView:kafkaExplorer",
     "onView:kafkaConsumerGroups",
     "onView:kafkaBrokers",
-    "onView:kafkaACLs",
     "onCommand:kafka.addCluster"
   ],
   "main": "./out/extension.js",
@@ -73,11 +72,6 @@
           "id": "kafkaBrokers",
           "name": "Brokers",
           "icon": "$(server)"
-        },
-        {
-          "id": "kafkaACLs",
-          "name": "ACLs",
-          "icon": "$(shield)"
         }
       ]
     },

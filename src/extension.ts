@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import { KafkaExplorerProvider } from './providers/kafkaExplorerProvider';
 import { ConsumerGroupProvider } from './providers/consumerGroupProvider';
 import { BrokerProvider } from './providers/brokerProvider';
-import { ACLProvider } from './providers/aclProvider';
 import { KafkaClientManager } from './kafka/kafkaClientManager';
 import * as clusterCommands from './commands/clusterCommands';
 import * as topicCommands from './commands/topicCommands';
@@ -37,12 +36,10 @@ export async function activate(context: vscode.ExtensionContext) {
     const kafkaExplorerProvider = new KafkaExplorerProvider(clientManager);
     const consumerGroupProvider = new ConsumerGroupProvider(clientManager);
     const brokerProvider = new BrokerProvider(clientManager);
-    const aclProvider = new ACLProvider(clientManager);
 
     vscode.window.registerTreeDataProvider('kafkaExplorer', kafkaExplorerProvider);
     vscode.window.registerTreeDataProvider('kafkaConsumerGroups', consumerGroupProvider);
     vscode.window.registerTreeDataProvider('kafkaBrokers', brokerProvider);
-    vscode.window.registerTreeDataProvider('kafkaACLs', aclProvider);
 
     // Set up event listeners for auto-refresh
     eventBus.on(KafkaEvents.CLUSTER_ADDED, () => {
@@ -50,7 +47,6 @@ export async function activate(context: vscode.ExtensionContext) {
         kafkaExplorerProvider.refresh();
         consumerGroupProvider.refresh();
         brokerProvider.refresh();
-        aclProvider.refresh();
     });
 
     eventBus.on(KafkaEvents.CLUSTER_REMOVED, () => {
@@ -58,7 +54,6 @@ export async function activate(context: vscode.ExtensionContext) {
         kafkaExplorerProvider.refresh();
         consumerGroupProvider.refresh();
         brokerProvider.refresh();
-        aclProvider.refresh();
     });
 
     eventBus.on(KafkaEvents.REFRESH_REQUESTED, () => {
@@ -66,7 +61,6 @@ export async function activate(context: vscode.ExtensionContext) {
         kafkaExplorerProvider.refresh();
         consumerGroupProvider.refresh();
         brokerProvider.refresh();
-        aclProvider.refresh();
     });
 
     // Load saved clusters from configuration
