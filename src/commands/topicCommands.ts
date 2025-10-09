@@ -9,6 +9,7 @@ import { formatMessages, formatTopicDetailsYaml } from '../utils/formatters';
 import { ErrorHandler } from '../infrastructure/ErrorHandler';
 import { TopicDashboardWebview } from '../views/topicDashboardWebview';
 import { TopicNode, ClusterNode } from '../types/nodes';
+import { ACL } from '../types/acl';
 
 export async function createTopic(
     clientManager: KafkaClientManager,
@@ -348,4 +349,26 @@ export async function showTopicDashboard(
         const dashboard = new TopicDashboardWebview(context, clientManager);
         await dashboard.show(clusterName, topicName);
     }, 'Show Topic Dashboard');
+}
+
+/**
+ * Show ACL details for a specific topic ACL
+ */
+export async function showTopicACLDetails(clientManager: KafkaClientManager, node: { clusterName: string; topicName?: string; acl: ACL }): Promise<void> {
+    return ErrorHandler.wrap(async () => {
+        if (!node.acl) {
+            vscode.window.showErrorMessage('No ACL data available');
+            return;
+        }
+
+        const aclDetails = await clientManager.getACLDetails(node.clusterName, node.acl);
+        const yaml = formatTopicDetailsYaml(aclDetails);
+
+        const doc = await vscode.workspace.openTextDocument({
+            content: yaml,
+            language: 'yaml'
+        });
+
+        await vscode.window.showTextDocument(doc);
+    }, 'Show Topic ACL Details');
 }

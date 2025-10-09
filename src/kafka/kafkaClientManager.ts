@@ -26,7 +26,7 @@ export class KafkaClientManager {
     private connectionPool: ConnectionPool;
     private configurationService: ConfigurationService;
     private mskAdapter: MSKAdapter;
-    
+
     // Service layer
     private topicService: TopicService;
     private consumerGroupService: ConsumerGroupService;
@@ -38,7 +38,7 @@ export class KafkaClientManager {
         this.connectionPool = new ConnectionPool();
         this.configurationService = new ConfigurationService();
         this.mskAdapter = new MSKAdapter();
-        
+
         // Initialize services
         this.topicService = new TopicService();
         this.consumerGroupService = new ConsumerGroupService();
@@ -63,7 +63,7 @@ export class KafkaClientManager {
 
     async addClusterFromConnection(connection: ClusterConnection) {
         this.logger.info(`Adding cluster: ${connection.name} (type: ${connection.type})`);
-        
+
         // Store sensitive credentials in SecretStorage
         if (this.credentialManager) {
             if (connection.saslPassword) {
@@ -268,7 +268,7 @@ export class KafkaClientManager {
 
     async removeCluster(name: string) {
         this.logger.info(`Removing cluster: ${name}`);
-        
+
         // Disconnect from connection pool
         await this.connectionPool.disconnect(name);
 
@@ -749,13 +749,29 @@ export class KafkaClientManager {
         };
     }
 
+    async getTopicACLs(clusterName: string, topicName: string): Promise<ACL[]> {
+        try {
+            const allACLs = await this.getACLs(clusterName);
+            // Filter ACLs for this specific topic
+            return allACLs.filter(acl =>
+                acl.resourceType === 'topic' &&
+                (acl.resourceName === topicName || acl.resourceName === '*')
+            );
+        } catch (error: any) {
+            // If ACLs aren't available (e.g., CLI tool not available), return empty array
+            // This allows the UI to gracefully handle missing ACL support
+            this.logger.debug(`ACLs not available for topic ${topicName}: ${error?.message}`);
+            return [];
+        }
+    }
+
     private getACLDescription(acl: ACL): string {
         const principal = acl.principal || 'Unknown';
         const operation = acl.operation || 'Unknown';
         const resource = acl.resourceName || 'Unknown';
         const permission = acl.permissionType || 'Unknown';
         const host = acl.host || '*';
-        
+
         return `Principal ${principal} is ${permission}ed to ${operation} on ${resource} from host ${host}`;
     }
 
@@ -773,9 +789,9 @@ export class KafkaClientManager {
             if (connection.type === 'msk' && connection.clusterArn && connection.region && brokers.length === 0) {
                 this.logger.debug(`Fetching MSK brokers for ${clusterName} (not cached)`);
                 brokers = await this.mskAdapter.getBootstrapBrokers(
-                    connection.region, 
-                    connection.clusterArn, 
-                    connection.saslMechanism, 
+                    connection.region,
+                    connection.clusterArn,
+                    connection.saslMechanism,
                     connection.awsProfile
                 );
                 // Cache the brokers to avoid re-fetching from AWS
@@ -784,12 +800,12 @@ export class KafkaClientManager {
 
             // Use connection pool for better resource management
             const kafkaConfig = await this.buildKafkaConfig(connection, brokers);
-            
+
             const { admin } = await this.connectionPool.get(
                 clusterName,
                 () => new Kafka(kafkaConfig) // Factory function that creates Kafka instance
             );
-            
+
             return admin;
         } catch (error: any) {
             this.logger.error(`Failed to connect to cluster ${clusterName}`, error);
@@ -813,9 +829,9 @@ export class KafkaClientManager {
             if (connection.type === 'msk' && connection.clusterArn && connection.region && brokers.length === 0) {
                 this.logger.debug(`Fetching MSK brokers for ${clusterName} (not cached)`);
                 brokers = await this.mskAdapter.getBootstrapBrokers(
-                    connection.region, 
-                    connection.clusterArn, 
-                    connection.saslMechanism, 
+                    connection.region,
+                    connection.clusterArn,
+                    connection.saslMechanism,
                     connection.awsProfile
                 );
                 // Cache the brokers to avoid re-fetching from AWS
@@ -824,12 +840,12 @@ export class KafkaClientManager {
 
             // Use connection pool for better resource management
             const kafkaConfig = await this.buildKafkaConfig(connection, brokers);
-            
+
             const { producer } = await this.connectionPool.get(
                 clusterName,
                 () => new Kafka(kafkaConfig) // Factory function that creates Kafka instance
             );
-            
+
             return producer;
         } catch (error: any) {
             this.logger.error(`Failed to get producer for cluster ${clusterName}`, error);

@@ -10,14 +10,28 @@ export class ACLProvider extends BaseProvider<ACLTreeItem> {
 
     async getChildren(element?: ACLTreeItem): Promise<ACLTreeItem[]> {
         if (!element) {
-            // Root level - show clusters
+            // Root level - show deprecation notice and clusters
             const clusters = this.getClusters();
-            
+
             if (clusters.length === 0) {
                 return [this.createEmptyItem('No clusters configured.') as ACLTreeItem];
             }
-            
-            return clusters.map(
+
+            // Add deprecation notice at the top
+            const items: ACLTreeItem[] = [
+                new ACLTreeItem(
+                    '💡 Tip: ACLs are now integrated with topics',
+                    vscode.TreeItemCollapsibleState.None,
+                    'acl-info',
+                    '',
+                    undefined,
+                    undefined,
+                    'ACLs are now displayed under each topic in the Clusters view. This view shows all ACLs across resource types.'
+                )
+            ];
+
+            // Add clusters
+            items.push(...clusters.map(
                 cluster =>
                     new ACLTreeItem(
                         cluster,
@@ -25,7 +39,9 @@ export class ACLProvider extends BaseProvider<ACLTreeItem> {
                         'cluster',
                         cluster
                     )
-            );
+            ));
+
+            return items;
         }
 
         if (element.contextValue === 'cluster') {
@@ -66,7 +82,7 @@ export class ACLProvider extends BaseProvider<ACLTreeItem> {
                                 )
                             ];
                         }
-                        
+
                         // Only log unexpected errors
                         this.logger.error(`Failed to load ACLs for cluster ${el!.clusterName}`, error);
                         return [
@@ -119,7 +135,7 @@ export class ACLProvider extends BaseProvider<ACLTreeItem> {
                                 )
                             ];
                         }
-                        
+
                         // Only log unexpected errors
                         this.logger.error(`Failed to load ACLs for resource type ${el!.resourceType}`, error);
                         return [
@@ -141,7 +157,7 @@ export class ACLProvider extends BaseProvider<ACLTreeItem> {
 
     private groupACLsByResourceType(acls: ACL[]): Map<string, ACL[]> {
         const grouped = new Map<string, ACL[]>();
-        
+
         for (const acl of acls) {
             const resourceType = acl.resourceType || 'Unknown';
             if (!grouped.has(resourceType)) {
@@ -155,7 +171,7 @@ export class ACLProvider extends BaseProvider<ACLTreeItem> {
 
     private createResourceTypeItems(groupedACLs: Map<string, ACL[]>, clusterName: string): ACLTreeItem[] {
         const items: ACLTreeItem[] = [];
-        
+
         for (const [resourceType, aclsForType] of groupedACLs.entries()) {
             const categoryItem = new ACLTreeItem(
                 `${resourceType} (${aclsForType.length})`,
@@ -192,7 +208,7 @@ export class ACLProvider extends BaseProvider<ACLTreeItem> {
         const operation = acl.operation || 'Unknown';
         const resource = acl.resourceName || 'Unknown';
         const permission = acl.permissionType || 'Unknown';
-        
+
         return `${principal} → ${operation} on ${resource} (${permission})`;
     }
 

@@ -161,10 +161,12 @@ x_security_token_expires = 2025-10-01T15:30:00Z
 
 ## 🛡️ ACL Management
 
-View and manage Kafka Access Control Lists with built-in help documentation.
+View and manage Kafka Access Control Lists with topic integration and built-in help documentation.
 
 ### Features
-- 📋 **View ACLs** - Browse all ACLs grouped by resource type (Topic, Group, Cluster)
+- 🔗 **Topic Integration** - ACLs displayed directly under topics for better context
+- 📋 **View ACLs** - Browse topic-specific ACLs or all ACLs grouped by resource type
+- 📊 **Dashboard Display** - Topic dashboards show ACL permissions with visual indicators
 - ➕ **Create ACLs** - Interactive CLI command generation
 - ❌ **Delete ACLs** - Safe removal with command preview
 - 🔍 **Find ACLs** - Search with filters (principal, operation, permission)
@@ -219,11 +221,14 @@ kafka-acls --list --principal User:your-user
 - **Reset Offsets**: Right-click → "Reset Offsets" (group must be empty)
 
 ### ACLs
-- **View**: Browse ACLs in dedicated ACL view
+- **Integrated View**: ACLs are now displayed under each topic in the Clusters view
+- **Topic-Specific**: Expand any topic → Click "🔒 ACLs" to view permissions for that topic
+- **Dashboard Display**: Topic dashboards now show ACLs with visual indicators (✓/✗)
+- **Legacy View**: Browse all ACLs across resource types in the dedicated ACL view
 - **Create**: Right-click cluster → "Create ACL" → Copy CLI command
 - **Delete**: Right-click ACL → "Delete ACL" → Copy CLI command
 - **Find**: Click search → Filter by principal/operation
-- **Help**: Right-click cluster → "Show ACL Help"
+- **Help**: Right-click ACL container → "ACL Help"
 
 ### Cluster Dashboard
 - Right-click cluster → "Show Cluster Dashboard"

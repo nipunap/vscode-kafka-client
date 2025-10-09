@@ -229,6 +229,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
         vscode.commands.registerCommand('kafka.showTopicDashboard', async (node) => {
             await topicCommands.showTopicDashboard(clientManager, context, node);
+        }),
+
+        vscode.commands.registerCommand('kafka.showTopicACLDetails', async (node) => {
+            await topicCommands.showTopicACLDetails(clientManager, node);
         })
     );
 }

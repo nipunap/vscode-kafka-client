@@ -56,9 +56,26 @@ export interface ACLNode extends BaseNode {
 }
 
 /**
+ * Topic ACL Container node (shows under topics)
+ */
+export interface TopicACLContainerNode extends BaseNode {
+    contextValue?: 'topicACLContainer';
+    topicName: string;
+}
+
+/**
+ * Topic ACL node (individual ACL under a topic)
+ */
+export interface TopicACLNode extends BaseNode {
+    contextValue?: 'topicACL';
+    topicName: string;
+    acl: ACL;
+}
+
+/**
  * Union type for all node types
  */
-export type KafkaNode = ClusterNode | TopicNode | ConsumerGroupNode | BrokerNode | ACLNode;
+export type KafkaNode = ClusterNode | TopicNode | ConsumerGroupNode | BrokerNode | ACLNode | TopicACLContainerNode | TopicACLNode;
 
 /**
  * Type guard for ClusterNode
@@ -95,3 +112,16 @@ export function isACLNode(node: any): node is ACLNode {
     return node?.contextValue === 'acl';
 }
 
+/**
+ * Type guard for TopicACLContainerNode
+ */
+export function isTopicACLContainerNode(node: any): node is TopicACLContainerNode {
+    return node?.contextValue === 'topicACLContainer';
+}
+
+/**
+ * Type guard for TopicACLNode
+ */
+export function isTopicACLNode(node: any): node is TopicACLNode {
+    return node?.contextValue === 'topicACL';
+}

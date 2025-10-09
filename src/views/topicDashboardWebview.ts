@@ -51,10 +51,11 @@ export class TopicDashboardWebview {
         try {
             this.logger.debug(`Loading topic data for ${clusterName}/${topicName}`);
 
-            // Fetch topic details and metadata in parallel
-            const [topicDetails, topicMetadata] = await Promise.all([
+            // Fetch topic details, metadata, and ACLs in parallel
+            const [topicDetails, topicMetadata, topicACLs] = await Promise.all([
                 this.clientManager.getTopicDetails(clusterName, topicName),
-                this.clientManager.getTopicMetadata(clusterName, topicName)
+                this.clientManager.getTopicMetadata(clusterName, topicName),
+                this.clientManager.getTopicACLs(clusterName, topicName).catch(() => [])
             ]);
 
             // Calculate metrics
@@ -62,7 +63,7 @@ export class TopicDashboardWebview {
             const partitionInfo = this.extractPartitionInfo(topicMetadata);
 
             // Update webview with data
-            this.updateDashboard(topicName, metrics, partitionInfo, topicDetails);
+            this.updateDashboard(topicName, metrics, partitionInfo, topicDetails, topicACLs);
 
         } catch (error: any) {
             this.logger.error(`Failed to load topic data for ${clusterName}/${topicName}`, error);
@@ -186,12 +187,12 @@ export class TopicDashboardWebview {
         };
     }
 
-    private updateDashboard(topicName: string, metrics: any, _partitionInfo: any, _topicDetails: any) {
+    private updateDashboard(topicName: string, metrics: any, _partitionInfo: any, _topicDetails: any, acls: any[] = []) {
         if (!this.panel) {
             return;
         }
 
-        const html = this.getDashboardHtml(topicName, metrics, _partitionInfo, _topicDetails);
+        const html = this.getDashboardHtml(topicName, metrics, _partitionInfo, _topicDetails, acls);
         this.panel.webview.html = html;
     }
 
@@ -339,7 +340,7 @@ export class TopicDashboardWebview {
         `;
     }
 
-    private getDashboardHtml(topicName: string, metrics: any, _partitionInfo: any, _topicDetails: any): string {
+    private getDashboardHtml(topicName: string, metrics: any, _partitionInfo: any, _topicDetails: any, acls: any[] = []): string {
         return `
             <!DOCTYPE html>
             <html>
@@ -517,6 +518,39 @@ export class TopicDashboardWebview {
                         </div>
                     `).join('')}
                 </div>
+
+                ${acls.length > 0 ? `
+                <div class="partitions-table" style="margin-top: 30px;">
+                    <div class="table-header">🔒 Access Control Lists (ACLs)</div>
+                    ${acls.map((acl: any) => {
+                        const icon = acl.permissionType?.toLowerCase() === 'allow' ? '✓' : '✗';
+                        const color = acl.permissionType?.toLowerCase() === 'allow' ? '#4caf50' : '#f44336';
+                        const principal = acl.principal?.replace('User:', '') || 'Unknown';
+                        return `
+                        <div class="table-row">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span style="color: ${color}; font-weight: bold; font-size: 18px;">${icon}</span>
+                                <div>
+                                    <div style="font-weight: bold;">${principal} → ${acl.operation || 'Unknown'}</div>
+                                    <div style="font-size: 11px; color: var(--vscode-descriptionForeground);">
+                                        ${acl.permissionType || 'Unknown'} | Resource: ${acl.resourceName || 'Unknown'} | Host: ${acl.host || '*'}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        `;
+                    }).join('')}
+                </div>
+                ` : `
+                <div class="partitions-table" style="margin-top: 30px;">
+                    <div class="table-header">🔒 Access Control Lists (ACLs)</div>
+                    <div class="table-row">
+                        <div style="text-align: center; padding: 20px; color: var(--vscode-descriptionForeground);">
+                            No ACLs configured for this topic, or ACL management CLI tool is not available.
+                        </div>
+                    </div>
+                </div>
+                `}
 
                 <script>
                     const vscode = acquireVsCodeApi();

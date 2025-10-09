@@ -196,6 +196,11 @@
         "command": "kafka.showClusterDashboard",
         "title": "Show Cluster Dashboard",
         "icon": "$(dashboard)"
+      },
+      {
+        "command": "kafka.showTopicACLDetails",
+        "title": "Show Topic ACL Details",
+        "icon": "$(info)"
       }
     ],
     "menus": {
@@ -281,6 +286,16 @@
           "command": "kafka.resetConsumerGroupOffsets",
           "when": "view == kafkaConsumerGroups && viewItem == consumerGroup",
           "group": "2_actions@1"
+        },
+        {
+          "command": "kafka.showTopicACLDetails",
+          "when": "view == kafkaExplorer && viewItem == topicACL",
+          "group": "0_info@1"
+        },
+        {
+          "command": "kafka.showACLHelp",
+          "when": "view == kafkaExplorer && viewItem == topicACLContainer",
+          "group": "0_info@1"
         }
       ]
     },
