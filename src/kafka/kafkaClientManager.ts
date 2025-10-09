@@ -208,7 +208,8 @@ export class KafkaClientManager {
             saslPassword = await this.credentialManager.getPassword(connection.name, 'sasl');
         }
 
-        const mechanism = connection.saslMechanism.toLowerCase().replace(/-/g, '-') as any;
+        // Convert mechanism to lowercase (KafkaJS expects lowercase mechanism names)
+        const mechanism = connection.saslMechanism.toLowerCase() as any;
 
         return {
             mechanism,
@@ -892,12 +893,13 @@ export class KafkaClientManager {
                 await this.addClusterFromConnection(connection);
 
             } catch (error: any) {
-                console.error(`Failed to load cluster ${cluster.name}:`, error);
+                // Log the error using the logger instead of console
+                this.logger.error(`Failed to load cluster ${cluster.name}`, error);
 
                 // Determine the reason for failure
-                let reason = 'Unknown error';
                 const errorMsg = error?.message || error.toString();
 
+                let reason: string;
                 if (errorMsg.includes('expired') || errorMsg.includes('credentials')) {
                     reason = 'AWS credentials expired or invalid';
                 } else if (errorMsg.includes('brokers')) {

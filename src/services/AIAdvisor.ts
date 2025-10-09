@@ -31,13 +31,13 @@ export class AIAdvisor {
             });
 
             this.isAvailable = models.length > 0 || fallbackModels.length > 0;
-            
+
             if (this.isAvailable) {
                 this.logger.info('AI Advisor features are available');
             } else {
                 this.logger.info('AI Advisor features not available - GitHub Copilot may not be active');
             }
-            
+
             return this.isAvailable;
         } catch (error) {
             this.logger.debug('Language Model API not available', error);
@@ -89,8 +89,8 @@ export class AIAdvisor {
 - Total Messages: ${topicConfig.totalMessages.toLocaleString()}
 
 **Key Settings:**
-${topicConfig.configurations.slice(0, 12).filter(c => 
-    !c.configName.includes('segment.') && 
+${topicConfig.configurations.slice(0, 12).filter(c =>
+    !c.configName.includes('segment.') &&
     !c.configName.includes('file.delete.') &&
     c.configSource !== 'DEFAULT_CONFIG'
 ).map(c => '- ' + c.configName + ': ' + c.configValue).join('\n') || '(Using default configurations)'}
@@ -169,8 +169,8 @@ Keep each bullet point to ONE LINE. Be specific with numbers and settings. No fl
 - Address: ${brokerConfig.host}:${brokerConfig.port}
 
 **Key Settings:**
-${brokerConfig.configurations.slice(0, 15).filter(c => 
-    !c.configName.startsWith('log.segment') && 
+${brokerConfig.configurations.slice(0, 15).filter(c =>
+    !c.configName.startsWith('log.segment') &&
     !c.configName.startsWith('log.retention') &&
     c.configSource !== 'DEFAULT_CONFIG'
 ).map(c => '- ' + c.configName + ': ' + c.configValue).join('\n') || '(Using default configurations)'}
@@ -319,9 +319,9 @@ Keep each bullet to ONE LINE. Be specific with numbers. No fluff.`)
             }
 
             const model = models[0];
-            
+
             const contextMessage = context ? `\n\n**Context:**\n${context}` : '';
-            
+
             const messages = [
                 vscode.LanguageModelChatMessage.User(`You are a Kafka expert assistant. Answer this question CONCISELY:
 
@@ -349,4 +349,3 @@ Keep each bullet to ONE LINE. Be specific with numbers. No fluff.`)
         }
     }
 }
-

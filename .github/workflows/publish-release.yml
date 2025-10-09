@@ -11,6 +11,11 @@ concurrency:
   group: publish-release
   cancel-in-progress: false
 
+# Security: Explicitly define minimal permissions at workflow level
+permissions:
+  contents: write  # Needed for creating releases
+  pull-requests: read  # Needed for waiting on checks
+
 jobs:
   wait-for-ci:
     name: Wait for CI

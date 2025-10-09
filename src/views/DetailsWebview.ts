@@ -114,9 +114,9 @@ export class DetailsWebview {
             function copyAsJson() {
                 const exportData = convertToExportFormat(detailsData);
                 const jsonString = JSON.stringify(exportData, null, 2);
-                vscode.postMessage({ 
-                    command: 'copyAsJson', 
-                    data: jsonString 
+                vscode.postMessage({
+                    command: 'copyAsJson',
+                    data: jsonString
                 });
             }
 
@@ -278,15 +278,15 @@ export class DetailsWebview {
                 const aiButton = document.getElementById('aiButton');
                 const aiRecommendations = document.getElementById('aiRecommendations');
                 const aiContent = document.getElementById('aiContent');
-                
+
                 if (!aiButton || !aiRecommendations || !aiContent) return;
-                
+
                 // Show loading state
                 aiButton.disabled = true;
                 aiButton.textContent = '🤖 Analyzing...';
                 aiRecommendations.classList.add('visible');
                 aiContent.innerHTML = '<div class="ai-loading"><div class="spinner"></div><span>Analyzing configuration and generating recommendations...</span></div>';
-                
+
                 // Request AI recommendations from extension
                 vscode.postMessage({ command: 'requestAIAdvice' });
             }
@@ -298,12 +298,12 @@ export class DetailsWebview {
                     const aiButton = document.getElementById('aiButton');
                     const aiRecommendations = document.getElementById('aiRecommendations');
                     const aiContent = document.getElementById('aiContent');
-                    
+
                     if (aiButton && aiRecommendations && aiContent) {
                         aiButton.disabled = false;
                         aiButton.textContent = '🤖 AI Advisor';
                         aiRecommendations.classList.add('visible');
-                        
+
                         // Format markdown-like text to HTML
                         const formattedText = formatAIResponse(message.recommendations);
                         aiContent.innerHTML = formattedText;
@@ -315,40 +315,40 @@ export class DetailsWebview {
                 // Enhanced markdown-like formatting
                 let formatted = text;
                 const backtick = String.fromCharCode(96);
-                
+
                 // Headers with bottom border for better separation
                 formatted = formatted.replace(/^### (.+)$/gm, '<h4 style="margin-top: 20px; margin-bottom: 10px; color: var(--primary-color); font-weight: 600;">$1</h4>');
                 formatted = formatted.replace(/^## (.+)$/gm, '<h3 style="margin-top: 25px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid var(--border-color); color: var(--primary-color); font-weight: 700;">$1</h3>');
                 formatted = formatted.replace(/^# (.+)$/gm, '<h2 style="margin-top: 30px; margin-bottom: 15px; color: var(--primary-color); font-weight: 800;">$1</h2>');
-                
+
                 // Bold text
                 formatted = formatted.replace(/\\*\\*([^*]+)\\*\\*/g, '<strong style="color: var(--text-color); font-weight: 600;">$1</strong>');
-                
+
                 // Code blocks with better styling
                 const codeRegex = new RegExp(backtick + '([^' + backtick + ']+)' + backtick, 'g');
                 formatted = formatted.replace(codeRegex, '<code style="background: var(--background); padding: 2px 6px; border-radius: 3px; font-size: 13px; border: 1px solid var(--border-color); color: var(--primary-color); font-family: monospace;">$1</code>');
-                
+
                 // Bullet points with custom styling
                 formatted = formatted.replace(/^- (.+)$/gm, '<div style="margin: 8px 0; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: var(--primary-color);">•</span>$1</div>');
-                
+
                 // Numbered lists
                 formatted = formatted.replace(/^(\\d+)\\. (.+)$/gm, '<div style="margin: 8px 0; padding-left: 25px; position: relative;"><span style="position: absolute; left: 0; color: var(--primary-color); font-weight: 600;">$1.</span>$2</div>');
-                
+
                 // Line breaks (but not after divs)
                 formatted = formatted.split('\\n').map((line, i, arr) => {
                     // Don't add br after div elements or before headers
-                    if (line.includes('</div>') || line.includes('</h') || 
+                    if (line.includes('</div>') || line.includes('</h') ||
                         (i < arr.length - 1 && arr[i + 1].includes('<h'))) {
                         return line;
                     }
                     return line + '<br>';
                 }).join('');
-                
+
                 // Clean up extra br tags
                 formatted = formatted.replace(/<br><br>/g, '<br>');
                 formatted = formatted.replace(/<\\/div><br>/g, '</div>');
                 formatted = formatted.replace(/<\\/h\\d><br>/g, match => match.replace('<br>', ''));
-                
+
                 return formatted;
             }
         `;
@@ -777,11 +777,11 @@ export class DetailsWebview {
 
                 <div class="search-container">
                     <div class="search-box">
-                        <input 
-                            type="text" 
-                            class="search-input" 
-                            id="searchInput" 
-                            placeholder="Search... (Cmd+F or Ctrl+F)" 
+                        <input
+                            type="text"
+                            class="search-input"
+                            id="searchInput"
+                            placeholder="Search... (Cmd+F or Ctrl+F)"
                             autocomplete="off"
                         />
                         <button class="btn btn-secondary" onclick="clearSearch()">Clear</button>
@@ -947,4 +947,3 @@ export interface TableData {
     headers: string[];
     rows: any[][];
 }
-

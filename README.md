@@ -208,11 +208,18 @@ kafka-acls --list --principal User:your-user
 
 **Requirements**: VS Code 1.85+ and active GitHub Copilot subscription
 
-Get intelligent, context-aware recommendations for your Kafka resources:
+Get intelligent, context-aware recommendations for your Kafka resources in a **concise, structured format**:
 
 - **Topics**: Click 🤖 AI Advisor in topic details → Get configuration, performance, and reliability recommendations
 - **Brokers**: Click 🤖 AI Advisor in broker details → Get JVM, network, security, and monitoring guidance
 - **Consumer Groups**: Click 🤖 AI Advisor → Get lag analysis, scaling, and optimization suggestions
+
+**Response Format** (structured and scannable):
+- **Status**: One-line health assessment
+- **Critical Issues**: Blocking problems (or "None identified")
+- **Quick Wins**: 2-3 high-impact improvements with specific values
+- **Performance/Security/Monitoring**: Resource-specific optimizations
+- Each bullet point is ONE LINE with specific numbers and settings
 
 **What AI Analyzes**:
 - Configuration best practices
@@ -222,7 +229,14 @@ Get intelligent, context-aware recommendations for your Kafka resources:
 - Capacity planning
 - Industry standards
 
-**Response Time**: 5-15 seconds for comprehensive analysis
+**User Experience**:
+- Button only appears when Copilot is active (smart availability detection)
+- Response time: 5-15 seconds
+- Beautiful formatting with headers, bullets, code blocks
+- Searchable with Cmd+F / Ctrl+F
+- Export recommendations as JSON
+
+**Privacy**: Only configuration metadata is sent to AI. No credentials, passwords, or auth tokens ever leave your machine.
 
 ### Topics
 - **Create**: Right-click cluster → "Create Topic"
