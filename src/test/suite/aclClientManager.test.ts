@@ -28,9 +28,9 @@ suite('ACL Client Manager Test Suite', () => {
             }
         });
 
-        test('should log warning about ACL management requirements', async () => {
+        test('should log debug message about ACL management requirements', async () => {
             const loggerStub = sandbox.stub();
-            (clientManager as any).logger = { warn: loggerStub };
+            (clientManager as any).logger = { debug: loggerStub };
 
             try {
                 await clientManager.getACLs('test-cluster');
@@ -39,13 +39,13 @@ suite('ACL Client Manager Test Suite', () => {
             }
 
             assert.ok(loggerStub.calledOnce);
-            const warningMessage = loggerStub.firstCall.args[0];
-            assert.ok(warningMessage.includes('ACL management requires direct Kafka admin API access'));
+            const debugMessage = loggerStub.firstCall.args[0];
+            assert.ok(debugMessage.includes('ACL management not available'));
         });
 
-        test('should log error with cluster name', async () => {
+        test('should include cluster name in debug log', async () => {
             const loggerStub = sandbox.stub();
-            (clientManager as any).logger = { error: loggerStub };
+            (clientManager as any).logger = { debug: loggerStub };
 
             try {
                 await clientManager.getACLs('test-cluster');
@@ -54,8 +54,8 @@ suite('ACL Client Manager Test Suite', () => {
             }
 
             assert.ok(loggerStub.calledOnce);
-            const errorMessage = loggerStub.firstCall.args[0];
-            assert.ok(errorMessage.includes('Failed to get ACLs for cluster test-cluster'));
+            const debugMessage = loggerStub.firstCall.args[0];
+            assert.ok(debugMessage.includes('test-cluster'));
         });
     });
 
@@ -78,9 +78,9 @@ suite('ACL Client Manager Test Suite', () => {
             }
         });
 
-        test('should log warning about ACL creation requirements', async () => {
+        test('should log debug message about ACL creation requirements', async () => {
             const loggerStub = sandbox.stub();
-            (clientManager as any).logger = { warn: loggerStub };
+            (clientManager as any).logger = { debug: loggerStub };
 
             const aclConfig: ACLConfig = {
                 principal: 'User:testuser',
@@ -97,8 +97,8 @@ suite('ACL Client Manager Test Suite', () => {
             }
 
             assert.ok(loggerStub.calledOnce);
-            const warningMessage = loggerStub.firstCall.args[0];
-            assert.ok(warningMessage.includes('ACL creation requires direct Kafka admin API access'));
+            const debugMessage = loggerStub.firstCall.args[0];
+            assert.ok(debugMessage.includes('ACL creation not available'));
         });
 
         test('should handle different ACL configurations', async () => {
@@ -150,9 +150,9 @@ suite('ACL Client Manager Test Suite', () => {
             }
         });
 
-        test('should log warning about ACL deletion requirements', async () => {
+        test('should log debug message about ACL deletion requirements', async () => {
             const loggerStub = sandbox.stub();
-            (clientManager as any).logger = { warn: loggerStub };
+            (clientManager as any).logger = { debug: loggerStub };
 
             const aclConfig = {
                 principal: 'User:testuser',
@@ -168,8 +168,8 @@ suite('ACL Client Manager Test Suite', () => {
             }
 
             assert.ok(loggerStub.calledOnce);
-            const warningMessage = loggerStub.firstCall.args[0];
-            assert.ok(warningMessage.includes('ACL deletion requires direct Kafka admin API access'));
+            const debugMessage = loggerStub.firstCall.args[0];
+            assert.ok(debugMessage.includes('ACL deletion not available'));
         });
     });
 

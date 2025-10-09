@@ -12,11 +12,11 @@ export class ACLProvider extends BaseProvider<ACLTreeItem> {
         if (!element) {
             // Root level - show clusters
             const clusters = this.getClusters();
-            
+
             if (clusters.length === 0) {
                 return [this.createEmptyItem('No clusters configured.') as ACLTreeItem];
             }
-            
+
             return clusters.map(
                 cluster =>
                     new ACLTreeItem(

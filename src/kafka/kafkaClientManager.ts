@@ -701,38 +701,25 @@ export class KafkaClientManager {
     }
 
     async getACLs(clusterName: string): Promise<ACL[]> {
-        try {
-            // Note: KafkaJS doesn't have built-in ACL support
-            // ACL management requires direct Kafka admin API access through kafka-acls CLI
-            this.logger.warn('ACL management requires direct Kafka admin API access, which is not available through KafkaJS');
-            throw new Error('ACL management requires kafka-acls CLI tool. Use the ACL Help command for guidance.');
-        } catch (error: any) {
-            this.logger.error(`Failed to get ACLs for cluster ${clusterName}`, error);
-            throw error;
-        }
+        // Note: KafkaJS doesn't have built-in ACL support
+        // ACL management requires direct Kafka admin API access through kafka-acls CLI
+        // This is an expected limitation, so we log at debug level to avoid opening error logs
+        this.logger.debug(`ACL management not available for cluster ${clusterName} - KafkaJS doesn't support ACL operations`);
+        throw new Error('ACL management requires kafka-acls CLI tool. Use the ACL Help command for guidance.');
     }
 
     async createACL(clusterName: string, _aclConfig: ACLConfig): Promise<void> {
-        try {
-            // Note: This would require direct Kafka admin API access
-            // KafkaJS doesn't support ACL operations directly
-            this.logger.warn('ACL creation requires direct Kafka admin API access, which is not available through KafkaJS');
-            throw new Error('ACL management requires kafka-acls CLI tool. Use the ACL Help command for guidance.');
-        } catch (error: any) {
-            this.logger.error(`Failed to create ACL for cluster ${clusterName}`, error);
-            throw error;
-        }
+        // Note: This would require direct Kafka admin API access
+        // KafkaJS doesn't support ACL operations directly
+        this.logger.debug(`ACL creation not available for cluster ${clusterName} - KafkaJS doesn't support ACL operations`);
+        throw new Error('ACL management requires kafka-acls CLI tool. Use the ACL Help command for guidance.');
     }
 
     async deleteACL(clusterName: string, _aclConfig: Omit<ACLConfig, 'permissionType'>): Promise<void> {
-        try {
-            // Note: This would require direct Kafka admin API access
-            this.logger.warn('ACL deletion requires direct Kafka admin API access, which is not available through KafkaJS');
-            throw new Error('ACL management requires kafka-acls CLI tool. Use the ACL Help command for guidance.');
-        } catch (error: any) {
-            this.logger.error(`Failed to delete ACL for cluster ${clusterName}`, error);
-            throw error;
-        }
+        // Note: This would require direct Kafka admin API access
+        // KafkaJS doesn't support ACL operations directly
+        this.logger.debug(`ACL deletion not available for cluster ${clusterName} - KafkaJS doesn't support ACL operations`);
+        throw new Error('ACL management requires kafka-acls CLI tool. Use the ACL Help command for guidance.');
     }
 
     async getACLDetails(clusterName: string, acl: ACL): Promise<ACLDetails> {
