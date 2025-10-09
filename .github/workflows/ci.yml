@@ -7,6 +7,10 @@ on:
     branches: [main, develop]
   workflow_dispatch:
 
+# Security: Explicitly define minimal permissions
+permissions:
+  contents: read
+
 jobs:
   build-and-test:
     name: Build and Test

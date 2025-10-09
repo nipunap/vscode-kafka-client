@@ -4,6 +4,36 @@ All notable changes to the "Kafka Client" extension will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/) and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.0](https://github.com/nipunap/vscode-kafka-client/compare/v0.4.0...v0.5.0) (2025-10-09)
+
+
+### ✨ Features
+
+* Add AI Advisor powered by GitHub Copilot ([a1b77bd](https://github.com/nipunap/vscode-kafka-client/commit/a1b77bd4b2258e71d29340f2b207ec26ca3a2c1b))
+* Add search functionality and JSON export to detail views ([8f68ec1](https://github.com/nipunap/vscode-kafka-client/commit/8f68ec1194f2ca0f9861aebabc6ca772dd23034a))
+* Add separate KStreams and KTables sections with full topic functionality ([48aad5f](https://github.com/nipunap/vscode-kafka-client/commit/48aad5f716b1addd6f350e2e6f69e8d2b398aa88))
+* Conditionally show AI Advisor button and fix consumer group colors ([7718e53](https://github.com/nipunap/vscode-kafka-client/commit/7718e531b4ff375fb19f3ceb65cc52553ab5085e))
+* Convert all detail views from YAML to formatted HTML ([9e53aa1](https://github.com/nipunap/vscode-kafka-client/commit/9e53aa1c1c5754f47bf92d7661a43d29e4266498))
+* Display all configurations and enhanced metadata in detail views ([f529e05](https://github.com/nipunap/vscode-kafka-client/commit/f529e05ac63af95b9808b5c0e1281e9e5495db8c))
+* Improve AI recommendations with concise, structured format ([379f04c](https://github.com/nipunap/vscode-kafka-client/commit/379f04c830d121055c7d91dbfdbe2a04de4df773))
+* Integrate ACLs with topics for better context and usability ([243158c](https://github.com/nipunap/vscode-kafka-client/commit/243158c272208dff841a08f53d623a3190e7d19b))
+
+
+### 🐛 Bug Fixes
+
+* Prevent automatic error log window from opening ([a75072f](https://github.com/nipunap/vscode-kafka-client/commit/a75072fbf130cde1ce49667501d80bdddb0d4211))
+* Update CodeQL workflow to v3 and resolve configuration conflicts ([7b74edc](https://github.com/nipunap/vscode-kafka-client/commit/7b74edc4d2427cda364abf7de017814bdb9caa06))
+
+
+### ♻️ Code Refactoring
+
+* Remove standalone ACL view section ([c61bea9](https://github.com/nipunap/vscode-kafka-client/commit/c61bea9e1a2732556d54debca165f7857a206d1d))
+
+
+### 📝 Documentation
+
+* Update SECURITY.md for v0.5.0 release ([2c48fbe](https://github.com/nipunap/vscode-kafka-client/commit/2c48fbeaf6ab6cde0519cabe5d3990473e07079e))
+
 ## [0.4.0](https://github.com/nipunap/vscode-kafka-client/compare/v0.3.0...v0.4.0) (2025-10-08)
 
 

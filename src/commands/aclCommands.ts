@@ -1,24 +1,87 @@
 import * as vscode from 'vscode';
 import { KafkaClientManager } from '../kafka/kafkaClientManager';
-import { formatTopicDetailsYaml } from '../utils/formatters';
+import { DetailsWebview, DetailsData } from '../views/DetailsWebview';
 import { ErrorHandler } from '../infrastructure/ErrorHandler';
 import { DocumentationService } from '../services/documentationService';
 import { ACL } from '../types/acl';
 
-export async function showACLDetails(clientManager: KafkaClientManager, node: { clusterName: string; acl: ACL }): Promise<void> {
-    try {
+export async function showACLDetails(clientManager: KafkaClientManager, node: { clusterName: string; acl: ACL }, context?: vscode.ExtensionContext): Promise<void> {
+    await ErrorHandler.wrap(async () => {
         const aclDetails = await clientManager.getACLDetails(node.clusterName, node.acl);
-        const yaml = formatTopicDetailsYaml(aclDetails);
-        
-        const doc = await vscode.workspace.openTextDocument({
-            content: yaml,
-            language: 'yaml'
-        });
 
-        await vscode.window.showTextDocument(doc);
-    } catch (error: any) {
-        ErrorHandler.handle(error, 'showACLDetails');
-    }
+        // If no context provided, fall back to text document
+        if (!context) {
+            const { formatTopicDetailsYaml } = await import('../utils/formatters');
+            const yaml = formatTopicDetailsYaml(aclDetails);
+            const doc = await vscode.workspace.openTextDocument({
+                content: yaml,
+                language: 'yaml'
+            });
+            await vscode.window.showTextDocument(doc);
+            return;
+        }
+
+        // Create HTML view
+        const detailsView = new DetailsWebview(context, `ACL Details`, '🔒');
+        const data: DetailsData = {
+            title: `${aclDetails.principal} → ${aclDetails.operation}`,
+            showCopyButton: true,
+            showRefreshButton: false,
+            notice: {
+                type: 'info',
+                text: '✏️ Edit mode coming soon! You\'ll be able to modify ACL configurations directly from this view.'
+            },
+            sections: [
+                {
+                    title: 'ACL Information',
+                    icon: '🔒',
+                    properties: [
+                        {
+                            label: 'Principal',
+                            value: aclDetails.principal,
+                            code: true
+                        },
+                        {
+                            label: 'Operation',
+                            value: aclDetails.operation
+                        },
+                        {
+                            label: 'Permission Type',
+                            value: aclDetails.permissionType,
+                            badge: {
+                                type: aclDetails.permissionType.toLowerCase() === 'allow' ? 'success' : 'danger',
+                                text: aclDetails.permissionType.toUpperCase()
+                            }
+                        },
+                        {
+                            label: 'Resource Type',
+                            value: aclDetails.resourceType
+                        },
+                        {
+                            label: 'Resource Name',
+                            value: aclDetails.resourceName,
+                            code: true
+                        },
+                        {
+                            label: 'Host',
+                            value: aclDetails.host
+                        },
+                        {
+                            label: 'Pattern Type',
+                            value: aclDetails.resourcePatternType
+                        }
+                    ]
+                },
+                {
+                    title: 'Description',
+                    icon: '📝',
+                    html: `<p style="padding: 10px; line-height: 1.8;">${aclDetails.description}</p>`
+                }
+            ]
+        };
+
+        detailsView.show(data);
+    }, 'Show ACL Details');
 }
 
 export async function createACL(_clientManager: KafkaClientManager, _node: { clusterName?: string }): Promise<void> {
@@ -71,7 +134,7 @@ kafka-acls --bootstrap-server <broker> --remove \\
 export async function findACL(clientManager: KafkaClientManager): Promise<void> {
     try {
         const clusters = clientManager.getClusters();
-        
+
         if (clusters.length === 0) {
             vscode.window.showInformationMessage('No clusters configured');
             return;

@@ -26,7 +26,7 @@ export class KafkaClientManager {
     private connectionPool: ConnectionPool;
     private configurationService: ConfigurationService;
     private mskAdapter: MSKAdapter;
-    
+
     // Service layer
     private topicService: TopicService;
     private consumerGroupService: ConsumerGroupService;
@@ -38,7 +38,7 @@ export class KafkaClientManager {
         this.connectionPool = new ConnectionPool();
         this.configurationService = new ConfigurationService();
         this.mskAdapter = new MSKAdapter();
-        
+
         // Initialize services
         this.topicService = new TopicService();
         this.consumerGroupService = new ConsumerGroupService();
@@ -63,7 +63,7 @@ export class KafkaClientManager {
 
     async addClusterFromConnection(connection: ClusterConnection) {
         this.logger.info(`Adding cluster: ${connection.name} (type: ${connection.type})`);
-        
+
         // Store sensitive credentials in SecretStorage
         if (this.credentialManager) {
             if (connection.saslPassword) {
@@ -208,7 +208,8 @@ export class KafkaClientManager {
             saslPassword = await this.credentialManager.getPassword(connection.name, 'sasl');
         }
 
-        const mechanism = connection.saslMechanism.toLowerCase().replace(/-/g, '-') as any;
+        // Convert mechanism to lowercase (KafkaJS expects lowercase mechanism names)
+        const mechanism = connection.saslMechanism.toLowerCase() as any;
 
         return {
             mechanism,
@@ -268,7 +269,7 @@ export class KafkaClientManager {
 
     async removeCluster(name: string) {
         this.logger.info(`Removing cluster: ${name}`);
-        
+
         // Disconnect from connection pool
         await this.connectionPool.disconnect(name);
 
@@ -701,38 +702,25 @@ export class KafkaClientManager {
     }
 
     async getACLs(clusterName: string): Promise<ACL[]> {
-        try {
-            // Note: KafkaJS doesn't have built-in ACL support
-            // ACL management requires direct Kafka admin API access through kafka-acls CLI
-            this.logger.warn('ACL management requires direct Kafka admin API access, which is not available through KafkaJS');
-            throw new Error('ACL management requires kafka-acls CLI tool. Use the ACL Help command for guidance.');
-        } catch (error: any) {
-            this.logger.error(`Failed to get ACLs for cluster ${clusterName}`, error);
-            throw error;
-        }
+        // Note: KafkaJS doesn't have built-in ACL support
+        // ACL management requires direct Kafka admin API access through kafka-acls CLI
+        // This is an expected limitation, so we log at debug level to avoid opening error logs
+        this.logger.debug(`ACL management not available for cluster ${clusterName} - KafkaJS doesn't support ACL operations`);
+        throw new Error('ACL management requires kafka-acls CLI tool. Use the ACL Help command for guidance.');
     }
 
     async createACL(clusterName: string, _aclConfig: ACLConfig): Promise<void> {
-        try {
-            // Note: This would require direct Kafka admin API access
-            // KafkaJS doesn't support ACL operations directly
-            this.logger.warn('ACL creation requires direct Kafka admin API access, which is not available through KafkaJS');
-            throw new Error('ACL management requires kafka-acls CLI tool. Use the ACL Help command for guidance.');
-        } catch (error: any) {
-            this.logger.error(`Failed to create ACL for cluster ${clusterName}`, error);
-            throw error;
-        }
+        // Note: This would require direct Kafka admin API access
+        // KafkaJS doesn't support ACL operations directly
+        this.logger.debug(`ACL creation not available for cluster ${clusterName} - KafkaJS doesn't support ACL operations`);
+        throw new Error('ACL management requires kafka-acls CLI tool. Use the ACL Help command for guidance.');
     }
 
     async deleteACL(clusterName: string, _aclConfig: Omit<ACLConfig, 'permissionType'>): Promise<void> {
-        try {
-            // Note: This would require direct Kafka admin API access
-            this.logger.warn('ACL deletion requires direct Kafka admin API access, which is not available through KafkaJS');
-            throw new Error('ACL management requires kafka-acls CLI tool. Use the ACL Help command for guidance.');
-        } catch (error: any) {
-            this.logger.error(`Failed to delete ACL for cluster ${clusterName}`, error);
-            throw error;
-        }
+        // Note: This would require direct Kafka admin API access
+        // KafkaJS doesn't support ACL operations directly
+        this.logger.debug(`ACL deletion not available for cluster ${clusterName} - KafkaJS doesn't support ACL operations`);
+        throw new Error('ACL management requires kafka-acls CLI tool. Use the ACL Help command for guidance.');
     }
 
     async getACLDetails(clusterName: string, acl: ACL): Promise<ACLDetails> {
@@ -749,13 +737,29 @@ export class KafkaClientManager {
         };
     }
 
+    async getTopicACLs(clusterName: string, topicName: string): Promise<ACL[]> {
+        try {
+            const allACLs = await this.getACLs(clusterName);
+            // Filter ACLs for this specific topic
+            return allACLs.filter(acl =>
+                acl.resourceType === 'topic' &&
+                (acl.resourceName === topicName || acl.resourceName === '*')
+            );
+        } catch (error: any) {
+            // If ACLs aren't available (e.g., CLI tool not available), return empty array
+            // This allows the UI to gracefully handle missing ACL support
+            this.logger.debug(`ACLs not available for topic ${topicName}: ${error?.message}`);
+            return [];
+        }
+    }
+
     private getACLDescription(acl: ACL): string {
         const principal = acl.principal || 'Unknown';
         const operation = acl.operation || 'Unknown';
         const resource = acl.resourceName || 'Unknown';
         const permission = acl.permissionType || 'Unknown';
         const host = acl.host || '*';
-        
+
         return `Principal ${principal} is ${permission}ed to ${operation} on ${resource} from host ${host}`;
     }
 
@@ -773,9 +777,9 @@ export class KafkaClientManager {
             if (connection.type === 'msk' && connection.clusterArn && connection.region && brokers.length === 0) {
                 this.logger.debug(`Fetching MSK brokers for ${clusterName} (not cached)`);
                 brokers = await this.mskAdapter.getBootstrapBrokers(
-                    connection.region, 
-                    connection.clusterArn, 
-                    connection.saslMechanism, 
+                    connection.region,
+                    connection.clusterArn,
+                    connection.saslMechanism,
                     connection.awsProfile
                 );
                 // Cache the brokers to avoid re-fetching from AWS
@@ -784,12 +788,12 @@ export class KafkaClientManager {
 
             // Use connection pool for better resource management
             const kafkaConfig = await this.buildKafkaConfig(connection, brokers);
-            
+
             const { admin } = await this.connectionPool.get(
                 clusterName,
                 () => new Kafka(kafkaConfig) // Factory function that creates Kafka instance
             );
-            
+
             return admin;
         } catch (error: any) {
             this.logger.error(`Failed to connect to cluster ${clusterName}`, error);
@@ -813,9 +817,9 @@ export class KafkaClientManager {
             if (connection.type === 'msk' && connection.clusterArn && connection.region && brokers.length === 0) {
                 this.logger.debug(`Fetching MSK brokers for ${clusterName} (not cached)`);
                 brokers = await this.mskAdapter.getBootstrapBrokers(
-                    connection.region, 
-                    connection.clusterArn, 
-                    connection.saslMechanism, 
+                    connection.region,
+                    connection.clusterArn,
+                    connection.saslMechanism,
                     connection.awsProfile
                 );
                 // Cache the brokers to avoid re-fetching from AWS
@@ -824,12 +828,12 @@ export class KafkaClientManager {
 
             // Use connection pool for better resource management
             const kafkaConfig = await this.buildKafkaConfig(connection, brokers);
-            
+
             const { producer } = await this.connectionPool.get(
                 clusterName,
                 () => new Kafka(kafkaConfig) // Factory function that creates Kafka instance
             );
-            
+
             return producer;
         } catch (error: any) {
             this.logger.error(`Failed to get producer for cluster ${clusterName}`, error);
@@ -889,12 +893,13 @@ export class KafkaClientManager {
                 await this.addClusterFromConnection(connection);
 
             } catch (error: any) {
-                console.error(`Failed to load cluster ${cluster.name}:`, error);
+                // Log the error using the logger instead of console
+                this.logger.error(`Failed to load cluster ${cluster.name}`, error);
 
                 // Determine the reason for failure
-                let reason = 'Unknown error';
                 const errorMsg = error?.message || error.toString();
 
+                let reason: string;
                 if (errorMsg.includes('expired') || errorMsg.includes('credentials')) {
                     reason = 'AWS credentials expired or invalid';
                 } else if (errorMsg.includes('brokers')) {

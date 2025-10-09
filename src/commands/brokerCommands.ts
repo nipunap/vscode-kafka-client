@@ -4,48 +4,99 @@
 
 import * as vscode from 'vscode';
 import { KafkaClientManager } from '../kafka/kafkaClientManager';
-import { formatBrokerDetailsYaml } from '../utils/formatters';
+import { DetailsWebview, DetailsData } from '../views/DetailsWebview';
+import { ErrorHandler } from '../infrastructure/ErrorHandler';
+import { AIAdvisor } from '../services/AIAdvisor';
 
-export async function showBrokerDetails(clientManager: KafkaClientManager, node: any) {
-    try {
-        await vscode.window.withProgress(
+export async function showBrokerDetails(clientManager: KafkaClientManager, node: any, context?: vscode.ExtensionContext) {
+    await ErrorHandler.wrap(async () => {
+        const details = await vscode.window.withProgress(
             {
                 location: vscode.ProgressLocation.Notification,
                 title: `Loading details for broker ${node.brokerId}`,
                 cancellable: false
             },
             async (_progress) => {
-                const details = await clientManager.getBrokerDetails(
+                return await clientManager.getBrokerDetails(
                     node.clusterName,
                     node.brokerId
                 );
-
-                // Format the details nicely
-                const formattedDetails = formatBrokerDetailsYaml(details);
-
-                const document = await vscode.workspace.openTextDocument({
-                    content: formattedDetails,
-                    language: 'yaml'
-                });
-                await vscode.window.showTextDocument(document);
             }
         );
-    } catch (error: any) {
-        const errorMsg = error?.message || error?.toString() || 'Unknown error';
 
-        if (errorMsg.includes('expired') || errorMsg.includes('credentials')) {
-            vscode.window.showErrorMessage(
-                `⚠️ AWS credentials expired. Please reconnect the cluster.`,
-                'Reconnect'
-            ).then(selection => {
-                if (selection === 'Reconnect') {
-                    vscode.commands.executeCommand('kafka.addCluster');
-                }
+        // If no context provided, fall back to text document
+        if (!context) {
+            const { formatBrokerDetailsYaml } = await import('../utils/formatters');
+            const formattedDetails = formatBrokerDetailsYaml(details);
+            const document = await vscode.workspace.openTextDocument({
+                content: formattedDetails,
+                language: 'yaml'
             });
-        } else {
-            vscode.window.showErrorMessage(`Failed to get broker details: ${errorMsg}`);
+            await vscode.window.showTextDocument(document);
+            return;
         }
-    }
+
+        // Create HTML view
+        const detailsView = new DetailsWebview(context, `Broker: ${node.brokerId}`, '🖥️');
+
+        // Check if AI features are available
+        const aiAvailable = await AIAdvisor.checkAvailability();
+
+        const data: DetailsData = {
+            title: `Broker ${node.brokerId}`,
+            showCopyButton: true,
+            showRefreshButton: false,
+            showAIAdvisor: aiAvailable,
+            notice: {
+                type: 'info',
+                text: aiAvailable
+                    ? '🤖 Try the AI Advisor for broker optimization recommendations! ✏️ Edit mode coming soon.'
+                    : '✏️ Edit mode coming soon! You\'ll be able to modify broker configurations directly from this view.'
+            },
+            sections: [
+                {
+                    title: 'Overview',
+                    icon: '📊',
+                    properties: [
+                        { label: 'Broker ID', value: String(details.nodeId ?? node.brokerId) },
+                        { label: 'Host', value: details.host || 'N/A', code: true },
+                        { label: 'Port', value: String(details.port || 'N/A') },
+                        { label: 'Rack', value: details.rack || 'Not configured' },
+                        { label: 'Cluster', value: node.clusterName, code: true }
+                    ]
+                },
+                {
+                    title: 'Configuration',
+                    icon: '⚙️',
+                    table: {
+                        headers: ['Property', 'Value', 'Source'],
+                        rows: details.configuration && details.configuration.length > 0
+                            ? details.configuration.map((config: any) => [
+                                config.configName || config.name || 'N/A',
+                                config.configValue || config.value || 'N/A',
+                                config.configSource || config.source || 'default'
+                            ])
+                            : []
+                    }
+                }
+            ]
+        };
+
+        // Set up AI request handler only if AI is available
+        if (aiAvailable) {
+            detailsView.setAIRequestHandler(async () => {
+                const recommendations = await AIAdvisor.analyzeBrokerConfiguration({
+                    nodeId: details.nodeId ?? node.brokerId,
+                    host: details.host || 'N/A',
+                    port: details.port || 0,
+                    configurations: details.configuration || []
+                });
+                detailsView.updateWithAIRecommendations(recommendations);
+            });
+        }
+
+        detailsView.show(data);
+    }, `Loading broker details for broker ${node.brokerId}`);
 }
 
 /**

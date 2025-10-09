@@ -2,7 +2,7 @@
   "name": "vscode-kafka-client",
   "displayName": "Kafka Client",
   "description": "Full-featured Kafka client with AWS MSK support, IAM authentication, role assumption, and auto-discovery",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "publisher": "NipunaPerera",
   "license": "GPL-3.0",
   "icon": "resources/kafka-icon.png",
@@ -43,7 +43,8 @@
     "onView:kafkaExplorer",
     "onView:kafkaConsumerGroups",
     "onView:kafkaBrokers",
-    "onView:kafkaACLs",
+    "onView:kafkaStreams",
+    "onView:kafkaTables",
     "onCommand:kafka.addCluster"
   ],
   "main": "./out/extension.js",
@@ -70,14 +71,19 @@
           "icon": "$(organization)"
         },
         {
+          "id": "kafkaStreams",
+          "name": "Kafka Streams",
+          "icon": "$(symbol-event)"
+        },
+        {
+          "id": "kafkaTables",
+          "name": "KTables",
+          "icon": "$(table)"
+        },
+        {
           "id": "kafkaBrokers",
           "name": "Brokers",
           "icon": "$(server)"
-        },
-        {
-          "id": "kafkaACLs",
-          "name": "ACLs",
-          "icon": "$(shield)"
         }
       ]
     },
@@ -193,9 +199,34 @@
         "icon": "$(search)"
       },
       {
+        "command": "kafka.findKStream",
+        "title": "Kafka: Find KStream",
+        "icon": "$(search)"
+      },
+      {
+        "command": "kafka.findKTable",
+        "title": "Kafka: Find KTable",
+        "icon": "$(search)"
+      },
+      {
+        "command": "kafka.showKStreamDetails",
+        "title": "Show KStream Details",
+        "icon": "$(info)"
+      },
+      {
+        "command": "kafka.showKTableDetails",
+        "title": "Show KTable Details",
+        "icon": "$(info)"
+      },
+      {
         "command": "kafka.showClusterDashboard",
         "title": "Show Cluster Dashboard",
         "icon": "$(dashboard)"
+      },
+      {
+        "command": "kafka.showTopicACLDetails",
+        "title": "Show Topic ACL Details",
+        "icon": "$(info)"
       }
     ],
     "menus": {
@@ -233,6 +264,26 @@
         {
           "command": "kafka.findBroker",
           "when": "view == kafkaBrokers",
+          "group": "navigation"
+        },
+        {
+          "command": "kafka.refreshCluster",
+          "when": "view == kafkaStreams",
+          "group": "navigation"
+        },
+        {
+          "command": "kafka.findKStream",
+          "when": "view == kafkaStreams",
+          "group": "navigation"
+        },
+        {
+          "command": "kafka.refreshCluster",
+          "when": "view == kafkaTables",
+          "group": "navigation"
+        },
+        {
+          "command": "kafka.findKTable",
+          "when": "view == kafkaTables",
           "group": "navigation"
         }
       ],
@@ -281,6 +332,46 @@
           "command": "kafka.resetConsumerGroupOffsets",
           "when": "view == kafkaConsumerGroups && viewItem == consumerGroup",
           "group": "2_actions@1"
+        },
+        {
+          "command": "kafka.showTopicACLDetails",
+          "when": "view == kafkaExplorer && viewItem == topicACL",
+          "group": "0_info@1"
+        },
+        {
+          "command": "kafka.showACLHelp",
+          "when": "view == kafkaExplorer && viewItem == topicACLContainer",
+          "group": "0_info@1"
+        },
+        {
+          "command": "kafka.showKStreamDetails",
+          "when": "view == kafkaStreams && viewItem == kstream",
+          "group": "0_info@1"
+        },
+        {
+          "command": "kafka.produceMessage",
+          "when": "view == kafkaStreams && viewItem == kstream",
+          "group": "2_actions@1"
+        },
+        {
+          "command": "kafka.consumeMessages",
+          "when": "view == kafkaStreams && viewItem == kstream",
+          "group": "2_actions@2"
+        },
+        {
+          "command": "kafka.showKTableDetails",
+          "when": "view == kafkaTables && viewItem == ktable",
+          "group": "0_info@1"
+        },
+        {
+          "command": "kafka.produceMessage",
+          "when": "view == kafkaTables && viewItem == ktable",
+          "group": "2_actions@1"
+        },
+        {
+          "command": "kafka.consumeMessages",
+          "when": "view == kafkaTables && viewItem == ktable",
+          "group": "2_actions@2"
         }
       ]
     },

@@ -27,9 +27,9 @@ suite('ACLProvider Test Suite', () => {
 
         test('should return empty clusters message when no clusters', async () => {
             clientManager.getClusters.returns([]);
-            
+
             const children = await provider.getChildren();
-            
+
             assert.strictEqual(children.length, 1);
             assert.strictEqual(children[0].label, 'No clusters configured.');
             assert.strictEqual(children[0].contextValue, 'empty');
@@ -37,10 +37,13 @@ suite('ACLProvider Test Suite', () => {
 
         test('should return cluster items when clusters exist', async () => {
             clientManager.getClusters.returns(['cluster1', 'cluster2']);
-            
+
             const children = await provider.getChildren();
-            
+
+            // Should have 2 items: 2 clusters
             assert.strictEqual(children.length, 2);
+
+            // Items should be clusters
             assert.strictEqual(children[0].label, 'cluster1');
             assert.strictEqual(children[0].contextValue, 'cluster');
             assert.strictEqual(children[1].label, 'cluster2');

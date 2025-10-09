@@ -2,13 +2,16 @@ import * as vscode from 'vscode';
 import { KafkaExplorerProvider } from './providers/kafkaExplorerProvider';
 import { ConsumerGroupProvider } from './providers/consumerGroupProvider';
 import { BrokerProvider } from './providers/brokerProvider';
-import { ACLProvider } from './providers/aclProvider';
+import { KStreamProvider } from './providers/kstreamProvider';
+import { KTableProvider } from './providers/ktableProvider';
 import { KafkaClientManager } from './kafka/kafkaClientManager';
 import * as clusterCommands from './commands/clusterCommands';
 import * as topicCommands from './commands/topicCommands';
 import * as consumerGroupCommands from './commands/consumerGroupCommands';
 import * as brokerCommands from './commands/brokerCommands';
 import * as aclCommands from './commands/aclCommands';
+import * as kstreamCommands from './commands/kstreamCommands';
+import * as ktableCommands from './commands/ktableCommands';
 import * as clusterDashboardCommands from './commands/clusterDashboardCommands';
 import { Logger, LogLevel } from './infrastructure/Logger';
 import { EventBus, KafkaEvents } from './infrastructure/EventBus';
@@ -37,12 +40,14 @@ export async function activate(context: vscode.ExtensionContext) {
     const kafkaExplorerProvider = new KafkaExplorerProvider(clientManager);
     const consumerGroupProvider = new ConsumerGroupProvider(clientManager);
     const brokerProvider = new BrokerProvider(clientManager);
-    const aclProvider = new ACLProvider(clientManager);
+    const kstreamProvider = new KStreamProvider(clientManager);
+    const ktableProvider = new KTableProvider(clientManager);
 
     vscode.window.registerTreeDataProvider('kafkaExplorer', kafkaExplorerProvider);
     vscode.window.registerTreeDataProvider('kafkaConsumerGroups', consumerGroupProvider);
     vscode.window.registerTreeDataProvider('kafkaBrokers', brokerProvider);
-    vscode.window.registerTreeDataProvider('kafkaACLs', aclProvider);
+    vscode.window.registerTreeDataProvider('kafkaStreams', kstreamProvider);
+    vscode.window.registerTreeDataProvider('kafkaTables', ktableProvider);
 
     // Set up event listeners for auto-refresh
     eventBus.on(KafkaEvents.CLUSTER_ADDED, () => {
@@ -50,7 +55,8 @@ export async function activate(context: vscode.ExtensionContext) {
         kafkaExplorerProvider.refresh();
         consumerGroupProvider.refresh();
         brokerProvider.refresh();
-        aclProvider.refresh();
+        kstreamProvider.refresh();
+        ktableProvider.refresh();
     });
 
     eventBus.on(KafkaEvents.CLUSTER_REMOVED, () => {
@@ -58,7 +64,8 @@ export async function activate(context: vscode.ExtensionContext) {
         kafkaExplorerProvider.refresh();
         consumerGroupProvider.refresh();
         brokerProvider.refresh();
-        aclProvider.refresh();
+        kstreamProvider.refresh();
+        ktableProvider.refresh();
     });
 
     eventBus.on(KafkaEvents.REFRESH_REQUESTED, () => {
@@ -66,7 +73,8 @@ export async function activate(context: vscode.ExtensionContext) {
         kafkaExplorerProvider.refresh();
         consumerGroupProvider.refresh();
         brokerProvider.refresh();
-        aclProvider.refresh();
+        kstreamProvider.refresh();
+        ktableProvider.refresh();
     });
 
     // Load saved clusters from configuration
@@ -139,19 +147,19 @@ export async function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.viewConsumerGroup', async (node) => {
-            await consumerGroupCommands.showConsumerGroupDetails(clientManager, node);
+            await consumerGroupCommands.showConsumerGroupDetails(clientManager, node, context);
         })
     );
 
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.showTopicDetails', async (node) => {
-            await topicCommands.showTopicDetails(clientManager, node);
+            await topicCommands.showTopicDetails(clientManager, node, context);
         })
     );
 
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.showConsumerGroupDetails', async (node) => {
-            await consumerGroupCommands.showConsumerGroupDetails(clientManager, node);
+            await consumerGroupCommands.showConsumerGroupDetails(clientManager, node, context);
         })
     );
 
@@ -181,7 +189,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.showBrokerDetails', async (node) => {
-            await brokerCommands.showBrokerDetails(clientManager, node);
+            await brokerCommands.showBrokerDetails(clientManager, node, context);
         })
     );
 
@@ -191,10 +199,36 @@ export async function activate(context: vscode.ExtensionContext) {
         })
     );
 
+    // KStream commands
+    context.subscriptions.push(
+        vscode.commands.registerCommand('kafka.showKStreamDetails', async (node) => {
+            await kstreamCommands.showKStreamDetails(clientManager, node, context);
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('kafka.findKStream', async () => {
+            await kstreamCommands.findKStream(clientManager, kstreamProvider);
+        })
+    );
+
+    // KTable commands
+    context.subscriptions.push(
+        vscode.commands.registerCommand('kafka.showKTableDetails', async (node) => {
+            await ktableCommands.showKTableDetails(clientManager, node, context);
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('kafka.findKTable', async () => {
+            await ktableCommands.findKTable(clientManager, ktableProvider);
+        })
+    );
+
     // ACL commands
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.showACLDetails', async (node) => {
-            await aclCommands.showACLDetails(clientManager, node);
+            await aclCommands.showACLDetails(clientManager, node, context);
         })
     );
 
@@ -229,6 +263,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
         vscode.commands.registerCommand('kafka.showTopicDashboard', async (node) => {
             await topicCommands.showTopicDashboard(clientManager, context, node);
+        }),
+
+        vscode.commands.registerCommand('kafka.showTopicACLDetails', async (node) => {
+            await topicCommands.showTopicACLDetails(clientManager, node, context);
         })
     );
 }
