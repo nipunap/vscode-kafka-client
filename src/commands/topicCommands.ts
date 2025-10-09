@@ -8,11 +8,12 @@ import { KafkaExplorerProvider } from '../providers/kafkaExplorerProvider';
 import { formatMessages, formatTopicDetailsYaml } from '../utils/formatters';
 import { ErrorHandler } from '../infrastructure/ErrorHandler';
 import { TopicDashboardWebview } from '../views/topicDashboardWebview';
+import { TopicNode, ClusterNode } from '../types/nodes';
 
 export async function createTopic(
     clientManager: KafkaClientManager,
     provider: KafkaExplorerProvider,
-    node: any
+    node: ClusterNode
 ) {
     const topicName = await vscode.window.showInputBox({
         prompt: 'Enter topic name',
@@ -61,7 +62,7 @@ export async function createTopic(
 export async function deleteTopic(
     clientManager: KafkaClientManager,
     provider: KafkaExplorerProvider,
-    node: any
+    node: TopicNode
 ) {
     const confirm = await vscode.window.showWarningMessage(
         `Delete topic "${node.label}"? This action cannot be undone.`,
@@ -81,7 +82,7 @@ export async function deleteTopic(
     }
 }
 
-export async function produceMessage(clientManager: KafkaClientManager, node: any) {
+export async function produceMessage(clientManager: KafkaClientManager, node: TopicNode) {
     const key = await vscode.window.showInputBox({
         prompt: 'Enter message key (optional)',
         placeHolder: 'key'
@@ -105,7 +106,7 @@ export async function produceMessage(clientManager: KafkaClientManager, node: an
     );
 }
 
-export async function consumeMessages(clientManager: KafkaClientManager, node: any) {
+export async function consumeMessages(clientManager: KafkaClientManager, node: TopicNode) {
     // Validate input
     if (!node || !node.clusterName || !node.topicName) {
         vscode.window.showErrorMessage('Invalid topic selection. Please try again.');
@@ -224,7 +225,7 @@ export async function consumeMessages(clientManager: KafkaClientManager, node: a
     );
 }
 
-export async function showTopicDetails(clientManager: KafkaClientManager, node: any) {
+export async function showTopicDetails(clientManager: KafkaClientManager, node: TopicNode) {
     await ErrorHandler.wrap(
         async () => {
             await vscode.window.withProgress(
@@ -334,7 +335,7 @@ export async function findTopic(clientManager: KafkaClientManager) {
 export async function showTopicDashboard(
     clientManager: KafkaClientManager,
     context: vscode.ExtensionContext,
-    node: any
+    node: TopicNode
 ) {
     return ErrorHandler.wrap(async () => {
         const clusterName = node.clusterName;

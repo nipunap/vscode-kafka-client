@@ -1,15 +1,18 @@
 import { Kafka, Admin, Producer, SASLOptions, logLevel } from 'kafkajs';
 import * as vscode from 'vscode';
 import { promises as fs } from 'fs';
-import * as os from 'os';
-import * as path from 'path';
-import * as ini from 'ini';
 import { ClusterConnection } from '../forms/clusterConnectionForm';
-import { fromIni, fromEnv } from '@aws-sdk/credential-providers';
 import { createMSKIAMAuthMechanism } from './mskIamAuthenticator';
 import { Logger } from '../infrastructure/Logger';
 import { ConnectionPool } from '../infrastructure/ConnectionPool';
 import { CredentialManager } from '../infrastructure/CredentialManager';
+import { ConfigurationService } from '../infrastructure/ConfigurationService';
+import { MSKAdapter } from './adapters/MSKAdapter';
+import { TopicService } from '../services/TopicService';
+import { ConsumerGroupService } from '../services/ConsumerGroupService';
+import { BrokerService } from '../services/BrokerService';
+import { ProducerService } from '../services/ProducerService';
+import { ACL, ACLDetails, ACLConfig } from '../types/acl';
 
 // Type alias for cluster configuration
 type ClusterConfig = ClusterConnection;
@@ -21,10 +24,26 @@ export class KafkaClientManager {
     private admins: Map<string, Admin> = new Map();
     private producers: Map<string, Producer> = new Map();
     private connectionPool: ConnectionPool;
+    private configurationService: ConfigurationService;
+    private mskAdapter: MSKAdapter;
+    
+    // Service layer
+    private topicService: TopicService;
+    private consumerGroupService: ConsumerGroupService;
+    private brokerService: BrokerService;
+    private producerService: ProducerService;
 
     constructor(private credentialManager?: CredentialManager) {
         this.logger.info('Initializing Kafka Client Manager');
         this.connectionPool = new ConnectionPool();
+        this.configurationService = new ConfigurationService();
+        this.mskAdapter = new MSKAdapter();
+        
+        // Initialize services
+        this.topicService = new TopicService();
+        this.consumerGroupService = new ConsumerGroupService();
+        this.brokerService = new BrokerService();
+        this.producerService = new ProducerService();
     }
 
     async addCluster(name: string, brokers: string[], sasl?: any) {
@@ -59,27 +78,19 @@ export class KafkaClientManager {
 
         this.clusters.set(connection.name, connection);
 
-        // Handle MSK clusters - fetch bootstrap brokers
+        // Handle MSK clusters - fetch bootstrap brokers using MSKAdapter
         let brokers = connection.brokers || [];
         if (connection.type === 'msk' && connection.clusterArn && connection.region) {
-            try {
-                brokers = await this.getMSKBootstrapBrokers(connection.region, connection.clusterArn, connection.saslMechanism, connection.awsProfile);
-                this.logger.debug(`Fetched ${brokers.length} MSK brokers for ${connection.name}`);
-            } catch (error: any) {
-                const errorMsg = error?.message || error.toString();
-
-                if (errorMsg.includes('expired') || errorMsg.includes('ExpiredToken')) {
-                    throw new Error(
-                        'AWS credentials expired. Please refresh your credentials and try again.'
-                    );
-                } else if (errorMsg.includes('AccessDenied')) {
-                    throw new Error(
-                        'Access denied when fetching MSK brokers. Check that your AWS profile has kafka:GetBootstrapBrokers permission.'
-                    );
-                } else {
-                    throw new Error(`Failed to get MSK brokers. Please verify your AWS credentials and cluster ARN.`);
-                }
-            }
+            brokers = await this.mskAdapter.getBootstrapBrokers(
+                connection.region,
+                connection.clusterArn,
+                connection.saslMechanism,
+                connection.awsProfile
+            );
+            this.logger.debug(`Fetched ${brokers.length} MSK brokers for ${connection.name}`);
+            // Cache the brokers in the connection object to avoid re-fetching from AWS
+            // This is important for TLS connections where AWS credentials are only needed once
+            connection.brokers = brokers;
         }
 
         if (brokers.length === 0) {
@@ -142,108 +153,10 @@ export class KafkaClientManager {
             console.warn(`Failed to connect to cluster ${connection.name} on startup:`, error);
         }
 
-        // Save configuration (without sensitive data)
+        // Save configuration using ConfigurationService
         this.saveConfiguration();
     }
 
-    private async getMSKBootstrapBrokers(region: string, clusterArn: string, authMethod?: string, awsProfile?: string): Promise<string[]> {
-        try {
-            const { KafkaClient, GetBootstrapBrokersCommand } = require('@aws-sdk/client-kafka');
-
-            // NOTE: This uses BASE PROFILE credentials (no role assumption)
-            // Most users can list MSK clusters with their base profile
-            // Role assumption is only needed for Kafka admin operations (topics/consumer groups)
-
-            let credentials;
-
-            // If a specific profile is provided, read directly from credentials file
-            // This completely bypasses AWS SDK environment variable handling
-            if (awsProfile) {
-                const credentialsPath = path.join(os.homedir(), '.aws', 'credentials');
-
-                try {
-                    const credentialsContent = await fs.readFile(credentialsPath, 'utf-8');
-                    const credentialsData = ini.parse(credentialsContent);
-
-                    if (credentialsData[awsProfile]) {
-                        const profileData = credentialsData[awsProfile];
-                        credentials = {
-                            accessKeyId: profileData.aws_access_key_id,
-                            secretAccessKey: profileData.aws_secret_access_key,
-                            sessionToken: profileData.aws_session_token || profileData.aws_security_token
-                        };
-                    } else {
-                        throw new Error('Profile not found in credentials file');
-                    }
-                } catch (error: any) {
-                    console.error('Failed to read AWS credentials file:', error);
-                    credentials = undefined;
-                }
-            }
-
-            // Fallback to environment variables or default profile
-            if (!credentials) {
-                const credentialProviders = [];
-                credentialProviders.push(fromEnv());
-                credentialProviders.push(
-                    fromIni({
-                        filepath: path.join(os.homedir(), '.aws', 'credentials'),
-                        configFilepath: path.join(os.homedir(), '.aws', 'config')
-                    })
-                );
-
-                for (const provider of credentialProviders) {
-                    try {
-                        credentials = await provider();
-                        if (credentials && credentials.accessKeyId) {
-                            break;
-                        }
-                    } catch (_error) {
-                        continue;
-                    }
-                }
-            }
-
-            if (!credentials || !credentials.accessKeyId) {
-                throw new Error(
-                    'Failed to load AWS credentials. Please ensure credentials are configured in ~/.aws/credentials'
-                );
-            }
-
-            const client = new KafkaClient({
-                region,
-                credentials
-            });
-
-            const response: any = await client.send(new GetBootstrapBrokersCommand({
-                ClusterArn: clusterArn
-            }));
-
-            // Choose brokers based on auth method
-            let brokerString: string | undefined;
-
-            if (authMethod === 'AWS_MSK_IAM' && response.BootstrapBrokerStringSaslIam) {
-                brokerString = response.BootstrapBrokerStringSaslIam;
-            } else if (authMethod?.includes('SCRAM') && response.BootstrapBrokerStringSaslScram) {
-                brokerString = response.BootstrapBrokerStringSaslScram;
-            } else if (response.BootstrapBrokerStringTls) {
-                brokerString = response.BootstrapBrokerStringTls;
-            } else if (response.BootstrapBrokerString) {
-                brokerString = response.BootstrapBrokerString;
-            }
-
-            if (!brokerString) {
-                throw new Error('No bootstrap brokers available for this authentication method');
-            }
-
-            return brokerString.split(',');
-        } catch (error: any) {
-            console.error('MSK bootstrap broker fetch error:', error);
-            throw new Error(
-                'Failed to get MSK bootstrap brokers. Verify: 1) AWS credentials are valid, 2) Cluster ARN is correct, 3) IAM permissions are configured'
-            );
-        }
-    }
 
     private async buildSSLConfig(connection: ClusterConnection): Promise<any> {
         const sslConfig: any = {
@@ -398,7 +311,7 @@ export class KafkaClientManager {
 
     async getTopics(clusterName: string): Promise<string[]> {
         const admin = await this.getAdmin(clusterName);
-        return await admin.listTopics();
+        return await this.topicService.getTopics(admin);
     }
 
     async getTopicMetadata(clusterName: string, topic: string): Promise<any> {
@@ -499,42 +412,12 @@ export class KafkaClientManager {
         replicationFactor: number
     ) {
         const admin = await this.getAdmin(clusterName);
-        try {
-            const result = await admin.createTopics({
-                topics: [
-                    {
-                        topic,
-                        numPartitions,
-                        replicationFactor
-                    }
-                ],
-                waitForLeaders: true,
-                timeout: 5000
-            });
-
-            if (!result) {
-                throw new Error('Topic creation returned false - topic may already exist or broker rejected the request');
-            }
-        } catch (error: any) {
-            // Extract more detailed error information
-            if (error.message) {
-                throw new Error(error.message);
-            }
-            if (error.errors) {
-                const errorMessages = error.errors.map((e: any) =>
-                    `${e.topic || topic}: ${e.error || e.message || JSON.stringify(e)}`
-                ).join(', ');
-                throw new Error(errorMessages);
-            }
-            throw error;
-        }
+        return await this.topicService.createTopic(admin, topic, numPartitions, replicationFactor);
     }
 
     async deleteTopic(clusterName: string, topic: string) {
         const admin = await this.getAdmin(clusterName);
-        await admin.deleteTopics({
-            topics: [topic]
-        });
+        return await this.topicService.deleteTopic(admin, topic);
     }
 
     async produceMessage(
@@ -544,16 +427,7 @@ export class KafkaClientManager {
         value: string
     ) {
         const producer = await this.getProducer(clusterName);
-
-        await producer.send({
-            topic,
-            messages: [
-                {
-                    key: key ? Buffer.from(key) : undefined,
-                    value: Buffer.from(value)
-                }
-            ]
-        });
+        return await this.producerService.sendMessage(producer, topic, key, value);
     }
 
     async consumeMessages(
@@ -638,39 +512,12 @@ export class KafkaClientManager {
 
     async getConsumerGroups(clusterName: string): Promise<any[]> {
         const admin = await this.getAdmin(clusterName);
-        const groupsList = await admin.listGroups();
-
-        // Fetch detailed information including state for each group
-        if (groupsList.groups.length === 0) {
-            return [];
-        }
-
-        try {
-            const groupIds = groupsList.groups.map((g: any) => g.groupId);
-            const descriptions = await admin.describeGroups(groupIds);
-
-            // Return groups with state information
-            return descriptions.groups.map((group: any) => ({
-                groupId: group.groupId,
-                state: group.state,
-                protocolType: group.protocolType,
-                protocol: group.protocol,
-                members: group.members
-            }));
-        } catch (error) {
-            console.error('Error fetching consumer group states:', error);
-            // Fallback to basic group list if describe fails
-            return groupsList.groups.map((g: any) => ({
-                groupId: g.groupId,
-                state: 'Unknown',
-                protocolType: g.protocolType
-            }));
-        }
+        return await this.consumerGroupService.getConsumerGroups(admin);
     }
 
     async deleteConsumerGroup(clusterName: string, groupId: string) {
         const admin = await this.getAdmin(clusterName);
-        await admin.deleteGroups([groupId]);
+        return await this.consumerGroupService.deleteConsumerGroup(admin, groupId);
     }
 
     async resetConsumerGroupOffsets(
@@ -791,14 +638,7 @@ export class KafkaClientManager {
 
     async getBrokers(clusterName: string): Promise<any[]> {
         const admin = await this.getAdmin(clusterName);
-        const cluster = await admin.describeCluster();
-
-        return cluster.brokers.map((broker: any) => ({
-            nodeId: broker.nodeId,
-            host: broker.host,
-            port: broker.port,
-            rack: (broker as any).rack || null
-        }));
+        return await this.brokerService.getBrokers(admin);
     }
 
     async getBrokerDetails(clusterName: string, brokerId: number): Promise<any> {
@@ -860,6 +700,65 @@ export class KafkaClientManager {
         };
     }
 
+    async getACLs(clusterName: string): Promise<ACL[]> {
+        try {
+            // Note: KafkaJS doesn't have built-in ACL support
+            // ACL management requires direct Kafka admin API access through kafka-acls CLI
+            this.logger.warn('ACL management requires direct Kafka admin API access, which is not available through KafkaJS');
+            throw new Error('ACL management requires kafka-acls CLI tool. Use the ACL Help command for guidance.');
+        } catch (error: any) {
+            this.logger.error(`Failed to get ACLs for cluster ${clusterName}`, error);
+            throw error;
+        }
+    }
+
+    async createACL(clusterName: string, _aclConfig: ACLConfig): Promise<void> {
+        try {
+            // Note: This would require direct Kafka admin API access
+            // KafkaJS doesn't support ACL operations directly
+            this.logger.warn('ACL creation requires direct Kafka admin API access, which is not available through KafkaJS');
+            throw new Error('ACL management requires kafka-acls CLI tool. Use the ACL Help command for guidance.');
+        } catch (error: any) {
+            this.logger.error(`Failed to create ACL for cluster ${clusterName}`, error);
+            throw error;
+        }
+    }
+
+    async deleteACL(clusterName: string, _aclConfig: Omit<ACLConfig, 'permissionType'>): Promise<void> {
+        try {
+            // Note: This would require direct Kafka admin API access
+            this.logger.warn('ACL deletion requires direct Kafka admin API access, which is not available through KafkaJS');
+            throw new Error('ACL management requires kafka-acls CLI tool. Use the ACL Help command for guidance.');
+        } catch (error: any) {
+            this.logger.error(`Failed to delete ACL for cluster ${clusterName}`, error);
+            throw error;
+        }
+    }
+
+    async getACLDetails(clusterName: string, acl: ACL): Promise<ACLDetails> {
+        // Return detailed ACL information
+        return {
+            principal: acl.principal || 'Unknown',
+            operation: acl.operation || 'Unknown',
+            resourceType: acl.resourceType || 'Unknown',
+            resourceName: acl.resourceName || 'Unknown',
+            permissionType: acl.permissionType || 'Unknown',
+            host: acl.host || '*',
+            resourcePatternType: acl.resourcePatternType || 'LITERAL',
+            description: this.getACLDescription(acl)
+        };
+    }
+
+    private getACLDescription(acl: ACL): string {
+        const principal = acl.principal || 'Unknown';
+        const operation = acl.operation || 'Unknown';
+        const resource = acl.resourceName || 'Unknown';
+        const permission = acl.permissionType || 'Unknown';
+        const host = acl.host || '*';
+        
+        return `Principal ${principal} is ${permission}ed to ${operation} on ${resource} from host ${host}`;
+    }
+
     private async getAdmin(clusterName: string): Promise<Admin> {
         const connection = this.clusters.get(clusterName);
         if (!connection) {
@@ -867,16 +766,20 @@ export class KafkaClientManager {
         }
 
         try {
-            // For MSK clusters, we need to fetch brokers first
+            // For MSK clusters, fetch brokers if not already cached
+            // Note: For TLS connections (non-IAM), brokers are cached after initial fetch
+            // and AWS credentials are not needed for subsequent connections
             let brokers = connection.brokers || [];
-            if (connection.type === 'msk' && connection.clusterArn && connection.region) {
-                this.logger.debug(`Fetching MSK brokers for ${clusterName}`);
-                brokers = await this.getMSKBootstrapBrokers(
+            if (connection.type === 'msk' && connection.clusterArn && connection.region && brokers.length === 0) {
+                this.logger.debug(`Fetching MSK brokers for ${clusterName} (not cached)`);
+                brokers = await this.mskAdapter.getBootstrapBrokers(
                     connection.region, 
                     connection.clusterArn, 
                     connection.saslMechanism, 
                     connection.awsProfile
                 );
+                // Cache the brokers to avoid re-fetching from AWS
+                connection.brokers = brokers;
             }
 
             // Use connection pool for better resource management
@@ -903,16 +806,20 @@ export class KafkaClientManager {
         }
 
         try {
-            // For MSK clusters, we need to fetch brokers first
+            // For MSK clusters, fetch brokers if not already cached
+            // Note: For TLS connections (non-IAM), brokers are cached after initial fetch
+            // and AWS credentials are not needed for subsequent connections
             let brokers = connection.brokers || [];
-            if (connection.type === 'msk' && connection.clusterArn && connection.region) {
-                this.logger.debug(`Fetching MSK brokers for ${clusterName}`);
-                brokers = await this.getMSKBootstrapBrokers(
+            if (connection.type === 'msk' && connection.clusterArn && connection.region && brokers.length === 0) {
+                this.logger.debug(`Fetching MSK brokers for ${clusterName} (not cached)`);
+                brokers = await this.mskAdapter.getBootstrapBrokers(
                     connection.region, 
                     connection.clusterArn, 
                     connection.saslMechanism, 
                     connection.awsProfile
                 );
+                // Cache the brokers to avoid re-fetching from AWS
+                connection.brokers = brokers;
             }
 
             // Use connection pool for better resource management
@@ -933,46 +840,12 @@ export class KafkaClientManager {
     }
 
     private saveConfiguration() {
-        const config = vscode.workspace.getConfiguration('kafka');
-        const clusters = Array.from(this.clusters.values()).map(c => {
-            const clusterConfig: any = {
-                name: c.name,
-                type: c.type,
-                brokers: c.brokers,
-                securityProtocol: c.securityProtocol
-            };
-
-            // Save MSK-specific configuration (needed for reconnection)
-            if (c.type === 'msk') {
-                clusterConfig.region = c.region;
-                clusterConfig.clusterArn = c.clusterArn;
-                clusterConfig.awsProfile = c.awsProfile;
-                clusterConfig.assumeRoleArn = c.assumeRoleArn;
-                clusterConfig.saslMechanism = c.saslMechanism;
-            }
-
-            // Save SASL mechanism for non-MSK clusters (but not credentials)
-            if (c.saslMechanism && c.type !== 'msk') {
-                clusterConfig.saslMechanism = c.saslMechanism;
-                // Note: We don't save username/password for security
-            }
-
-            // Save SSL file paths (not the actual certificates)
-            if (c.sslCaFile || c.sslCertFile || c.sslKeyFile) {
-                clusterConfig.sslCaFile = c.sslCaFile;
-                clusterConfig.sslCertFile = c.sslCertFile;
-                clusterConfig.sslKeyFile = c.sslKeyFile;
-                clusterConfig.rejectUnauthorized = c.rejectUnauthorized;
-            }
-
-            return clusterConfig;
-        });
-        config.update('clusters', clusters, vscode.ConfigurationTarget.Global);
+        const clusters = Array.from(this.clusters.values());
+        this.configurationService.save(clusters);
     }
 
     async loadConfiguration() {
-        const config = vscode.workspace.getConfiguration('kafka');
-        const clusters = config.get<any[]>('clusters', []);
+        const clusters = await this.configurationService.load();
 
         const failedClusters: { name: string; reason: string }[] = [];
 
@@ -1047,11 +920,11 @@ export class KafkaClientManager {
                 if (selection === 'Retry') {
                     await this.loadConfiguration();
                 } else if (selection === 'Remove Failed Clusters') {
-                    // Remove failed clusters from config
+                    // Remove failed clusters from config using ConfigurationService
                     const successfulClusters = clusters.filter(c =>
                         !failedClusters.find(fc => fc.name === c.name)
                     );
-                    config.update('clusters', successfulClusters, vscode.ConfigurationTarget.Global);
+                    this.configurationService.save(successfulClusters);
                     vscode.window.showInformationMessage('Failed clusters removed from configuration');
                 }
             });
