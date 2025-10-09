@@ -99,18 +99,18 @@ export async function showConsumerGroupDetails(clientManager: KafkaClientManager
                             const currentOffset = offset.currentOffset || offset.offset;
                             const highWatermark = offset.highWaterMark || offset.logEndOffset;
                             const lag = offset.lag !== undefined ? offset.lag :
-                                       (highWatermark !== undefined && currentOffset !== undefined) 
-                                       ? (typeof highWatermark === 'string' ? parseInt(highWatermark) : highWatermark) - 
+                                       (highWatermark !== undefined && currentOffset !== undefined)
+                                       ? (typeof highWatermark === 'string' ? parseInt(highWatermark) : highWatermark) -
                                          (typeof currentOffset === 'string' ? parseInt(currentOffset) : currentOffset)
                                        : 'N/A';
                             return [
                                 offset.topic || 'N/A',
                                 String(offset.partition ?? 0),
-                                currentOffset !== undefined ? 
-                                    (typeof currentOffset === 'string' ? parseInt(currentOffset).toLocaleString() : currentOffset.toLocaleString()) 
+                                currentOffset !== undefined ?
+                                    (typeof currentOffset === 'string' ? parseInt(currentOffset).toLocaleString() : currentOffset.toLocaleString())
                                     : 'N/A',
-                                highWatermark !== undefined ? 
-                                    (typeof highWatermark === 'string' ? parseInt(highWatermark).toLocaleString() : highWatermark.toLocaleString()) 
+                                highWatermark !== undefined ?
+                                    (typeof highWatermark === 'string' ? parseInt(highWatermark).toLocaleString() : highWatermark.toLocaleString())
                                     : 'N/A',
                                 typeof lag === 'number' ? lag.toLocaleString() : lag
                             ];

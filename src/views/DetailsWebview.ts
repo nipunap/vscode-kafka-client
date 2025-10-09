@@ -34,10 +34,206 @@ export class DetailsWebview {
             this.panel.onDidDispose(() => {
                 this.panel = undefined;
             });
+
+            // Handle messages from webview
+            this.panel.webview.onDidReceiveMessage(
+                async message => {
+                    switch (message.command) {
+                        case 'copyAsJson':
+                            await vscode.env.clipboard.writeText(message.data);
+                            vscode.window.showInformationMessage('📋 Copied to clipboard as JSON');
+                            break;
+                        case 'showMessage':
+                            vscode.window.showInformationMessage(message.text);
+                            break;
+                    }
+                },
+                undefined,
+                []
+            );
         }
 
         // Set HTML content
         this.panel.webview.html = this.getHtml(data);
+    }
+
+    /**
+     * Generate the search and copy script
+     */
+    private getScript(data: DetailsData): string {
+        const dataJson = JSON.stringify(data);
+        return `
+            const vscode = acquireVsCodeApi();
+            const detailsData = ${dataJson};
+            let searchMatches = [];
+            let currentMatchIndex = -1;
+
+            function refresh() {
+                vscode.postMessage({ command: 'refresh' });
+            }
+
+            function copyAsJson() {
+                const exportData = convertToExportFormat(detailsData);
+                const jsonString = JSON.stringify(exportData, null, 2);
+                vscode.postMessage({ 
+                    command: 'copyAsJson', 
+                    data: jsonString 
+                });
+            }
+
+            function convertToExportFormat(data) {
+                const result = {};
+                if (data.title) {
+                    result.name = data.title;
+                }
+                data.sections.forEach(section => {
+                    const sectionData = {};
+                    if (section.properties) {
+                        section.properties.forEach(prop => {
+                            sectionData[prop.label] = prop.value;
+                        });
+                    }
+                    if (section.table && section.table.rows) {
+                        const tableData = section.table.rows.map(row => {
+                            const obj = {};
+                            section.table.headers.forEach((header, index) => {
+                                obj[header] = row[index];
+                            });
+                            return obj;
+                        });
+                        sectionData[section.title] = tableData;
+                    } else if (!section.properties) {
+                        sectionData[section.title] = null;
+                    }
+                    Object.assign(result, sectionData);
+                });
+                return result;
+            }
+
+            function switchTab(tabId) {
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.remove('active');
+                });
+                document.querySelectorAll('.tab').forEach(tab => {
+                    tab.classList.remove('active');
+                });
+                document.getElementById(tabId).classList.add('active');
+                document.querySelector('[data-tab="' + tabId + '"]').classList.add('active');
+            }
+
+            function performSearch(searchTerm) {
+                clearHighlights();
+                if (!searchTerm || searchTerm.length < 2) {
+                    document.getElementById('searchInfo').textContent = '';
+                    return;
+                }
+                const sections = document.querySelectorAll('.section');
+                searchMatches = [];
+                sections.forEach(section => {
+                    highlightInElement(section, searchTerm);
+                });
+                if (searchMatches.length > 0) {
+                    currentMatchIndex = 0;
+                    scrollToMatch(0);
+                    document.getElementById('searchInfo').textContent = (currentMatchIndex + 1) + ' of ' + searchMatches.length + ' matches';
+                } else {
+                    document.getElementById('searchInfo').textContent = 'No matches found';
+                }
+            }
+
+            function highlightInElement(element, searchTerm) {
+                const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null);
+                const nodesToReplace = [];
+                let node;
+                while (node = walker.nextNode()) {
+                    if (node.nodeValue && node.nodeValue.toLowerCase().includes(searchTerm.toLowerCase())) {
+                        nodesToReplace.push(node);
+                    }
+                }
+                nodesToReplace.forEach(node => {
+                    const span = document.createElement('span');
+                    // Use case-insensitive indexOf for simple highlighting without regex
+                    const lowerText = node.nodeValue.toLowerCase();
+                    const lowerTerm = searchTerm.toLowerCase();
+                    let result = '';
+                    let lastIndex = 0;
+                    let index = lowerText.indexOf(lowerTerm);
+                    while (index !== -1) {
+                        result += node.nodeValue.substring(lastIndex, index);
+                        result += '<mark class="highlight">' + node.nodeValue.substring(index, index + searchTerm.length) + '</mark>';
+                        lastIndex = index + searchTerm.length;
+                        index = lowerText.indexOf(lowerTerm, lastIndex);
+                    }
+                    result += node.nodeValue.substring(lastIndex);
+                    span.innerHTML = result;
+                    node.parentNode.replaceChild(span, node);
+                    span.querySelectorAll('.highlight').forEach(mark => {
+                        searchMatches.push(mark);
+                    });
+                });
+            }
+
+            function clearHighlights() {
+                document.querySelectorAll('.highlight').forEach(mark => {
+                    const parent = mark.parentNode;
+                    parent.replaceWith(parent.textContent);
+                });
+                searchMatches = [];
+                currentMatchIndex = -1;
+                document.querySelectorAll('.section').forEach(section => {
+                    section.normalize();
+                });
+            }
+
+            function clearSearch() {
+                document.getElementById('searchInput').value = '';
+                clearHighlights();
+                document.getElementById('searchInfo').textContent = '';
+            }
+
+            function scrollToMatch(index) {
+                if (index < 0 || index >= searchMatches.length) return;
+                searchMatches.forEach(match => match.classList.remove('current'));
+                searchMatches[index].classList.add('current');
+                searchMatches[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+
+            function nextMatch() {
+                if (searchMatches.length === 0) return;
+                currentMatchIndex = (currentMatchIndex + 1) % searchMatches.length;
+                scrollToMatch(currentMatchIndex);
+                document.getElementById('searchInfo').textContent = (currentMatchIndex + 1) + ' of ' + searchMatches.length + ' matches';
+            }
+
+            function previousMatch() {
+                if (searchMatches.length === 0) return;
+                currentMatchIndex = (currentMatchIndex - 1 + searchMatches.length) % searchMatches.length;
+                scrollToMatch(currentMatchIndex);
+                document.getElementById('searchInfo').textContent = (currentMatchIndex + 1) + ' of ' + searchMatches.length + ' matches';
+            }
+
+            document.getElementById('searchInput').addEventListener('input', (e) => {
+                performSearch(e.target.value);
+            });
+
+            document.getElementById('searchInput').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (e.shiftKey) {
+                        previousMatch();
+                    } else {
+                        nextMatch();
+                    }
+                }
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+                    e.preventDefault();
+                    document.getElementById('searchInput').focus();
+                }
+            });
+        `;
     }
 
     /**
@@ -315,15 +511,76 @@ export class DetailsWebview {
                     .section {
                         animation: fadeIn 0.3s ease-out;
                     }
+
+                    .search-container {
+                        position: sticky;
+                        top: 0;
+                        background: var(--background);
+                        padding: 10px 0;
+                        margin-bottom: 20px;
+                        border-bottom: 1px solid var(--border-color);
+                        z-index: 100;
+                    }
+
+                    .search-box {
+                        display: flex;
+                        gap: 10px;
+                        align-items: center;
+                    }
+
+                    .search-input {
+                        flex: 1;
+                        padding: 8px 12px;
+                        background: var(--vscode-input-background);
+                        color: var(--vscode-input-foreground);
+                        border: 1px solid var(--vscode-input-border);
+                        border-radius: 4px;
+                        font-family: var(--vscode-font-family);
+                        font-size: 13px;
+                    }
+
+                    .search-input:focus {
+                        outline: 1px solid var(--vscode-focusBorder);
+                    }
+
+                    .search-info {
+                        color: var(--secondary-text);
+                        font-size: 12px;
+                        white-space: nowrap;
+                    }
+
+                    .highlight {
+                        background-color: rgba(255, 255, 0, 0.3);
+                        padding: 2px 0;
+                        border-radius: 2px;
+                    }
+
+                    .highlight.current {
+                        background-color: rgba(255, 165, 0, 0.5);
+                    }
                 </style>
             </head>
             <body>
                 <div class="header">
                     <h1>${this.icon} ${data.title || this.title}</h1>
                     <div class="header-actions">
-                        ${data.showCopyButton ? '<button class="btn btn-secondary" onclick="copyToClipboard()">📋 Copy</button>' : ''}
+                        ${data.showCopyButton ? '<button class="btn btn-secondary" onclick="copyAsJson()">📋 Copy as JSON</button>' : ''}
                         ${data.showRefreshButton ? '<button class="btn" onclick="refresh()">🔄 Refresh</button>' : ''}
                         <button class="btn btn-secondary" disabled title="Edit mode coming soon">✏️ Edit</button>
+                    </div>
+                </div>
+
+                <div class="search-container">
+                    <div class="search-box">
+                        <input 
+                            type="text" 
+                            class="search-input" 
+                            id="searchInput" 
+                            placeholder="Search... (Cmd+F or Ctrl+F)" 
+                            autocomplete="off"
+                        />
+                        <button class="btn btn-secondary" onclick="clearSearch()">Clear</button>
+                        <span class="search-info" id="searchInfo"></span>
                     </div>
                 </div>
 
@@ -336,32 +593,7 @@ export class DetailsWebview {
                 ${this.renderSections(data.sections)}
 
                 <script>
-                    const vscode = acquireVsCodeApi();
-
-                    function refresh() {
-                        vscode.postMessage({ command: 'refresh' });
-                    }
-
-                    function copyToClipboard() {
-                        const content = document.body.innerText;
-                        navigator.clipboard.writeText(content).then(() => {
-                            vscode.postMessage({ command: 'showMessage', text: 'Content copied to clipboard' });
-                        });
-                    }
-
-                    function switchTab(tabId) {
-                        // Hide all tab contents
-                        document.querySelectorAll('.tab-content').forEach(content => {
-                            content.classList.remove('active');
-                        });
-                        document.querySelectorAll('.tab').forEach(tab => {
-                            tab.classList.remove('active');
-                        });
-
-                        // Show selected tab
-                        document.getElementById(tabId).classList.add('active');
-                        document.querySelector(\`[data-tab="\${tabId}"]\`).classList.add('active');
-                    }
+                    ${this.getScript(data)}
                 </script>
             </body>
             </html>
