@@ -5,9 +5,10 @@
 import * as vscode from 'vscode';
 import { KafkaClientManager } from '../kafka/kafkaClientManager';
 import { KafkaExplorerProvider } from '../providers/kafkaExplorerProvider';
-import { formatMessages, formatTopicDetailsYaml } from '../utils/formatters';
+import { formatMessages } from '../utils/formatters';
 import { ErrorHandler } from '../infrastructure/ErrorHandler';
 import { TopicDashboardWebview } from '../views/topicDashboardWebview';
+import { DetailsWebview, DetailsData } from '../views/DetailsWebview';
 import { TopicNode, ClusterNode } from '../types/nodes';
 import { ACL } from '../types/acl';
 
@@ -226,31 +227,95 @@ export async function consumeMessages(clientManager: KafkaClientManager, node: T
     );
 }
 
-export async function showTopicDetails(clientManager: KafkaClientManager, node: TopicNode) {
+export async function showTopicDetails(clientManager: KafkaClientManager, node: TopicNode, context?: vscode.ExtensionContext) {
     await ErrorHandler.wrap(
         async () => {
-            await vscode.window.withProgress(
+            const details = await vscode.window.withProgress(
                 {
                     location: vscode.ProgressLocation.Notification,
                     title: `Loading details for topic "${node.topicName}"`,
                     cancellable: false
                 },
                 async (_progress) => {
-                    const details = await clientManager.getTopicDetails(
+                    return await clientManager.getTopicDetails(
                         node.clusterName,
                         node.topicName
                     );
-
-                    // Format the details nicely
-                    const formattedDetails = formatTopicDetailsYaml(details);
-
-                    const document = await vscode.workspace.openTextDocument({
-                        content: formattedDetails,
-                        language: 'yaml'
-                    });
-                    await vscode.window.showTextDocument(document);
                 }
             );
+
+            // If no context provided, fall back to text document (for backward compatibility)
+            if (!context) {
+                const { formatTopicDetailsYaml } = await import('../utils/formatters');
+                const formattedDetails = formatTopicDetailsYaml(details);
+                const document = await vscode.workspace.openTextDocument({
+                    content: formattedDetails,
+                    language: 'yaml'
+                });
+                await vscode.window.showTextDocument(document);
+                return;
+            }
+
+            // Create HTML view
+            const detailsView = new DetailsWebview(context, `Topic: ${node.topicName}`, '📋');
+            const data: DetailsData = {
+                title: node.topicName,
+                showCopyButton: true,
+                showRefreshButton: false,
+                notice: {
+                    type: 'info',
+                    text: '✏️ Edit mode coming soon! You\'ll be able to modify topic configurations directly from this view.'
+                },
+                sections: [
+                    {
+                        title: 'Overview',
+                        icon: '📊',
+                        properties: [
+                            { label: 'Topic Name', value: details.name || node.topicName, code: true },
+                            { label: 'Partitions', value: String(details.partitions || 0) },
+                            { label: 'Replication Factor', value: String(details.replicationFactor || 0) },
+                            {
+                                label: 'Total Messages',
+                                value: details.totalMessages ? details.totalMessages.toLocaleString() : '0'
+                            }
+                        ]
+                    },
+                    {
+                        title: 'Partition Details',
+                        icon: '🔀',
+                        table: {
+                            headers: ['Partition', 'Leader', 'Replicas', 'ISR', 'Messages'],
+                            rows: details.partitionDetails
+                                ? Object.entries(details.partitionDetails).map(([id, partition]: [string, any]) => [
+                                    id,
+                                    partition.leader || 'N/A',
+                                    partition.replicas?.join(', ') || 'N/A',
+                                    partition.isr?.join(', ') || 'N/A',
+                                    partition.highWaterMark && partition.lowWaterMark
+                                        ? (partition.highWaterMark - partition.lowWaterMark).toLocaleString()
+                                        : 'N/A'
+                                ])
+                                : []
+                        }
+                    },
+                    {
+                        title: 'Configuration',
+                        icon: '⚙️',
+                        table: {
+                            headers: ['Property', 'Value', 'Source'],
+                            rows: details.configs
+                                ? details.configs.map((config: any) => [
+                                    config.name || config.configName,
+                                    config.value || config.configValue || 'N/A',
+                                    config.source || config.configSource || 'default'
+                                ])
+                                : []
+                        }
+                    }
+                ]
+            };
+
+            detailsView.show(data);
         },
         `Loading details for topic "${node.topicName}"`
     );
@@ -354,7 +419,7 @@ export async function showTopicDashboard(
 /**
  * Show ACL details for a specific topic ACL
  */
-export async function showTopicACLDetails(clientManager: KafkaClientManager, node: { clusterName: string; topicName?: string; acl: ACL }): Promise<void> {
+export async function showTopicACLDetails(clientManager: KafkaClientManager, node: { clusterName: string; topicName?: string; acl: ACL }, context?: vscode.ExtensionContext): Promise<void> {
     return ErrorHandler.wrap(async () => {
         if (!node.acl) {
             vscode.window.showErrorMessage('No ACL data available');
@@ -362,13 +427,78 @@ export async function showTopicACLDetails(clientManager: KafkaClientManager, nod
         }
 
         const aclDetails = await clientManager.getACLDetails(node.clusterName, node.acl);
-        const yaml = formatTopicDetailsYaml(aclDetails);
 
-        const doc = await vscode.workspace.openTextDocument({
-            content: yaml,
-            language: 'yaml'
-        });
+        // If no context provided, fall back to text document
+        if (!context) {
+            const { formatTopicDetailsYaml } = await import('../utils/formatters');
+            const yaml = formatTopicDetailsYaml(aclDetails);
+            const doc = await vscode.workspace.openTextDocument({
+                content: yaml,
+                language: 'yaml'
+            });
+            await vscode.window.showTextDocument(doc);
+            return;
+        }
 
-        await vscode.window.showTextDocument(doc);
+        // Create HTML view
+        const detailsView = new DetailsWebview(context, `ACL Details`, '🔒');
+        const data: DetailsData = {
+            title: `${aclDetails.principal} → ${aclDetails.operation}`,
+            showCopyButton: true,
+            showRefreshButton: false,
+            notice: {
+                type: 'info',
+                text: '✏️ Edit mode coming soon! You\'ll be able to modify ACL configurations directly from this view.'
+            },
+            sections: [
+                {
+                    title: 'ACL Information',
+                    icon: '🔒',
+                    properties: [
+                        { 
+                            label: 'Principal', 
+                            value: aclDetails.principal, 
+                            code: true 
+                        },
+                        { 
+                            label: 'Operation', 
+                            value: aclDetails.operation 
+                        },
+                        { 
+                            label: 'Permission Type', 
+                            value: aclDetails.permissionType,
+                            badge: {
+                                type: aclDetails.permissionType.toLowerCase() === 'allow' ? 'success' : 'danger',
+                                text: aclDetails.permissionType.toUpperCase()
+                            }
+                        },
+                        { 
+                            label: 'Resource Type', 
+                            value: aclDetails.resourceType 
+                        },
+                        { 
+                            label: 'Resource Name', 
+                            value: aclDetails.resourceName, 
+                            code: true 
+                        },
+                        { 
+                            label: 'Host', 
+                            value: aclDetails.host 
+                        },
+                        { 
+                            label: 'Pattern Type', 
+                            value: aclDetails.resourcePatternType 
+                        }
+                    ]
+                },
+                {
+                    title: 'Description',
+                    icon: '📝',
+                    html: `<p style="padding: 10px; line-height: 1.8;">${aclDetails.description}</p>`
+                }
+            ]
+        };
+
+        detailsView.show(data);
     }, 'Show Topic ACL Details');
 }

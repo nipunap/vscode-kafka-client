@@ -4,48 +4,77 @@
 
 import * as vscode from 'vscode';
 import { KafkaClientManager } from '../kafka/kafkaClientManager';
-import { formatBrokerDetailsYaml } from '../utils/formatters';
+import { DetailsWebview, DetailsData } from '../views/DetailsWebview';
+import { ErrorHandler } from '../infrastructure/ErrorHandler';
 
-export async function showBrokerDetails(clientManager: KafkaClientManager, node: any) {
-    try {
-        await vscode.window.withProgress(
+export async function showBrokerDetails(clientManager: KafkaClientManager, node: any, context?: vscode.ExtensionContext) {
+    await ErrorHandler.wrap(async () => {
+        const details = await vscode.window.withProgress(
             {
                 location: vscode.ProgressLocation.Notification,
                 title: `Loading details for broker ${node.brokerId}`,
                 cancellable: false
             },
             async (_progress) => {
-                const details = await clientManager.getBrokerDetails(
+                return await clientManager.getBrokerDetails(
                     node.clusterName,
                     node.brokerId
                 );
-
-                // Format the details nicely
-                const formattedDetails = formatBrokerDetailsYaml(details);
-
-                const document = await vscode.workspace.openTextDocument({
-                    content: formattedDetails,
-                    language: 'yaml'
-                });
-                await vscode.window.showTextDocument(document);
             }
         );
-    } catch (error: any) {
-        const errorMsg = error?.message || error?.toString() || 'Unknown error';
 
-        if (errorMsg.includes('expired') || errorMsg.includes('credentials')) {
-            vscode.window.showErrorMessage(
-                `⚠️ AWS credentials expired. Please reconnect the cluster.`,
-                'Reconnect'
-            ).then(selection => {
-                if (selection === 'Reconnect') {
-                    vscode.commands.executeCommand('kafka.addCluster');
-                }
+        // If no context provided, fall back to text document
+        if (!context) {
+            const { formatBrokerDetailsYaml } = await import('../utils/formatters');
+            const formattedDetails = formatBrokerDetailsYaml(details);
+            const document = await vscode.workspace.openTextDocument({
+                content: formattedDetails,
+                language: 'yaml'
             });
-        } else {
-            vscode.window.showErrorMessage(`Failed to get broker details: ${errorMsg}`);
+            await vscode.window.showTextDocument(document);
+            return;
         }
-    }
+
+        // Create HTML view
+        const detailsView = new DetailsWebview(context, `Broker: ${node.brokerId}`, '🖥️');
+        const data: DetailsData = {
+            title: `Broker ${node.brokerId}`,
+            showCopyButton: true,
+            showRefreshButton: false,
+            notice: {
+                type: 'info',
+                text: '✏️ Edit mode coming soon! You\'ll be able to modify broker configurations directly from this view.'
+            },
+            sections: [
+                {
+                    title: 'Overview',
+                    icon: '📊',
+                    properties: [
+                        { label: 'Broker ID', value: String(details.id || node.brokerId) },
+                        { label: 'Host', value: details.host || 'N/A', code: true },
+                        { label: 'Port', value: String(details.port || 'N/A') },
+                        { label: 'Rack', value: details.rack || 'Not configured' }
+                    ]
+                },
+                {
+                    title: 'Configuration',
+                    icon: '⚙️',
+                    table: {
+                        headers: ['Property', 'Value', 'Source'],
+                        rows: details.configs
+                            ? Object.entries(details.configs).map(([name, config]: [string, any]) => [
+                                name,
+                                config.configValue || config.value || 'N/A',
+                                config.configSource || config.source || 'default'
+                            ])
+                            : []
+                    }
+                }
+            ]
+        };
+
+        detailsView.show(data);
+    }, `Loading broker details for broker ${node.brokerId}`);
 }
 
 /**

@@ -139,19 +139,19 @@ export async function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.viewConsumerGroup', async (node) => {
-            await consumerGroupCommands.showConsumerGroupDetails(clientManager, node);
+            await consumerGroupCommands.showConsumerGroupDetails(clientManager, node, context);
         })
     );
 
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.showTopicDetails', async (node) => {
-            await topicCommands.showTopicDetails(clientManager, node);
+            await topicCommands.showTopicDetails(clientManager, node, context);
         })
     );
 
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.showConsumerGroupDetails', async (node) => {
-            await consumerGroupCommands.showConsumerGroupDetails(clientManager, node);
+            await consumerGroupCommands.showConsumerGroupDetails(clientManager, node, context);
         })
     );
 
@@ -181,7 +181,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.showBrokerDetails', async (node) => {
-            await brokerCommands.showBrokerDetails(clientManager, node);
+            await brokerCommands.showBrokerDetails(clientManager, node, context);
         })
     );
 
@@ -194,7 +194,7 @@ export async function activate(context: vscode.ExtensionContext) {
     // ACL commands
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.showACLDetails', async (node) => {
-            await aclCommands.showACLDetails(clientManager, node);
+            await aclCommands.showACLDetails(clientManager, node, context);
         })
     );
 
@@ -232,7 +232,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }),
 
         vscode.commands.registerCommand('kafka.showTopicACLDetails', async (node) => {
-            await topicCommands.showTopicACLDetails(clientManager, node);
+            await topicCommands.showTopicACLDetails(clientManager, node, context);
         })
     );
 }

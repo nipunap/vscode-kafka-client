@@ -4,57 +4,114 @@
 
 import * as vscode from 'vscode';
 import { KafkaClientManager } from '../kafka/kafkaClientManager';
-import { formatConsumerGroupDetailsYaml } from '../utils/formatters';
+import { DetailsWebview, DetailsData } from '../views/DetailsWebview';
+import { ErrorHandler } from '../infrastructure/ErrorHandler';
 
-export async function showConsumerGroupDetails(clientManager: KafkaClientManager, node: any) {
-    try {
-        await vscode.window.withProgress(
+export async function showConsumerGroupDetails(clientManager: KafkaClientManager, node: any, context?: vscode.ExtensionContext) {
+    await ErrorHandler.wrap(async () => {
+        const details = await vscode.window.withProgress(
             {
                 location: vscode.ProgressLocation.Notification,
                 title: `Loading details for consumer group "${node.groupId}"`,
                 cancellable: false
             },
             async (_progress) => {
-                const details = await clientManager.getConsumerGroupDetails(
+                return await clientManager.getConsumerGroupDetails(
                     node.clusterName,
                     node.groupId
                 );
-
-                // Format the details nicely
-                const formattedDetails = formatConsumerGroupDetailsYaml(details);
-
-                const document = await vscode.workspace.openTextDocument({
-                    content: formattedDetails,
-                    language: 'yaml'
-                });
-                await vscode.window.showTextDocument(document);
             }
         );
-    } catch (error: any) {
-        const errorMsg = error?.message || error?.toString() || 'Unknown error';
 
-        if (errorMsg.includes('expired') || errorMsg.includes('credentials')) {
-            vscode.window.showErrorMessage(
-                `⚠️ AWS credentials expired. Please reconnect the cluster.`,
-                'Reconnect'
-            ).then(selection => {
-                if (selection === 'Reconnect') {
-                    vscode.commands.executeCommand('kafka.addCluster');
-                }
+        // If no context provided, fall back to text document
+        if (!context) {
+            const { formatConsumerGroupDetailsYaml } = await import('../utils/formatters');
+            const formattedDetails = formatConsumerGroupDetailsYaml(details);
+            const document = await vscode.workspace.openTextDocument({
+                content: formattedDetails,
+                language: 'yaml'
             });
-        } else if (errorMsg.includes('COORDINATOR_NOT_AVAILABLE') || errorMsg.includes('not found')) {
-            vscode.window.showWarningMessage(
-                `Consumer group "${node.groupId}" not found or coordinator unavailable.`,
-                'Refresh'
-            ).then(selection => {
-                if (selection === 'Refresh') {
-                    vscode.commands.executeCommand('kafka.refreshCluster', node);
-                }
-            });
-        } else {
-            vscode.window.showErrorMessage(`Failed to get consumer group details: ${errorMsg}`);
+            await vscode.window.showTextDocument(document);
+            return;
         }
-    }
+
+        // Create HTML view
+        const detailsView = new DetailsWebview(context, `Consumer Group: ${node.groupId}`, '👥');
+        
+        // Get state badge
+        const getStateBadge = (state: string) => {
+            const stateUpper = state.toUpperCase();
+            if (stateUpper === 'STABLE') return { type: 'success' as const, text: 'STABLE' };
+            if (stateUpper === 'EMPTY') return { type: 'warning' as const, text: 'EMPTY' };
+            if (stateUpper === 'DEAD') return { type: 'danger' as const, text: 'DEAD' };
+            return { type: 'info' as const, text: stateUpper };
+        };
+
+        const data: DetailsData = {
+            title: node.groupId,
+            showCopyButton: true,
+            showRefreshButton: false,
+            notice: {
+                type: 'info',
+                text: '✏️ Edit mode coming soon! You\'ll be able to reset offsets and modify group settings directly from this view.'
+            },
+            sections: [
+                {
+                    title: 'Overview',
+                    icon: '📊',
+                    properties: [
+                        { label: 'Group ID', value: details.groupId || node.groupId, code: true },
+                        { 
+                            label: 'State', 
+                            value: details.state || 'Unknown',
+                            badge: getStateBadge(details.state || 'Unknown')
+                        },
+                        { label: 'Protocol Type', value: details.protocolType || 'N/A' },
+                        { label: 'Protocol', value: details.protocol || 'N/A' },
+                        { label: 'Coordinator', value: `Broker ${details.coordinator?.id || 'N/A'}` }
+                    ]
+                },
+                {
+                    title: 'Members',
+                    icon: '👤',
+                    table: details.members && details.members.length > 0 ? {
+                        headers: ['Member ID', 'Client ID', 'Host'],
+                        rows: details.members.map((member: any) => [
+                            member.memberId || 'N/A',
+                            member.clientId || 'N/A',
+                            member.clientHost || 'N/A'
+                        ])
+                    } : undefined,
+                    html: (!details.members || details.members.length === 0) 
+                        ? '<div class="empty-state">No active members</div>' 
+                        : undefined
+                },
+                {
+                    title: 'Partition Offsets',
+                    icon: '📍',
+                    table: details.offsets && details.offsets.length > 0 ? {
+                        headers: ['Topic', 'Partition', 'Current Offset', 'Log End Offset', 'Lag'],
+                        rows: details.offsets.map((offset: any) => {
+                            const lag = offset.lag !== undefined ? offset.lag : 
+                                       (offset.logEndOffset && offset.offset) ? offset.logEndOffset - offset.offset : 'N/A';
+                            return [
+                                offset.topic || 'N/A',
+                                String(offset.partition || 0),
+                                offset.offset !== undefined ? offset.offset.toLocaleString() : 'N/A',
+                                offset.logEndOffset !== undefined ? offset.logEndOffset.toLocaleString() : 'N/A',
+                                typeof lag === 'number' ? lag.toLocaleString() : lag
+                            ];
+                        })
+                    } : undefined,
+                    html: (!details.offsets || details.offsets.length === 0) 
+                        ? '<div class="empty-state">No offset information available</div>' 
+                        : undefined
+                }
+            ]
+        };
+
+        detailsView.show(data);
+    }, `Loading consumer group details for "${node.groupId}"`);
 }
 
 export async function deleteConsumerGroup(
