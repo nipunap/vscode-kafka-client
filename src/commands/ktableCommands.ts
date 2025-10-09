@@ -170,17 +170,20 @@ export async function findKTable(clientManager: KafkaClientManager, provider: an
 
                 try {
                     const allTopics = await clientManager.getTopics(selectedCluster);
-                    // Filter for KTable topics
-                    return allTopics.filter(topic => 
-                        !topic.startsWith('__') &&
-                        (
+                    // Filter for KTable topics - only explicit table patterns
+                    return allTopics.filter(topic => {
+                        if (topic.startsWith('__')) {
+                            return false;
+                        }
+                        return (
                             topic.endsWith('-changelog') ||
                             topic.includes('-ktable-') ||
                             topic.includes('-store-') ||
                             topic.includes('KTABLE') ||
+                            topic.toLowerCase().includes('ktable') ||
                             topic.includes('-state-')
-                        )
-                    );
+                        );
+                    });
                 } catch (error: any) {
                     const errorMsg = error?.message || error?.toString() || 'Unknown error';
                     if (errorMsg.includes('expired') || errorMsg.includes('credentials')) {

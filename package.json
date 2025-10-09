@@ -71,11 +71,6 @@
           "icon": "$(organization)"
         },
         {
-          "id": "kafkaBrokers",
-          "name": "Brokers",
-          "icon": "$(server)"
-        },
-        {
           "id": "kafkaStreams",
           "name": "Kafka Streams",
           "icon": "$(symbol-event)"
@@ -84,6 +79,11 @@
           "id": "kafkaTables",
           "name": "KTables",
           "icon": "$(table)"
+        },
+        {
+          "id": "kafkaBrokers",
+          "name": "Brokers",
+          "icon": "$(server)"
         }
       ]
     },

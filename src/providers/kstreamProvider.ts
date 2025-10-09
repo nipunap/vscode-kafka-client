@@ -39,21 +39,28 @@ export class KStreamProvider extends BaseProvider<KStreamTreeItem> {
                     const topics = await this.clientManager.getTopics(el!.clusterName);
 
                     // Filter topics that are typically used by Kafka Streams
-                    // These patterns are common in Kafka Streams applications:
-                    // - Application ID prefixed topics
-                    // - Changelog topics (typically end with -changelog)
-                    // - Repartition topics (typically contain -repartition-)
-                    // - Internal topics (start with _ but not __consumer_offsets)
-                    const streamTopics = topics.filter(topic => 
-                        !topic.startsWith('__') && // Exclude system topics like __consumer_offsets
-                        !topic.includes('-ktable-') && // Exclude KTable specific topics
-                        (
+                    // Only show topics with explicit stream-related naming patterns
+                    const streamTopics = topics.filter(topic => {
+                        // Must not be a system topic
+                        if (topic.startsWith('__')) {
+                            return false;
+                        }
+                        
+                        // Must not be a KTable/changelog topic
+                        if (topic.endsWith('-changelog') || topic.includes('-ktable-') || 
+                            topic.includes('-store-') || topic.includes('-state-')) {
+                            return false;
+                        }
+                        
+                        // Must explicitly match stream patterns
+                        return (
                             topic.includes('-stream-') ||
                             topic.includes('KSTREAM') ||
+                            topic.toLowerCase().includes('kstream') ||
                             topic.endsWith('-repartition') ||
                             topic.includes('-repartition-')
-                        )
-                    );
+                        );
+                    });
 
                     if (streamTopics.length === 0) {
                         return [

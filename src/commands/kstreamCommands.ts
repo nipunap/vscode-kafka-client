@@ -170,17 +170,23 @@ export async function findKStream(clientManager: KafkaClientManager, provider: a
 
                 try {
                     const allTopics = await clientManager.getTopics(selectedCluster);
-                    // Filter for KStream topics
-                    return allTopics.filter(topic => 
-                        !topic.startsWith('__') &&
-                        !topic.includes('-ktable-') &&
-                        (
+                    // Filter for KStream topics - only explicit stream patterns
+                    return allTopics.filter(topic => {
+                        if (topic.startsWith('__')) {
+                            return false;
+                        }
+                        if (topic.endsWith('-changelog') || topic.includes('-ktable-') || 
+                            topic.includes('-store-') || topic.includes('-state-')) {
+                            return false;
+                        }
+                        return (
                             topic.includes('-stream-') ||
                             topic.includes('KSTREAM') ||
+                            topic.toLowerCase().includes('kstream') ||
                             topic.endsWith('-repartition') ||
                             topic.includes('-repartition-')
-                        )
-                    );
+                        );
+                    });
                 } catch (error: any) {
                     const errorMsg = error?.message || error?.toString() || 'Unknown error';
                     if (errorMsg.includes('expired') || errorMsg.includes('credentials')) {

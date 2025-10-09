@@ -39,20 +39,23 @@ export class KTableProvider extends BaseProvider<KTableTreeItem> {
                     const topics = await this.clientManager.getTopics(el!.clusterName);
 
                     // Filter topics that are typically used as KTables
-                    // These patterns are common for KTable backing topics:
-                    // - Changelog topics (end with -changelog)
-                    // - State store topics (contain -ktable-, -store-, or -changelog)
-                    // - Compacted topics used for state storage
-                    const ktableTopics = topics.filter(topic => 
-                        !topic.startsWith('__') && // Exclude system topics
-                        (
+                    // Only show topics with explicit KTable/changelog patterns
+                    const ktableTopics = topics.filter(topic => {
+                        // Must not be a system topic
+                        if (topic.startsWith('__')) {
+                            return false;
+                        }
+                        
+                        // Must explicitly match KTable patterns
+                        return (
                             topic.endsWith('-changelog') ||
                             topic.includes('-ktable-') ||
                             topic.includes('-store-') ||
                             topic.includes('KTABLE') ||
+                            topic.toLowerCase().includes('ktable') ||
                             topic.includes('-state-')
-                        )
-                    );
+                        );
+                    });
 
                     if (ktableTopics.length === 0) {
                         return [
