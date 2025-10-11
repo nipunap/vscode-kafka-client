@@ -897,8 +897,8 @@ export class KafkaClientManager {
                 (acl.resourceName === topicName || acl.resourceName === '*')
             );
         } catch (error: any) {
-            // If ACLs aren't available (e.g., CLI tool not available), return empty array
-            // This allows the UI to gracefully handle missing ACL support
+            // If ACLs aren't available (e.g., authorization disabled on cluster), return empty array
+            // This allows the UI to gracefully handle clusters without ACL support
             this.logger.debug(`ACLs not available for topic ${topicName}: ${error?.message}`);
             return [];
         }

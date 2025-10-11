@@ -179,8 +179,8 @@ suite('ACL Commands Test Suite', () => {
 
             assert.ok(showInformationMessageStub.calledOnce);
             const message = showInformationMessageStub.firstCall.args[0];
-            assert.ok(message.includes('To search for ACLs'));
-            assert.ok(message.includes('kafka-acls command line tool'));
+            assert.ok(message.includes('To view ACLs'));
+            assert.ok(message.includes('extension'));
         });
 
         test('should show no clusters message when no clusters', async () => {

@@ -113,13 +113,13 @@ export class KafkaExplorerProvider extends BaseProvider<KafkaTreeItem> {
                         if (acls.length === 0) {
                             return [
                                 new KafkaTreeItem(
-                                    'No ACLs configured (or CLI tool not available)',
+                                    'No ACLs configured',
                                     vscode.TreeItemCollapsibleState.None,
                                     'topicACLEmpty',
                                     el!.clusterName,
                                     el!.topicName,
                                     undefined,
-                                    'ACL management requires kafka-acls CLI tool. Right-click for help.'
+                                    'No ACLs found for this topic. Right-click cluster to create ACLs.'
                                 )
                             ];
                         }
