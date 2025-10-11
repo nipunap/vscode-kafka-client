@@ -19,6 +19,7 @@ import { CredentialManager } from './infrastructure/CredentialManager';
 import { FieldDescriptions } from './utils/fieldDescriptions';
 import { MessageConsumerWebview } from './views/MessageConsumerWebview';
 import { MessageProducerWebview } from './views/MessageProducerWebview';
+import { WebviewManager } from './views/WebviewManager';
 
 // Global instances for cleanup on deactivation
 let clientManager: KafkaClientManager;
@@ -333,6 +334,16 @@ export async function activate(context: vscode.ExtensionContext) {
 
 export async function deactivate() {
     logger.info('Kafka extension is being deactivated...');
+
+    // Clean up all webviews (prevents memory leaks)
+    try {
+        const webviewManager = WebviewManager.getInstance();
+        webviewManager.logStatistics();
+        webviewManager.disposeAll();
+        logger.info('Successfully cleaned up all webviews');
+    } catch (error) {
+        logger.error('Error during webview cleanup', error);
+    }
 
     // Clean up all Kafka connections
     if (clientManager) {

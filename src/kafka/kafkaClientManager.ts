@@ -24,6 +24,8 @@ import { ConsumerGroupService } from '../services/ConsumerGroupService';
 import { BrokerService } from '../services/BrokerService';
 import { ProducerService } from '../services/ProducerService';
 import { ACL, ACLDetails, ACLConfig } from '../types/acl';
+import { ACLTypeMapper } from '../utils/aclTypeMapper';
+import { KafkaErrorClassifier } from '../utils/kafkaErrorClassifier';
 
 // Type alias for cluster configuration
 type ClusterConfig = ClusterConnection;
@@ -778,13 +780,13 @@ export class KafkaClientManager {
             for (const resource of result.resources) {
                 for (const acl of resource.acls) {
                     acls.push({
-                        resourceType: this.mapResourceType(resource.resourceType),
+                        resourceType: ACLTypeMapper.fromKafkaJSResourceType(resource.resourceType) as any,
                         resourceName: resource.resourceName,
-                        resourcePatternType: this.mapPatternType(resource.resourcePatternType),
+                        resourcePatternType: ACLTypeMapper.fromKafkaJSPatternType(resource.resourcePatternType),
                         principal: acl.principal,
                         host: acl.host,
-                        operation: this.mapOperation(acl.operation),
-                        permissionType: this.mapPermission(acl.permissionType)
+                        operation: ACLTypeMapper.fromKafkaJSOperation(acl.operation),
+                        permissionType: ACLTypeMapper.fromKafkaJSPermission(acl.permissionType) as any
                     });
                 }
             }
@@ -792,15 +794,14 @@ export class KafkaClientManager {
             this.logger.info(`Retrieved ${acls.length} ACLs for cluster ${clusterName}`);
             return acls;
         } catch (error: any) {
-            // Check if this is an expected error (ACLs disabled on cluster)
-            const errorMessage = error?.message || '';
-            if (errorMessage.includes('Security features are disabled') ||
-                errorMessage.includes('SECURITY_DISABLED') ||
-                errorMessage.includes('Authorization is not enabled')) {
-                this.logger.warn(`ACLs not available for cluster ${clusterName}: ${errorMessage}`);
+            // Use centralized error classification
+            const logLevel = KafkaErrorClassifier.getLogLevel(error);
+            const message = KafkaErrorClassifier.getUserFriendlyMessage(error, `Cluster ${clusterName}`);
+
+            if (logLevel === 'warn') {
+                this.logger.warn(message);
             } else {
-                // Log unexpected errors at ERROR level
-                this.logger.error(`Failed to fetch ACLs for cluster ${clusterName}`, error);
+                this.logger.error(message, error);
             }
             throw error;
         }
@@ -813,27 +814,26 @@ export class KafkaClientManager {
         try {
             await admin.createAcls({
                 acl: [{
-                    resourceType: this.mapToKafkaJSResourceType(aclConfig.resourceType),
+                    resourceType: ACLTypeMapper.toKafkaJSResourceType(aclConfig.resourceType),
                     resourceName: aclConfig.resourceName,
-                    resourcePatternType: this.mapToKafkaJSPatternType(aclConfig.resourcePatternType || 'LITERAL'),
+                    resourcePatternType: ACLTypeMapper.toKafkaJSPatternType(aclConfig.resourcePatternType || 'LITERAL'),
                     principal: aclConfig.principal,
                     host: aclConfig.host || '*',
-                    operation: this.mapToKafkaJSOperation(aclConfig.operation),
-                    permissionType: this.mapToKafkaJSPermission(aclConfig.permissionType)
+                    operation: ACLTypeMapper.toKafkaJSOperation(aclConfig.operation),
+                    permissionType: ACLTypeMapper.toKafkaJSPermission(aclConfig.permissionType)
                 }]
             });
 
             this.logger.info(`Successfully created ACL for cluster ${clusterName}`);
         } catch (error: any) {
-            // Check if this is an expected error (ACLs disabled on cluster)
-            const errorMessage = error?.message || '';
-            if (errorMessage.includes('Security features are disabled') ||
-                errorMessage.includes('SECURITY_DISABLED') ||
-                errorMessage.includes('Authorization is not enabled')) {
-                this.logger.warn(`Cannot create ACL - authorization not enabled on cluster ${clusterName}: ${errorMessage}`);
+            // Use centralized error classification
+            const logLevel = KafkaErrorClassifier.getLogLevel(error);
+            const message = KafkaErrorClassifier.getUserFriendlyMessage(error, `Create ACL on ${clusterName}`);
+
+            if (logLevel === 'warn') {
+                this.logger.warn(message);
             } else {
-                // Log unexpected errors at ERROR level
-                this.logger.error(`Failed to create ACL for cluster ${clusterName}`, error);
+                this.logger.error(message, error);
             }
             throw error;
         }
@@ -846,12 +846,12 @@ export class KafkaClientManager {
         try {
             const result = await admin.deleteAcls({
                 filters: [{
-                    resourceType: this.mapToKafkaJSResourceType(aclConfig.resourceType),
+                    resourceType: ACLTypeMapper.toKafkaJSResourceType(aclConfig.resourceType),
                     resourceName: aclConfig.resourceName,
-                    resourcePatternType: this.mapToKafkaJSPatternType(aclConfig.resourcePatternType || 'LITERAL'),
+                    resourcePatternType: ACLTypeMapper.toKafkaJSPatternType(aclConfig.resourcePatternType || 'LITERAL'),
                     principal: aclConfig.principal,
                     host: aclConfig.host || '*',
-                    operation: this.mapToKafkaJSOperation(aclConfig.operation),
+                    operation: ACLTypeMapper.toKafkaJSOperation(aclConfig.operation),
                     permissionType: AclPermissionTypes.ANY // Delete both ALLOW and DENY
                 }]
             });
@@ -861,15 +861,14 @@ export class KafkaClientManager {
 
             this.logger.info(`Successfully deleted ${deletedCount} ACL(s) for cluster ${clusterName}`);
         } catch (error: any) {
-            // Check if this is an expected error (ACLs disabled on cluster)
-            const errorMessage = error?.message || '';
-            if (errorMessage.includes('Security features are disabled') ||
-                errorMessage.includes('SECURITY_DISABLED') ||
-                errorMessage.includes('Authorization is not enabled')) {
-                this.logger.warn(`Cannot delete ACL - authorization not enabled on cluster ${clusterName}: ${errorMessage}`);
+            // Use centralized error classification
+            const logLevel = KafkaErrorClassifier.getLogLevel(error);
+            const message = KafkaErrorClassifier.getUserFriendlyMessage(error, `Delete ACL on ${clusterName}`);
+
+            if (logLevel === 'warn') {
+                this.logger.warn(message);
             } else {
-                // Log unexpected errors at ERROR level
-                this.logger.error(`Failed to delete ACL for cluster ${clusterName}`, error);
+                this.logger.error(message, error);
             }
             throw error;
         }
@@ -1195,113 +1194,6 @@ export class KafkaClientManager {
         }
 
         return true;
-    }
-
-    // ===== ACL Type Mapping Helper Methods =====
-
-    /**
-     * Map extension resource type string to KafkaJS AclResourceTypes enum
-     */
-    private mapToKafkaJSResourceType(type: string): AclResourceTypes {
-        const map: Record<string, AclResourceTypes> = {
-            'topic': AclResourceTypes.TOPIC,
-            'group': AclResourceTypes.GROUP,
-            'cluster': AclResourceTypes.CLUSTER,
-            'transactional_id': AclResourceTypes.TRANSACTIONAL_ID,
-            'delegation_token': AclResourceTypes.DELEGATION_TOKEN
-        };
-        return map[type.toLowerCase()] || AclResourceTypes.UNKNOWN;
-    }
-
-    /**
-     * Map KafkaJS AclResourceTypes enum to extension resource type string
-     */
-    private mapResourceType(type: AclResourceTypes): 'topic' | 'group' | 'cluster' | 'transactional_id' {
-        const map: Record<number, 'topic' | 'group' | 'cluster' | 'transactional_id'> = {
-            [AclResourceTypes.TOPIC]: 'topic',
-            [AclResourceTypes.GROUP]: 'group',
-            [AclResourceTypes.CLUSTER]: 'cluster',
-            [AclResourceTypes.TRANSACTIONAL_ID]: 'transactional_id'
-        };
-        return map[type] || 'topic';
-    }
-
-    /**
-     * Map extension operation string to KafkaJS AclOperationTypes enum
-     */
-    private mapToKafkaJSOperation(operation: string): AclOperationTypes {
-        const map: Record<string, AclOperationTypes> = {
-            'all': AclOperationTypes.ALL,
-            'read': AclOperationTypes.READ,
-            'write': AclOperationTypes.WRITE,
-            'create': AclOperationTypes.CREATE,
-            'delete': AclOperationTypes.DELETE,
-            'alter': AclOperationTypes.ALTER,
-            'describe': AclOperationTypes.DESCRIBE,
-            'cluster_action': AclOperationTypes.CLUSTER_ACTION,
-            'describe_configs': AclOperationTypes.DESCRIBE_CONFIGS,
-            'alter_configs': AclOperationTypes.ALTER_CONFIGS,
-            'idempotent_write': AclOperationTypes.IDEMPOTENT_WRITE
-        };
-        return map[operation.toLowerCase()] || AclOperationTypes.UNKNOWN;
-    }
-
-    /**
-     * Map KafkaJS AclOperationTypes enum to extension operation string
-     */
-    private mapOperation(operation: AclOperationTypes): string {
-        const map: Record<number, string> = {
-            [AclOperationTypes.ALL]: 'All',
-            [AclOperationTypes.READ]: 'Read',
-            [AclOperationTypes.WRITE]: 'Write',
-            [AclOperationTypes.CREATE]: 'Create',
-            [AclOperationTypes.DELETE]: 'Delete',
-            [AclOperationTypes.ALTER]: 'Alter',
-            [AclOperationTypes.DESCRIBE]: 'Describe',
-            [AclOperationTypes.CLUSTER_ACTION]: 'ClusterAction',
-            [AclOperationTypes.DESCRIBE_CONFIGS]: 'DescribeConfigs',
-            [AclOperationTypes.ALTER_CONFIGS]: 'AlterConfigs',
-            [AclOperationTypes.IDEMPOTENT_WRITE]: 'IdempotentWrite'
-        };
-        return map[operation] || 'Unknown';
-    }
-
-    /**
-     * Map extension permission type string to KafkaJS AclPermissionTypes enum
-     */
-    private mapToKafkaJSPermission(permission: 'allow' | 'deny'): AclPermissionTypes {
-        return permission.toLowerCase() === 'allow' ? AclPermissionTypes.ALLOW : AclPermissionTypes.DENY;
-    }
-
-    /**
-     * Map KafkaJS AclPermissionTypes enum to extension permission type string
-     */
-    private mapPermission(permission: AclPermissionTypes): 'allow' | 'deny' {
-        return permission === AclPermissionTypes.ALLOW ? 'allow' : 'deny';
-    }
-
-    /**
-     * Map extension pattern type string to KafkaJS ResourcePatternTypes enum
-     */
-    private mapToKafkaJSPatternType(pattern: string): ResourcePatternTypes {
-        const map: Record<string, ResourcePatternTypes> = {
-            'literal': ResourcePatternTypes.LITERAL,
-            'prefixed': ResourcePatternTypes.PREFIXED,
-            'match': ResourcePatternTypes.MATCH
-        };
-        return map[pattern.toLowerCase()] || ResourcePatternTypes.LITERAL;
-    }
-
-    /**
-     * Map KafkaJS ResourcePatternTypes enum to extension pattern type string
-     */
-    private mapPatternType(pattern: ResourcePatternTypes): string {
-        const map: Record<number, string> = {
-            [ResourcePatternTypes.LITERAL]: 'LITERAL',
-            [ResourcePatternTypes.PREFIXED]: 'PREFIXED',
-            [ResourcePatternTypes.MATCH]: 'MATCH'
-        };
-        return map[pattern] || 'LITERAL';
     }
 
     /**
