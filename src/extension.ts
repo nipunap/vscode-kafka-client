@@ -16,6 +16,9 @@ import * as clusterDashboardCommands from './commands/clusterDashboardCommands';
 import { Logger, LogLevel } from './infrastructure/Logger';
 import { EventBus, KafkaEvents } from './infrastructure/EventBus';
 import { CredentialManager } from './infrastructure/CredentialManager';
+import { FieldDescriptions } from './utils/fieldDescriptions';
+import { MessageConsumerWebview } from './views/MessageConsumerWebview';
+import { MessageProducerWebview } from './views/MessageProducerWebview';
 
 // Global instances for cleanup on deactivation
 let clientManager: KafkaClientManager;
@@ -35,6 +38,10 @@ export async function activate(context: vscode.ExtensionContext) {
     eventBus = new EventBus();
     credentialManager = new CredentialManager(context.secrets);
     clientManager = new KafkaClientManager(credentialManager);
+
+    // Load field descriptions database for webview info icons
+    const fieldDescriptions = FieldDescriptions.getInstance();
+    fieldDescriptions.load(context.extensionPath);
 
     // Register tree data providers
     const kafkaExplorerProvider = new KafkaExplorerProvider(clientManager);
@@ -140,8 +147,65 @@ export async function activate(context: vscode.ExtensionContext) {
     );
 
     context.subscriptions.push(
+        vscode.commands.registerCommand('kafka.produceMessageWithForm', async (node) => {
+            // Validate input
+            if (!node || !node.clusterName || !node.topicName) {
+                vscode.window.showErrorMessage('Invalid topic selection. Please try again.');
+                return;
+            }
+
+            // Show the message producer webview
+            const messageProducerWebview = MessageProducerWebview.getInstance(
+                context.extensionPath,
+                clientManager,
+                logger
+            );
+
+            await messageProducerWebview.show(node.clusterName, node.topicName);
+        })
+    );
+
+    context.subscriptions.push(
         vscode.commands.registerCommand('kafka.consumeMessages', async (node) => {
             await topicCommands.consumeMessages(clientManager, node);
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('kafka.streamMessages', async (node) => {
+            // Validate input
+            if (!node || !node.clusterName || !node.topicName) {
+                vscode.window.showErrorMessage('Invalid topic selection. Please try again.');
+                return;
+            }
+
+            // Ask user if they want to start from beginning or latest
+            const fromBeginningChoice = await vscode.window.showQuickPick(
+                [
+                    { label: 'Latest', description: 'Start consuming from the latest offset', value: false },
+                    { label: 'Beginning', description: 'Start consuming from the beginning of the topic', value: true }
+                ],
+                {
+                    placeHolder: 'Where do you want to start consuming from?'
+                }
+            );
+
+            if (!fromBeginningChoice) {
+                return;
+            }
+
+            // Show the message consumer webview
+            const messageConsumerWebview = MessageConsumerWebview.getInstance(
+                context.extensionPath,
+                clientManager,
+                logger
+            );
+
+            await messageConsumerWebview.show(
+                node.clusterName,
+                node.topicName,
+                fromBeginningChoice.value
+            );
         })
     );
 

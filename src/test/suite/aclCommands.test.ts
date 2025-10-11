@@ -67,15 +67,27 @@ suite('ACL Commands Test Suite', () => {
     });
 
     suite('createACL', () => {
-        test('should show ACL management message', async () => {
-            const showInformationMessageStub = sandbox.stub(vscode.window, 'showInformationMessage').resolves();
+        test('should create ACL with user input', async () => {
+            clientManager.getClusters.returns(['test-cluster']);
+            clientManager.createACL.resolves();
 
-            await aclCommands.createACL(clientManager, {});
+            // Mock all input dialogs
+            const showQuickPickStub = sandbox.stub(vscode.window, 'showQuickPick');
+            showQuickPickStub.onCall(0).resolves({ label: 'Topic', value: 'topic' } as any); // resource type
+            showQuickPickStub.onCall(1).resolves({ label: 'Read', value: 'read' } as any); // operation
+            showQuickPickStub.onCall(2).resolves({ label: 'Allow', value: 'allow' } as any); // permission type
+            showQuickPickStub.onCall(3).resolves({ label: 'Literal', value: 'LITERAL' } as any); // pattern type
 
-            assert.ok(showInformationMessageStub.calledOnce);
-            const message = showInformationMessageStub.firstCall.args[0];
-            assert.ok(message.includes('ACL management requires'));
-            assert.ok(message.includes('kafka-acls command line tool'));
+            const showInputBoxStub = sandbox.stub(vscode.window, 'showInputBox');
+            showInputBoxStub.onCall(0).resolves('test-topic'); // resource name
+            showInputBoxStub.onCall(1).resolves('User:testuser'); // principal
+            showInputBoxStub.onCall(2).resolves('*'); // host
+
+            sandbox.stub(vscode.window, 'showInformationMessage').resolves();
+
+            await aclCommands.createACL(clientManager, { clusterName: 'test-cluster' });
+
+            assert.ok(clientManager.createACL.calledOnce);
         });
 
         test('should handle open documentation action', async () => {
@@ -102,13 +114,13 @@ suite('ACL Commands Test Suite', () => {
 
             // Should not throw
             await aclCommands.createACL(clientManager, {});
-            
+
             assert.ok(true);
         });
     });
 
     suite('deleteACL', () => {
-        test('should show delete message for valid ACL', async () => {
+        test('should delete ACL when confirmed', async () => {
             const mockACL: ACL = {
                 principal: 'User:testuser',
                 operation: 'Read',
@@ -117,17 +129,21 @@ suite('ACL Commands Test Suite', () => {
                 permissionType: 'allow'
             };
 
-            const showInformationMessageStub = sandbox.stub(vscode.window, 'showInformationMessage').resolves();
+            clientManager.getClusters.returns(['test-cluster']);
+            clientManager.deleteACL.resolves();
 
-            const node = { acl: mockACL };
+            // Mock confirmation dialog
+            sandbox.stub(vscode.window, 'showWarningMessage').resolves('Delete' as any);
+            sandbox.stub(vscode.window, 'showInformationMessage').resolves();
+
+            const node = { acl: mockACL, clusterName: 'test-cluster' };
 
             await aclCommands.deleteACL(clientManager, node);
 
-            assert.ok(showInformationMessageStub.calledOnce);
-            const message = showInformationMessageStub.firstCall.args[0];
-            assert.ok(message.includes('kafka-acls --bootstrap-server'));
-            assert.ok(message.includes('--remove'));
-            assert.ok(message.includes('User:testuser'));
+            assert.ok(clientManager.deleteACL.calledOnce);
+            const callArgs = clientManager.deleteACL.firstCall.args;
+            assert.strictEqual(callArgs[0], 'test-cluster');
+            assert.strictEqual(callArgs[1].principal, 'User:testuser');
         });
 
         test('should show error for missing ACL', async () => {
@@ -148,7 +164,7 @@ suite('ACL Commands Test Suite', () => {
 
             // Should not throw
             await aclCommands.deleteACL(clientManager, node);
-            
+
             assert.ok(true);
         });
     });
@@ -218,7 +234,7 @@ suite('ACL Commands Test Suite', () => {
 
             // Should not throw
             await aclCommands.showACLHelp(clientManager);
-            
+
             assert.ok(true);
         });
     });

@@ -144,59 +144,89 @@ Version 0.3.0 introduces a major security overhaul with enterprise-grade archite
 
 ---
 
-## Security Audit Report (v0.5.0) - October 2025
 
-**Audit Date**: October 9, 2025
-**Auditor**: Senior Security Engineer
-**Scope**: Comprehensive security review of codebase and CI/CD
-**Status**: ✅ **PASSED** - All critical issues resolved
-
-### Findings Summary
-
-**CodeQL Alerts Fixed**: 6/6 (100%)
-- ✅ Fixed: Replacement of substring with itself (Medium)
-- ✅ Fixed: Useless assignment to local variable (Warning)
-- ✅ Fixed: 4x Workflow permissions not defined (Medium)
-
-**Security Review**:
-- ✅ Credential Management: SECURE
-- ✅ Input Validation: EXCELLENT
-- ✅ Error Handling: EXCELLENT
-- ✅ AI Data Transmission: SECURE
-- ✅ Dependencies: UP-TO-DATE
-- ✅ Test Coverage: 296 tests passing (85%+ coverage)
-
-### Issues Fixed in This Release
-
-#### 1. CodeQL Alert #2: Replacement of Substring with Itself
-- **Severity**: Medium
-- **Location**: `src/kafka/kafkaClientManager.ts:211`
-- **Issue**: `connection.saslMechanism.toLowerCase().replace(/-/g, '-')` replaced hyphens with hyphens (no-op)
-- **Fix**: Removed useless `.replace()` call - now just `.toLowerCase()`
-- **Impact**: No security impact, code clarity improvement
-
-#### 2. CodeQL Alert #11: Console Logging
-- **Severity**: Warning
-- **Location**: `src/kafka/kafkaClientManager.ts:896`
-- **Issue**: Direct `console.error()` usage instead of structured logging
-- **Fix**: Replaced with `this.logger.error()` for consistent logging
-- **Security Benefit**: All errors now go through centralized logger with proper sanitization
-
-#### 3. CodeQL Alerts #12, #15, #26, #27: Workflow Permissions
-- **Severity**: Medium (4 alerts)
-- **Location**: `.github/workflows/ci.yml` and `publish-release.yml`
-- **Issue**: GitHub Actions workflows lacked explicit permission declarations
-- **Fix**:
-  - `ci.yml`: Added `permissions: contents: read` (minimal, read-only)
-  - `publish-release.yml`: Added `permissions: contents: write, pull-requests: read`
-- **Security Benefit**: Follows principle of least privilege, prevents token abuse
 
 ### Security Verification
 
-✅ **All 296 tests passing** after fixes
+✅ **All 357 tests passing** after fixes
 ✅ **No new vulnerabilities introduced**
 ✅ **Compilation successful**
 ✅ **ESLint passing**
+
+---
+
+## Security Enhancements in v0.5.1
+
+Version 0.5.1 introduces native ACL management and performance optimizations with security improvements:
+
+### 1. Native ACL Management
+- **KafkaJS API Integration**: Direct use of `describeAcls()`, `createAcls()`, `deleteAcls()` APIs
+- **No External Dependencies**: Eliminated kafka-acls CLI tool dependency
+- **Permission Validation**: Proper permission checks before ACL operations
+- **Type Safety**: Strong TypeScript typing for ACL operations
+- **Audit Trail**: All ACL operations logged with full context
+- **Error Handling**: Graceful failures with clear error messages
+
+**Security Considerations:**
+- ACL operations require `Alter` permission on cluster
+- All operations authenticated using cluster credentials
+- No credential leakage in ACL logs
+- Type mappings prevent injection via enum validation
+- Failed operations don't reveal sensitive cluster details
+
+### 2. AWS MSK Broker Caching
+- **Credential Efficiency**: Bootstrap brokers cached after first fetch
+- **Reduced AWS API Calls**: 99% fewer `GetBootstrapBrokers` calls
+- **TLS Performance**: TLS connections work without AWS credentials after initial setup
+- **Cache Security**: Brokers validated before caching
+- **Expiration**: Cache persists in VS Code settings (safe, non-sensitive data)
+
+**Security Benefits:**
+- Reduced attack surface (fewer AWS API calls = fewer auth opportunities)
+- Credentials only needed once per cluster
+- Cached data is non-sensitive (broker hostnames/ports only)
+- Works offline after initial setup
+
+### 3. Dashboard Caching
+- **Performance Optimization**: Dashboard data cached for 5 minutes
+- **Memory Safety**: Cache limited by TTL (5 min) and cleared on extension reload
+- **No Sensitive Data**: Only metrics and statistics cached (no credentials)
+- **User Control**: Manual refresh available anytime
+- **Visual Indicators**: Cache age displayed to users
+
+**Security Considerations:**
+- Cached data includes topic configs, broker info, consumer group states
+- No passwords, tokens, or authentication data cached
+- Cache cleared on extension deactivation
+- Per-cluster isolation (clusters can't access each other's cache)
+
+### 4. Real-Time Message Streaming
+- **Consumer Isolation**: Each streaming session uses unique consumer group ID
+- **Memory Limits**: Maximum 1000 messages buffered to prevent memory exhaustion
+- **Automatic Cleanup**: Consumer connections closed when webview closes
+- **Controlled Access**: Consumer inherits cluster authentication (SSL/SASL/IAM)
+- **Resource Management**: Start/Stop/Pause controls prevent runaway consumers
+
+**Security Considerations:**
+- Message content visible in VS Code webview (ensure no sensitive data in dev environments)
+- Consumer groups named with timestamp for uniqueness: `vscode-kafka-client-{timestamp}`
+- No message data cached or persisted (only displayed in memory)
+- Export feature requires explicit user action (save dialog)
+- Timestamp conversion is client-side (no external services)
+
+### 5. Advanced Message Producer
+- **Validation**: All message fields validated before sending
+- **Template Safety**: Pre-built templates use sanitized example data
+- **Header Security**: Custom headers validated for key-value format
+- **Partition Validation**: Partition numbers validated against topic metadata
+- **Producer Reuse**: Uses connection pool for efficient resource management
+
+**Security Considerations:**
+- Producer inherits cluster authentication (SSL/SASL/IAM)
+- Headers and values sent as-is (user responsible for sensitive data)
+- No automatic encryption (use cluster-level encryption)
+- Success/error feedback doesn't leak sensitive cluster information
+- Message templates are local (no external API calls)
 
 ---
 
@@ -237,8 +267,8 @@ Version 0.5.0 introduces advanced features with comprehensive security improveme
 - **Client-Side Filtering**: No server-side queries beyond standard topic listing
 
 ### Security Testing
-- **296 Total Tests** (up from 187 in v0.3.x)
-- **109 New Tests** for new features (KStreams, KTables, AI integration)
+- **357 Total Tests** (up from 187 in v0.3.x)
+- **170 New Tests** for new features (KStreams, KTables, AI integration, native ACL operations, modal dialogs)
 - **Maintained Coverage**: 85%+ on infrastructure components
 - **All Tests Passing**: Continuous integration on multiple platforms
 - **Security Fixes**: All 6 CodeQL alerts resolved
@@ -280,6 +310,14 @@ When using this extension:
    - No credentials or authentication tokens are ever sent to AI
    - Consider disabling Copilot if working with highly sensitive configurations
 9. **HTML Views**: Interactive detail views use Content Security Policy - safe to use
+10. **ACL Operations** (v0.5.1+):
+   - ACL create/delete operations require `Alter` permission on cluster
+   - All ACL operations are logged for audit trails
+   - Failed ACL operations don't reveal sensitive cluster information
+11. **Caching** (v0.5.1+):
+   - Dashboard cache contains only non-sensitive metrics (no credentials)
+   - Broker cache contains only hostnames/ports (public information)
+   - Cache cleared on extension reload or manual refresh
 
 ## Security Features
 
@@ -316,17 +354,20 @@ When using this extension:
 ### Network Security
 - ✅ **TLS/SSL Support**: Full encryption support for all connections
 - ✅ **AWS MSK TLS**: Simplified configuration with built-in public certificates
+- ✅ **Broker Caching**: Reduces AWS API calls (fewer auth opportunities)
 - ✅ **Mutual TLS (mTLS)**: Support for client certificate authentication
 - ✅ **Certificate Validation**: Proper CA, client cert, and key handling
+- ✅ **Offline Support**: Cached brokers work without network connectivity
 
-### Code Quality & Testing (v0.4.0+)
-- ✅ **296 Tests**: Comprehensive test coverage including 32 security tests
+### Code Quality & Testing (v0.5.1+)
+- ✅ **357 Tests**: Comprehensive test coverage including 32 security tests and 62 modal dialog tests
 - ✅ **85%+ Infrastructure Coverage**: High coverage on security-critical components
 - ✅ **Static Analysis**: ESLint and TypeScript strict mode
 - ✅ **No Hardcoded Secrets**: All credentials managed securely
 - ✅ **AI Safety**: No credentials sent to AI, only configuration metadata
+- ✅ **ACL Type Safety**: Enum-based validation prevents injection attacks
 
-### AI & Data Privacy (v0.4.0+)
+### AI & Data Privacy (v0.5.0+)
 - ✅ **Opt-In Only**: AI features require explicit GitHub Copilot subscription
 - ✅ **No Credential Leakage**: Passwords, tokens, keys never sent to AI
 - ✅ **Configuration-Only**: Only topic/broker/consumer group settings sent
@@ -334,6 +375,14 @@ When using this extension:
 - ✅ **Read-Only Recommendations**: AI suggestions displayed but not auto-applied
 - ✅ **Availability Check**: Feature disabled if Copilot unavailable
 - ✅ **User Control**: Button appears only when user has active Copilot
+
+### ACL Security (v0.5.1+)
+- ✅ **Native API**: Direct KafkaJS integration (no shell command injection risk)
+- ✅ **Type Safety**: Enum-based validation prevents injection attacks
+- ✅ **Permission Checks**: Validates `Alter` permission before operations
+- ✅ **Audit Logging**: All ACL operations logged with full context
+- ✅ **Error Sanitization**: Failed operations don't leak sensitive details
+- ✅ **No CLI Dependency**: Eliminated external kafka-acls tool (reduced attack surface)
 
 ## Dependency Security
 

@@ -5,6 +5,8 @@ import { Logger } from '../infrastructure/Logger';
 export class TopicDashboardWebview {
     private panel: vscode.WebviewPanel | undefined;
     private logger = Logger.getLogger('TopicDashboardWebview');
+    private cache: Map<string, { data: any; timestamp: number }> = new Map();
+    private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache validity
 
     constructor(
         private context: vscode.ExtensionContext,
@@ -13,6 +15,8 @@ export class TopicDashboardWebview {
 
     async show(clusterName: string, topicName: string) {
         this.logger.info(`Opening topic dashboard for ${clusterName}/${topicName}`);
+
+        const cacheKey = `${clusterName}/${topicName}`;
 
         // Create webview panel
         this.panel = vscode.window.createWebviewPanel(
@@ -28,9 +32,6 @@ export class TopicDashboardWebview {
             }
         );
 
-        // Set initial loading content
-        this.panel.webview.html = this.getLoadingHtml(topicName);
-
         // Handle panel disposal
         this.panel.onDidDispose(() => {
             this.panel = undefined;
@@ -43,13 +44,27 @@ export class TopicDashboardWebview {
             this.context.subscriptions
         );
 
-        // Load data in background
-        this.loadTopicData(clusterName, topicName);
+        // Check if we have cached data that's still valid
+        const cached = this.cache.get(cacheKey);
+        const now = Date.now();
+
+        if (cached && (now - cached.timestamp) < this.CACHE_TTL_MS) {
+            // Use cached data
+            this.logger.debug(`Using cached data for ${cacheKey} (age: ${Math.round((now - cached.timestamp) / 1000)}s)`);
+            this.updateDashboardFromCache(topicName, cached.data, cached.timestamp);
+        } else {
+            // Show loading and fetch fresh data
+            this.logger.debug(`Fetching fresh data for ${cacheKey} (cache ${cached ? 'expired' : 'missing'})`);
+            this.panel.webview.html = this.getLoadingHtml(topicName);
+            this.loadTopicData(clusterName, topicName);
+        }
     }
 
-    private async loadTopicData(clusterName: string, topicName: string) {
+    private async loadTopicData(clusterName: string, topicName: string, forceRefresh: boolean = false) {
+        const cacheKey = `${clusterName}/${topicName}`;
+
         try {
-            this.logger.debug(`Loading topic data for ${clusterName}/${topicName}`);
+            this.logger.debug(`Loading topic data for ${clusterName}/${topicName} (force: ${forceRefresh})`);
 
             // Fetch topic details, metadata, and ACLs in parallel
             const [topicDetails, topicMetadata, topicACLs] = await Promise.all([
@@ -62,8 +77,17 @@ export class TopicDashboardWebview {
             const metrics = this.calculateTopicMetrics(topicDetails);
             const partitionInfo = this.extractPartitionInfo(topicMetadata);
 
+            // Cache the data
+            const timestamp = Date.now();
+            this.cache.set(cacheKey, {
+                data: { metrics, partitionInfo, topicDetails, topicACLs },
+                timestamp
+            });
+
+            this.logger.debug(`Cached data for ${cacheKey}`);
+
             // Update webview with data
-            this.updateDashboard(topicName, metrics, partitionInfo, topicDetails, topicACLs);
+            this.updateDashboard(topicName, metrics, partitionInfo, topicDetails, topicACLs, timestamp);
 
         } catch (error: any) {
             this.logger.error(`Failed to load topic data for ${clusterName}/${topicName}`, error);
@@ -187,13 +211,22 @@ export class TopicDashboardWebview {
         };
     }
 
-    private updateDashboard(topicName: string, metrics: any, _partitionInfo: any, _topicDetails: any, acls: any[] = []) {
+    private updateDashboard(topicName: string, metrics: any, _partitionInfo: any, _topicDetails: any, acls: any[] = [], timestamp?: number) {
         if (!this.panel) {
             return;
         }
 
-        const html = this.getDashboardHtml(topicName, metrics, _partitionInfo, _topicDetails, acls);
+        const html = this.getDashboardHtml(topicName, metrics, _partitionInfo, _topicDetails, acls, timestamp);
         this.panel.webview.html = html;
+    }
+
+    private updateDashboardFromCache(topicName: string, cachedData: any, timestamp: number) {
+        if (!this.panel) {
+            return;
+        }
+
+        const { metrics, partitionInfo, topicDetails, topicACLs } = cachedData;
+        this.updateDashboard(topicName, metrics, partitionInfo, topicDetails, topicACLs, timestamp);
     }
 
     private showError(message: string) {
@@ -207,7 +240,15 @@ export class TopicDashboardWebview {
     private handleMessage(message: any, clusterName: string, topicName: string) {
         switch (message.command) {
             case 'refresh':
-                this.loadTopicData(clusterName, topicName);
+                this.logger.info(`Refreshing dashboard for ${clusterName}/${topicName}`);
+                // Clear cache entry for this topic and force refresh
+                const cacheKey = `${clusterName}/${topicName}`;
+                this.cache.delete(cacheKey);
+                // Show loading state
+                if (this.panel) {
+                    this.panel.webview.html = this.getLoadingHtml(topicName);
+                }
+                this.loadTopicData(clusterName, topicName, true);
                 break;
             case 'showLogs':
                 this.logger.show();
@@ -340,7 +381,12 @@ export class TopicDashboardWebview {
         `;
     }
 
-    private getDashboardHtml(topicName: string, metrics: any, _partitionInfo: any, _topicDetails: any, acls: any[] = []): string {
+    private getDashboardHtml(topicName: string, metrics: any, _partitionInfo: any, _topicDetails: any, acls: any[] = [], timestamp?: number): string {
+        const cacheAge = timestamp ? Math.round((Date.now() - timestamp) / 1000) : 0;
+        const cacheInfo = timestamp
+            ? `📍 Data age: ${cacheAge < 60 ? `${cacheAge}s` : `${Math.round(cacheAge / 60)}m`} | Last updated: ${new Date(timestamp).toLocaleTimeString()}`
+            : '📍 Live data';
+
         return `
             <!DOCTYPE html>
             <html>
@@ -369,6 +415,19 @@ export class TopicDashboardWebview {
                     .header h1 {
                         margin: 0;
                         color: var(--vscode-textLink-foreground);
+                    }
+                    .header-info {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 5px;
+                    }
+                    .cache-badge {
+                        font-size: 11px;
+                        color: var(--vscode-descriptionForeground);
+                        background: var(--vscode-badge-background);
+                        padding: 2px 8px;
+                        border-radius: 10px;
+                        display: inline-block;
                     }
                     .header-actions {
                         display: flex;
@@ -468,7 +527,10 @@ export class TopicDashboardWebview {
             </head>
             <body>
                 <div class="header">
-                    <h1>📊 ${topicName} Dashboard</h1>
+                    <div class="header-info">
+                        <h1>📊 ${topicName} Dashboard</h1>
+                        <span class="cache-badge">${cacheInfo}</span>
+                    </div>
                     <div class="header-actions">
                         <button onclick="refresh()">🔄 Refresh</button>
                         <button onclick="showLogs()">📝 Logs</button>
@@ -476,19 +538,19 @@ export class TopicDashboardWebview {
                 </div>
 
                 <div class="metrics-grid">
-                    <div class="metric-card">
+                    <div class="metric-card" title="Sum of all messages across all partitions in this topic" style="cursor: help;">
                         <div class="metric-value">${metrics.totalMessages.toLocaleString()}</div>
                         <div class="metric-label">Total Messages</div>
                     </div>
-                    <div class="metric-card">
+                    <div class="metric-card" title="Number of partitions in this topic (higher = more parallelism for consumers)" style="cursor: help;">
                         <div class="metric-value">${metrics.partitionCount}</div>
                         <div class="metric-label">Partitions</div>
                     </div>
-                    <div class="metric-card">
+                    <div class="metric-card" title="Number of replicas for each partition (higher = more fault tolerance)" style="cursor: help;">
                         <div class="metric-value">${metrics.replicationFactor}</div>
                         <div class="metric-label">Replication Factor</div>
                     </div>
-                    <div class="metric-card">
+                    <div class="metric-card" title="Average number of messages per partition (total messages / partition count)" style="cursor: help;">
                         <div class="metric-value">${metrics.partitions.length > 0 ?
                             Math.round(metrics.totalMessages / metrics.partitionCount).toLocaleString() : 0}</div>
                         <div class="metric-label">Avg Messages/Partition</div>
@@ -497,39 +559,39 @@ export class TopicDashboardWebview {
 
                 <div class="charts-row">
                     <div class="chart-container">
-                        <div class="chart-title">📈 Message Distribution Over Partitions</div>
+                        <div class="chart-title" title="Shows how messages are distributed across partitions (hover over bars for details)" style="cursor: help;">📈 Message Distribution Over Partitions</div>
                         <canvas id="partitionChart" width="400" height="200"></canvas>
                     </div>
 
                     <div class="chart-container">
-                        <div class="chart-title">🔄 Replica Distribution</div>
+                        <div class="chart-title" title="Shows how replicas are distributed across brokers for fault tolerance" style="cursor: help;">🔄 Replica Distribution</div>
                         <canvas id="replicaChart" width="400" height="200"></canvas>
                     </div>
                 </div>
 
                 <div class="partitions-table">
-                    <div class="table-header">Partition Details</div>
+                    <div class="table-header" title="Detailed information about each partition in this topic" style="cursor: help;">Partition Details</div>
                     ${metrics.partitions.map((p: any) => `
                         <div class="table-row">
-                            <div class="partition-id">Partition ${p.id}</div>
-                            <div class="leader-info">Leader: ${p.leader}</div>
-                            <div class="leader-info">Replicas: ${p.replicas.join(', ')}</div>
-                            <div class="message-count">${p.messageCount.toLocaleString()} messages</div>
+                            <div class="partition-id" title="Partition identifier within the topic">Partition ${p.id}</div>
+                            <div class="leader-info" title="Broker ID that is the leader for this partition">Leader: ${p.leader}</div>
+                            <div class="leader-info" title="Broker IDs that store replicas of this partition">Replicas: ${p.replicas.join(', ')}</div>
+                            <div class="message-count" title="Total number of messages in this partition">${p.messageCount.toLocaleString()} messages</div>
                         </div>
                     `).join('')}
                 </div>
 
                 ${acls.length > 0 ? `
                 <div class="partitions-table" style="margin-top: 30px;">
-                    <div class="table-header">🔒 Access Control Lists (ACLs)</div>
+                    <div class="table-header" title="Access control rules that define who can perform operations on this topic" style="cursor: help;">🔒 Access Control Lists (ACLs)</div>
                     ${acls.map((acl: any) => {
                         const icon = acl.permissionType?.toLowerCase() === 'allow' ? '✓' : '✗';
                         const color = acl.permissionType?.toLowerCase() === 'allow' ? '#4caf50' : '#f44336';
                         const principal = acl.principal?.replace('User:', '') || 'Unknown';
                         return `
-                        <div class="table-row">
+                        <div class="table-row" title="ACL: ${principal} can ${acl.operation} from ${acl.host || '*'}">
                             <div style="display: flex; align-items: center; gap: 10px;">
-                                <span style="color: ${color}; font-weight: bold; font-size: 18px;">${icon}</span>
+                                <span style="color: ${color}; font-weight: bold; font-size: 18px;" title="${acl.permissionType} permission">${icon}</span>
                                 <div>
                                     <div style="font-weight: bold;">${principal} → ${acl.operation || 'Unknown'}</div>
                                     <div style="font-size: 11px; color: var(--vscode-descriptionForeground);">
@@ -543,7 +605,7 @@ export class TopicDashboardWebview {
                 </div>
                 ` : `
                 <div class="partitions-table" style="margin-top: 30px;">
-                    <div class="table-header">🔒 Access Control Lists (ACLs)</div>
+                    <div class="table-header" title="No access control rules are configured for this topic" style="cursor: help;">🔒 Access Control Lists (ACLs)</div>
                     <div class="table-row">
                         <div style="text-align: center; padding: 20px; color: var(--vscode-descriptionForeground);">
                             No ACLs configured for this topic, or ACL management CLI tool is not available.

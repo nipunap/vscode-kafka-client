@@ -115,13 +115,23 @@
       },
       {
         "command": "kafka.produceMessage",
-        "title": "Produce Message",
+        "title": "Produce Message (Quick)",
         "icon": "$(export)"
+      },
+      {
+        "command": "kafka.produceMessageWithForm",
+        "title": "Produce Message (Form)",
+        "icon": "$(edit)"
       },
       {
         "command": "kafka.consumeMessages",
         "title": "Consume Messages",
         "icon": "$(inbox)"
+      },
+      {
+        "command": "kafka.streamMessages",
+        "title": "Stream Messages (Real-time)",
+        "icon": "$(radio-tower)"
       },
       {
         "command": "kafka.viewConsumerGroup",
@@ -309,9 +319,19 @@
           "group": "2_actions@1"
         },
         {
-          "command": "kafka.consumeMessages",
+          "command": "kafka.produceMessageWithForm",
           "when": "view == kafkaExplorer && viewItem == topic",
           "group": "2_actions@2"
+        },
+        {
+          "command": "kafka.consumeMessages",
+          "when": "view == kafkaExplorer && viewItem == topic",
+          "group": "2_actions@3"
+        },
+        {
+          "command": "kafka.streamMessages",
+          "when": "view == kafkaExplorer && viewItem == topic",
+          "group": "2_actions@4"
         },
         {
           "command": "kafka.showTopicDashboard",

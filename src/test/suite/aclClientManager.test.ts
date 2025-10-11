@@ -2,15 +2,26 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { KafkaClientManager } from '../../kafka/kafkaClientManager';
 import { ACL, ACLConfig } from '../../types/acl';
+import { AclResourceTypes, AclOperationTypes, AclPermissionTypes, ResourcePatternTypes } from 'kafkajs';
 
 suite('ACL Client Manager Test Suite', () => {
     let clientManager: KafkaClientManager;
     let sandbox: sinon.SinonSandbox;
+    let mockAdmin: any;
 
     setup(() => {
         sandbox = sinon.createSandbox();
-        // Create a real KafkaClientManager instance for testing
         clientManager = new KafkaClientManager();
+
+        // Mock admin client
+        mockAdmin = {
+            describeAcls: sandbox.stub(),
+            createAcls: sandbox.stub(),
+            deleteAcls: sandbox.stub()
+        };
+
+        // Mock getAdmin to return our mock admin
+        sandbox.stub(clientManager as any, 'getAdmin').resolves(mockAdmin);
     });
 
     teardown(() => {
@@ -18,49 +29,85 @@ suite('ACL Client Manager Test Suite', () => {
     });
 
     suite('getACLs', () => {
-        test('should throw error indicating CLI tool requirement', async () => {
+        test('should fetch ACLs from Kafka and transform them', async () => {
+            const mockKafkaACLs = {
+                resources: [
+                    {
+                        resourceType: AclResourceTypes.TOPIC,
+                        resourceName: 'test-topic',
+                        resourcePatternType: ResourcePatternTypes.LITERAL,
+                        acls: [
+                            {
+                                principal: 'User:testuser',
+                                host: '*',
+                                operation: AclOperationTypes.READ,
+                                permissionType: AclPermissionTypes.ALLOW
+                            }
+                        ]
+                    }
+                ]
+            };
+
+            mockAdmin.describeAcls.resolves(mockKafkaACLs);
+
+            const acls = await clientManager.getACLs('test-cluster');
+
+            assert.strictEqual(acls.length, 1);
+            assert.strictEqual(acls[0].resourceType, 'topic');
+            assert.strictEqual(acls[0].resourceName, 'test-topic');
+            assert.strictEqual(acls[0].principal, 'User:testuser');
+            assert.strictEqual(acls[0].operation, 'Read');
+            assert.strictEqual(acls[0].permissionType, 'allow');
+        });
+
+        test('should handle multiple ACLs', async () => {
+            const mockKafkaACLs = {
+                resources: [
+                    {
+                        resourceType: AclResourceTypes.TOPIC,
+                        resourceName: 'test-topic',
+                        resourcePatternType: ResourcePatternTypes.LITERAL,
+                        acls: [
+                            {
+                                principal: 'User:user1',
+                                host: '*',
+                                operation: AclOperationTypes.READ,
+                                permissionType: AclPermissionTypes.ALLOW
+                            },
+                            {
+                                principal: 'User:user2',
+                                host: '*',
+                                operation: AclOperationTypes.WRITE,
+                                permissionType: AclPermissionTypes.DENY
+                            }
+                        ]
+                    }
+                ]
+            };
+
+            mockAdmin.describeAcls.resolves(mockKafkaACLs);
+
+            const acls = await clientManager.getACLs('test-cluster');
+
+            assert.strictEqual(acls.length, 2);
+            assert.strictEqual(acls[0].principal, 'User:user1');
+            assert.strictEqual(acls[1].principal, 'User:user2');
+        });
+
+        test('should handle errors from Kafka admin API', async () => {
+            mockAdmin.describeAcls.rejects(new Error('Connection failed'));
+
             try {
                 await clientManager.getACLs('test-cluster');
                 assert.fail('Should have thrown an error');
-            } catch (_error: any) {
-                assert.ok(_error.message.includes('ACL management requires kafka-acls CLI tool'));
-                assert.ok(_error.message.includes('Use the ACL Help command for guidance'));
+            } catch (error: any) {
+                assert.strictEqual(error.message, 'Connection failed');
             }
-        });
-
-        test('should log debug message about ACL management requirements', async () => {
-            const loggerStub = sandbox.stub();
-            (clientManager as any).logger = { debug: loggerStub };
-
-            try {
-                await clientManager.getACLs('test-cluster');
-            } catch (_error) {
-                // Expected to throw
-            }
-
-            assert.ok(loggerStub.calledOnce);
-            const debugMessage = loggerStub.firstCall.args[0];
-            assert.ok(debugMessage.includes('ACL management not available'));
-        });
-
-        test('should include cluster name in debug log', async () => {
-            const loggerStub = sandbox.stub();
-            (clientManager as any).logger = { debug: loggerStub };
-
-            try {
-                await clientManager.getACLs('test-cluster');
-            } catch (_error) {
-                // Expected to throw
-            }
-
-            assert.ok(loggerStub.calledOnce);
-            const debugMessage = loggerStub.firstCall.args[0];
-            assert.ok(debugMessage.includes('test-cluster'));
         });
     });
 
     suite('createACL', () => {
-        test('should throw error indicating CLI tool requirement', async () => {
+        test('should create ACL using Kafka admin API', async () => {
             const aclConfig: ACLConfig = {
                 principal: 'User:testuser',
                 operation: 'Read',
@@ -69,50 +116,32 @@ suite('ACL Client Manager Test Suite', () => {
                 permissionType: 'allow'
             };
 
-            try {
-                await clientManager.createACL('test-cluster', aclConfig);
-                assert.fail('Should have thrown an error');
-            } catch (_error: any) {
-                assert.ok(_error.message.includes('ACL management requires kafka-acls CLI tool'));
-                assert.ok(_error.message.includes('Use the ACL Help command for guidance'));
-            }
-        });
+            mockAdmin.createAcls.resolves();
 
-        test('should log debug message about ACL creation requirements', async () => {
-            const loggerStub = sandbox.stub();
-            (clientManager as any).logger = { debug: loggerStub };
+            await clientManager.createACL('test-cluster', aclConfig);
 
-            const aclConfig: ACLConfig = {
-                principal: 'User:testuser',
-                operation: 'Read',
-                resourceType: 'topic',
-                resourceName: 'test-topic',
-                permissionType: 'allow'
-            };
-
-            try {
-                await clientManager.createACL('test-cluster', aclConfig);
-            } catch (_error) {
-                // Expected to throw
-            }
-
-            assert.ok(loggerStub.calledOnce);
-            const debugMessage = loggerStub.firstCall.args[0];
-            assert.ok(debugMessage.includes('ACL creation not available'));
+            assert.ok(mockAdmin.createAcls.calledOnce);
+            const callArgs = mockAdmin.createAcls.firstCall.args[0];
+            assert.strictEqual(callArgs.acl.length, 1);
+            assert.strictEqual(callArgs.acl[0].resourceType, AclResourceTypes.TOPIC);
+            assert.strictEqual(callArgs.acl[0].resourceName, 'test-topic');
+            assert.strictEqual(callArgs.acl[0].principal, 'User:testuser');
+            assert.strictEqual(callArgs.acl[0].operation, AclOperationTypes.READ);
+            assert.strictEqual(callArgs.acl[0].permissionType, AclPermissionTypes.ALLOW);
         });
 
         test('should handle different ACL configurations', async () => {
             const configs: ACLConfig[] = [
                 {
                     principal: 'User:user1',
-                    operation: 'Read',
+                    operation: 'Write',
                     resourceType: 'topic',
                     resourceName: 'topic1',
                     permissionType: 'allow'
                 },
                 {
-                    principal: 'Group:group1',
-                    operation: 'Write',
+                    principal: 'User:user2',
+                    operation: 'All',
                     resourceType: 'group',
                     resourceName: 'group1',
                     permissionType: 'deny',
@@ -121,55 +150,80 @@ suite('ACL Client Manager Test Suite', () => {
                 }
             ];
 
+            mockAdmin.createAcls.resolves();
+
             for (const config of configs) {
-                try {
-                    await clientManager.createACL('test-cluster', config);
-                    assert.fail('Should have thrown an error');
-                } catch (_error: any) {
-                    assert.ok(_error.message.includes('ACL management requires kafka-acls CLI tool'));
-                }
+                await clientManager.createACL('test-cluster', config);
+            }
+
+            assert.strictEqual(mockAdmin.createAcls.callCount, 2);
+        });
+
+        test('should handle errors from Kafka admin API', async () => {
+            const aclConfig: ACLConfig = {
+                principal: 'User:testuser',
+                operation: 'Read',
+                resourceType: 'topic',
+                resourceName: 'test-topic',
+                permissionType: 'allow'
+            };
+
+            mockAdmin.createAcls.rejects(new Error('Authorization failed'));
+
+            try {
+                await clientManager.createACL('test-cluster', aclConfig);
+                assert.fail('Should have thrown an error');
+            } catch (error: any) {
+                assert.strictEqual(error.message, 'Authorization failed');
             }
         });
     });
 
     suite('deleteACL', () => {
-        test('should throw error indicating CLI tool requirement', async () => {
+        test('should delete ACL using Kafka admin API', async () => {
             const aclConfig = {
                 principal: 'User:testuser',
                 operation: 'Read',
                 resourceType: 'topic',
                 resourceName: 'test-topic'
             };
+
+            mockAdmin.deleteAcls.resolves({
+                filterResponses: [
+                    {
+                        matchingAcls: [
+                            { principal: 'User:testuser' }
+                        ]
+                    }
+                ]
+            });
+
+            await clientManager.deleteACL('test-cluster', aclConfig);
+
+            assert.ok(mockAdmin.deleteAcls.calledOnce);
+            const callArgs = mockAdmin.deleteAcls.firstCall.args[0];
+            assert.strictEqual(callArgs.filters.length, 1);
+            assert.strictEqual(callArgs.filters[0].resourceType, AclResourceTypes.TOPIC);
+            assert.strictEqual(callArgs.filters[0].resourceName, 'test-topic');
+            assert.strictEqual(callArgs.filters[0].principal, 'User:testuser');
+        });
+
+        test('should handle errors from Kafka admin API', async () => {
+            const aclConfig = {
+                principal: 'User:testuser',
+                operation: 'Read',
+                resourceType: 'topic',
+                resourceName: 'test-topic'
+            };
+
+            mockAdmin.deleteAcls.rejects(new Error('Not found'));
 
             try {
                 await clientManager.deleteACL('test-cluster', aclConfig);
                 assert.fail('Should have thrown an error');
-            } catch (_error: any) {
-                assert.ok(_error.message.includes('ACL management requires kafka-acls CLI tool'));
-                assert.ok(_error.message.includes('Use the ACL Help command for guidance'));
+            } catch (error: any) {
+                assert.strictEqual(error.message, 'Not found');
             }
-        });
-
-        test('should log debug message about ACL deletion requirements', async () => {
-            const loggerStub = sandbox.stub();
-            (clientManager as any).logger = { debug: loggerStub };
-
-            const aclConfig = {
-                principal: 'User:testuser',
-                operation: 'Read',
-                resourceType: 'topic',
-                resourceName: 'test-topic'
-            };
-
-            try {
-                await clientManager.deleteACL('test-cluster', aclConfig);
-            } catch (_error) {
-                // Expected to throw
-            }
-
-            assert.ok(loggerStub.calledOnce);
-            const debugMessage = loggerStub.firstCall.args[0];
-            assert.ok(debugMessage.includes('ACL deletion not available'));
         });
     });
 
@@ -257,47 +311,81 @@ suite('ACL Client Manager Test Suite', () => {
         });
     });
 
-    suite('Error Handling', () => {
-        test('should handle errors in getACLs gracefully', async () => {
-            try {
-                await clientManager.getACLs('test-cluster');
-                assert.fail('Should have thrown an error');
-            } catch (_error: any) {
-                assert.ok(_error.message.includes('ACL management requires kafka-acls CLI tool'));
-            }
-        });
-
-        test('should handle errors in createACL gracefully', async () => {
-            const aclConfig: ACLConfig = {
-                principal: 'User:testuser',
-                operation: 'Read',
-                resourceType: 'topic',
-                resourceName: 'test-topic',
-                permissionType: 'allow'
+    suite('Type Mapping', () => {
+        test('should correctly map resource types', async () => {
+            const mockKafkaACLs = {
+                resources: [
+                    {
+                        resourceType: AclResourceTypes.TOPIC,
+                        resourceName: 'test',
+                        resourcePatternType: ResourcePatternTypes.LITERAL,
+                        acls: [{
+                            principal: 'User:test',
+                            host: '*',
+                            operation: AclOperationTypes.READ,
+                            permissionType: AclPermissionTypes.ALLOW
+                        }]
+                    },
+                    {
+                        resourceType: AclResourceTypes.GROUP,
+                        resourceName: 'test',
+                        resourcePatternType: ResourcePatternTypes.LITERAL,
+                        acls: [{
+                            principal: 'User:test',
+                            host: '*',
+                            operation: AclOperationTypes.READ,
+                            permissionType: AclPermissionTypes.ALLOW
+                        }]
+                    }
+                ]
             };
 
-            try {
-                await clientManager.createACL('test-cluster', aclConfig);
-                assert.fail('Should have thrown an error');
-            } catch (_error: any) {
-                assert.ok(_error.message.includes('ACL management requires kafka-acls CLI tool'));
-            }
+            mockAdmin.describeAcls.resolves(mockKafkaACLs);
+
+            const acls = await clientManager.getACLs('test-cluster');
+
+            assert.strictEqual(acls[0].resourceType, 'topic');
+            assert.strictEqual(acls[1].resourceType, 'group');
         });
 
-        test('should handle errors in deleteACL gracefully', async () => {
-            const aclConfig = {
-                principal: 'User:testuser',
-                operation: 'Read',
-                resourceType: 'topic',
-                resourceName: 'test-topic'
+        test('should correctly map operations', async () => {
+            const mockKafkaACLs = {
+                resources: [
+                    {
+                        resourceType: AclResourceTypes.TOPIC,
+                        resourceName: 'test',
+                        resourcePatternType: ResourcePatternTypes.LITERAL,
+                        acls: [
+                            {
+                                principal: 'User:test',
+                                host: '*',
+                                operation: AclOperationTypes.READ,
+                                permissionType: AclPermissionTypes.ALLOW
+                            },
+                            {
+                                principal: 'User:test',
+                                host: '*',
+                                operation: AclOperationTypes.WRITE,
+                                permissionType: AclPermissionTypes.ALLOW
+                            },
+                            {
+                                principal: 'User:test',
+                                host: '*',
+                                operation: AclOperationTypes.ALL,
+                                permissionType: AclPermissionTypes.ALLOW
+                            }
+                        ]
+                    }
+                ]
             };
 
-            try {
-                await clientManager.deleteACL('test-cluster', aclConfig);
-                assert.fail('Should have thrown an error');
-            } catch (_error: any) {
-                assert.ok(_error.message.includes('ACL management requires kafka-acls CLI tool'));
-            }
+            mockAdmin.describeAcls.resolves(mockKafkaACLs);
+
+            const acls = await clientManager.getACLs('test-cluster');
+
+            assert.strictEqual(acls[0].operation, 'Read');
+            assert.strictEqual(acls[1].operation, 'Write');
+            assert.strictEqual(acls[2].operation, 'All');
         });
     });
 
