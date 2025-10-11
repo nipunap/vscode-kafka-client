@@ -309,6 +309,11 @@
           "group": "2_acl@1"
         },
         {
+          "command": "kafka.deleteACL",
+          "when": "view == kafkaExplorer && viewItem == cluster",
+          "group": "2_acl@2"
+        },
+        {
           "command": "kafka.exportTopics",
           "when": "view == kafkaExplorer && viewItem == cluster",
           "group": "3_export@1"

@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { Logger } from './Logger';
+import { KafkaErrorClassifier } from '../utils/kafkaErrorClassifier';
 
 export class ErrorHandler {
     private static logger = Logger.getLogger('ErrorHandler');
@@ -10,11 +11,29 @@ export class ErrorHandler {
     static handle(error: any, context: string): void {
         const message = this.formatError(error, context);
 
-        // Log for debugging
-        this.logger.error(`${context}: ${error?.message || error}`, error);
+        // Use KafkaErrorClassifier to determine appropriate log level
+        const logLevel = KafkaErrorClassifier.getLogLevel(error);
+        if (logLevel === 'warn') {
+            this.logger.warn(`${context}: ${error?.message || error}`);
+        } else {
+            this.logger.error(`${context}: ${error?.message || error}`, error);
+        }
 
         // Show appropriate UI based on error type
-        if (this.isCredentialError(error)) {
+        // Check if this is an expected error (authorization disabled)
+        if (KafkaErrorClassifier.isExpectedError(error)) {
+            vscode.window.showWarningMessage(
+                message,
+                'Learn About ACLs',
+                'Show Logs'
+            )?.then(action => {
+                if (action === 'Learn About ACLs') {
+                    vscode.env.openExternal(vscode.Uri.parse('https://kafka.apache.org/documentation/#security_authz'));
+                } else if (action === 'Show Logs') {
+                    this.logger.show();
+                }
+            });
+        } else if (this.isCredentialError(error)) {
             vscode.window.showErrorMessage(
                 message,
                 'View AWS Credentials',
