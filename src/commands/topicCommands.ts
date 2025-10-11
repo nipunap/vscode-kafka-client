@@ -313,6 +313,99 @@ export async function showTopicDashboard(
 }
 
 /**
+ * Export all topics from a cluster to a file
+ */
+export async function exportTopics(clientManager: KafkaClientManager, node: ClusterNode) {
+    await ErrorHandler.wrap(
+        async () => {
+            // Get format choice
+            const format = await vscode.window.showQuickPick(
+                [
+                    { label: 'JSON', description: 'Export as JSON format', value: 'json' },
+                    { label: 'CSV', description: 'Export as comma-separated values', value: 'csv' },
+                    { label: 'Plain Text', description: 'Export as line-separated text', value: 'txt' }
+                ],
+                {
+                    placeHolder: 'Select export format',
+                    ignoreFocusOut: true
+                }
+            );
+
+            if (!format) {
+                return;
+            }
+
+            // Get topics with progress
+            const topics = await vscode.window.withProgress(
+                {
+                    location: vscode.ProgressLocation.Notification,
+                    title: `Loading topics from ${node.clusterName}...`,
+                    cancellable: false
+                },
+                async () => {
+                    return await clientManager.getTopics(node.clusterName);
+                }
+            );
+
+            if (!topics || topics.length === 0) {
+                vscode.window.showInformationMessage(`No topics found in cluster "${node.clusterName}"`);
+                return;
+            }
+
+            // Generate content based on format
+            let content: string;
+            let fileExtension: string;
+
+            switch (format.value) {
+                case 'json':
+                    content = JSON.stringify({
+                        cluster: node.clusterName,
+                        exportDate: new Date().toISOString(),
+                        topicCount: topics.length,
+                        topics: topics
+                    }, null, 2);
+                    fileExtension = 'json';
+                    break;
+                case 'csv':
+                    content = `Cluster,Topic Name\n`;
+                    content += topics.map(topic => `"${node.clusterName}","${topic}"`).join('\n');
+                    fileExtension = 'csv';
+                    break;
+                default: // txt
+                    content = `Cluster: ${node.clusterName}\n`;
+                    content += `Export Date: ${new Date().toISOString()}\n`;
+                    content += `Total Topics: ${topics.length}\n\n`;
+                    content += topics.join('\n');
+                    fileExtension = 'txt';
+            }
+
+            // Save file
+            const uri = await vscode.window.showSaveDialog({
+                defaultUri: vscode.Uri.file(`${node.clusterName}-topics-${Date.now()}.${fileExtension}`),
+                filters: {
+                    'All Files': ['*'],
+                    ...(format.value === 'json' && { 'JSON': ['json'] }),
+                    ...(format.value === 'csv' && { 'CSV': ['csv'] }),
+                    ...(format.value === 'txt' && { 'Text': ['txt'] })
+                }
+            });
+
+            if (uri) {
+                await vscode.workspace.fs.writeFile(uri, Buffer.from(content, 'utf8'));
+                const action = await vscode.window.showInformationMessage(
+                    `Exported ${topics.length} topics to ${uri.fsPath}`,
+                    'Open File'
+                );
+                if (action === 'Open File') {
+                    await vscode.window.showTextDocument(uri);
+                }
+            }
+        },
+        `Exporting topics from cluster "${node.clusterName}"`
+    );
+}
+
+/**
  * Show ACL details for a specific topic ACL
  */
 export async function showTopicACLDetails(clientManager: KafkaClientManager, node: { clusterName: string; topicName?: string; acl: ACL }, context?: vscode.ExtensionContext): Promise<void> {

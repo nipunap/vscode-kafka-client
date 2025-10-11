@@ -224,6 +224,16 @@
         "icon": "$(dashboard)"
       },
       {
+        "command": "kafka.exportTopics",
+        "title": "Export Topics to File",
+        "icon": "$(export)"
+      },
+      {
+        "command": "kafka.exportConsumerGroups",
+        "title": "Export Consumer Groups to File",
+        "icon": "$(export)"
+      },
+      {
         "command": "kafka.showTopicACLDetails",
         "title": "Show Topic ACL Details",
         "icon": "$(info)"
@@ -292,6 +302,16 @@
           "command": "kafka.showClusterDashboard",
           "when": "view == kafkaExplorer && viewItem == cluster",
           "group": "0_info@1"
+        },
+        {
+          "command": "kafka.exportTopics",
+          "when": "view == kafkaExplorer && viewItem == cluster",
+          "group": "3_export@1"
+        },
+        {
+          "command": "kafka.exportConsumerGroups",
+          "when": "view == kafkaExplorer && viewItem == cluster",
+          "group": "3_export@2"
         },
         {
           "command": "kafka.removeCluster",

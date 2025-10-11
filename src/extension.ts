@@ -313,6 +313,14 @@ export async function activate(context: vscode.ExtensionContext) {
             await clusterDashboardCommands.showClusterDashboard(clientManager, context, node);
         }),
 
+        vscode.commands.registerCommand('kafka.exportTopics', async (node) => {
+            await topicCommands.exportTopics(clientManager, node);
+        }),
+
+        vscode.commands.registerCommand('kafka.exportConsumerGroups', async (node) => {
+            await consumerGroupCommands.exportConsumerGroups(clientManager, node);
+        }),
+
         vscode.commands.registerCommand('kafka.showTopicDashboard', async (node) => {
             await topicCommands.showTopicDashboard(clientManager, context, node);
         }),

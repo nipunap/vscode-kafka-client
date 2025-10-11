@@ -358,3 +358,105 @@ export async function findConsumerGroup(clientManager: KafkaClientManager, conte
         vscode.window.showErrorMessage(`Failed to search consumer groups: ${errorMsg}`);
     }
 }
+
+/**
+ * Export all consumer groups from a cluster to a file
+ */
+export async function exportConsumerGroups(clientManager: KafkaClientManager, node: any) {
+    await ErrorHandler.wrap(
+        async () => {
+            // Get format choice
+            const format = await vscode.window.showQuickPick(
+                [
+                    { label: 'JSON', description: 'Export as JSON format with full details', value: 'json' },
+                    { label: 'CSV', description: 'Export as comma-separated values', value: 'csv' },
+                    { label: 'Plain Text', description: 'Export as line-separated text', value: 'txt' }
+                ],
+                {
+                    placeHolder: 'Select export format',
+                    ignoreFocusOut: true
+                }
+            );
+
+            if (!format) {
+                return;
+            }
+
+            // Get consumer groups with progress
+            const groups = await vscode.window.withProgress(
+                {
+                    location: vscode.ProgressLocation.Notification,
+                    title: `Loading consumer groups from ${node.clusterName}...`,
+                    cancellable: false
+                },
+                async () => {
+                    return await clientManager.getConsumerGroups(node.clusterName);
+                }
+            );
+
+            if (!groups || groups.length === 0) {
+                vscode.window.showInformationMessage(`No consumer groups found in cluster "${node.clusterName}"`);
+                return;
+            }
+
+            // Generate content based on format
+            let content: string;
+            let fileExtension: string;
+
+            switch (format.value) {
+                case 'json':
+                    content = JSON.stringify({
+                        cluster: node.clusterName,
+                        exportDate: new Date().toISOString(),
+                        consumerGroupCount: groups.length,
+                        consumerGroups: groups.map(g => ({
+                            groupId: g.groupId,
+                            state: g.state || 'Unknown',
+                            protocolType: g.protocolType || 'N/A',
+                            protocol: g.protocol || 'N/A'
+                        }))
+                    }, null, 2);
+                    fileExtension = 'json';
+                    break;
+                case 'csv':
+                    content = `Cluster,Group ID,State,Protocol Type,Protocol\n`;
+                    content += groups.map(g =>
+                        `"${node.clusterName}","${g.groupId}","${g.state || 'Unknown'}","${g.protocolType || 'N/A'}","${g.protocol || 'N/A'}"`
+                    ).join('\n');
+                    fileExtension = 'csv';
+                    break;
+                default: // txt
+                    content = `Cluster: ${node.clusterName}\n`;
+                    content += `Export Date: ${new Date().toISOString()}\n`;
+                    content += `Total Consumer Groups: ${groups.length}\n\n`;
+                    content += groups.map(g =>
+                        `${g.groupId} (State: ${g.state || 'Unknown'})`
+                    ).join('\n');
+                    fileExtension = 'txt';
+            }
+
+            // Save file
+            const uri = await vscode.window.showSaveDialog({
+                defaultUri: vscode.Uri.file(`${node.clusterName}-consumer-groups-${Date.now()}.${fileExtension}`),
+                filters: {
+                    'All Files': ['*'],
+                    ...(format.value === 'json' && { 'JSON': ['json'] }),
+                    ...(format.value === 'csv' && { 'CSV': ['csv'] }),
+                    ...(format.value === 'txt' && { 'Text': ['txt'] })
+                }
+            });
+
+            if (uri) {
+                await vscode.workspace.fs.writeFile(uri, Buffer.from(content, 'utf8'));
+                const action = await vscode.window.showInformationMessage(
+                    `Exported ${groups.length} consumer groups to ${uri.fsPath}`,
+                    'Open File'
+                );
+                if (action === 'Open File') {
+                    await vscode.window.showTextDocument(uri);
+                }
+            }
+        },
+        `Exporting consumer groups from cluster "${node.clusterName}"`
+    );
+}
