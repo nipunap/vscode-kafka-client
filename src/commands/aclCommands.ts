@@ -275,16 +275,32 @@ export async function findACL(clientManager: KafkaClientManager): Promise<void> 
     }
 }
 
-export async function showACLHelp(_clientManager: KafkaClientManager): Promise<void> {
+export async function showACLHelp(_clientManager: KafkaClientManager, context?: vscode.ExtensionContext): Promise<void> {
     try {
         const helpContent = DocumentationService.getACLHelpContent();
 
-        const doc = await vscode.workspace.openTextDocument({
-            content: helpContent,
-            language: 'html'
-        });
+        // If no context provided, fall back to text document
+        if (!context) {
+            const doc = await vscode.workspace.openTextDocument({
+                content: helpContent,
+                language: 'html'
+            });
+            await vscode.window.showTextDocument(doc);
+            return;
+        }
 
-        await vscode.window.showTextDocument(doc);
+        // Create webview panel for proper HTML rendering
+        const panel = vscode.window.createWebviewPanel(
+            'aclHelp',
+            '🔒 ACL Help & Documentation',
+            vscode.ViewColumn.One,
+            {
+                enableScripts: false,
+                retainContextWhenHidden: true
+            }
+        );
+
+        panel.webview.html = helpContent;
     } catch (error: any) {
         ErrorHandler.handle(error, 'showACLHelp');
     }

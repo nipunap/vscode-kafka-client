@@ -304,6 +304,11 @@
           "group": "0_info@1"
         },
         {
+          "command": "kafka.createACL",
+          "when": "view == kafkaExplorer && viewItem == cluster",
+          "group": "2_acl@1"
+        },
+        {
           "command": "kafka.exportTopics",
           "when": "view == kafkaExplorer && viewItem == cluster",
           "group": "3_export@1"

@@ -304,7 +304,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.showACLHelp', async () => {
-            await aclCommands.showACLHelp(clientManager);
+            await aclCommands.showACLHelp(clientManager, context);
         })
     );
 
