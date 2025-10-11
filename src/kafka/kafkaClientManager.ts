@@ -792,7 +792,16 @@ export class KafkaClientManager {
             this.logger.info(`Retrieved ${acls.length} ACLs for cluster ${clusterName}`);
             return acls;
         } catch (error: any) {
-            this.logger.error(`Failed to fetch ACLs for cluster ${clusterName}`, error);
+            // Check if this is an expected error (ACLs disabled on cluster)
+            const errorMessage = error?.message || '';
+            if (errorMessage.includes('Security features are disabled') ||
+                errorMessage.includes('SECURITY_DISABLED') ||
+                errorMessage.includes('Authorization is not enabled')) {
+                this.logger.warn(`ACLs not available for cluster ${clusterName}: ${errorMessage}`);
+            } else {
+                // Log unexpected errors at ERROR level
+                this.logger.error(`Failed to fetch ACLs for cluster ${clusterName}`, error);
+            }
             throw error;
         }
     }
@@ -816,7 +825,16 @@ export class KafkaClientManager {
 
             this.logger.info(`Successfully created ACL for cluster ${clusterName}`);
         } catch (error: any) {
-            this.logger.error(`Failed to create ACL for cluster ${clusterName}`, error);
+            // Check if this is an expected error (ACLs disabled on cluster)
+            const errorMessage = error?.message || '';
+            if (errorMessage.includes('Security features are disabled') ||
+                errorMessage.includes('SECURITY_DISABLED') ||
+                errorMessage.includes('Authorization is not enabled')) {
+                this.logger.warn(`Cannot create ACL - authorization not enabled on cluster ${clusterName}: ${errorMessage}`);
+            } else {
+                // Log unexpected errors at ERROR level
+                this.logger.error(`Failed to create ACL for cluster ${clusterName}`, error);
+            }
             throw error;
         }
     }
@@ -843,7 +861,16 @@ export class KafkaClientManager {
 
             this.logger.info(`Successfully deleted ${deletedCount} ACL(s) for cluster ${clusterName}`);
         } catch (error: any) {
-            this.logger.error(`Failed to delete ACL for cluster ${clusterName}`, error);
+            // Check if this is an expected error (ACLs disabled on cluster)
+            const errorMessage = error?.message || '';
+            if (errorMessage.includes('Security features are disabled') ||
+                errorMessage.includes('SECURITY_DISABLED') ||
+                errorMessage.includes('Authorization is not enabled')) {
+                this.logger.warn(`Cannot delete ACL - authorization not enabled on cluster ${clusterName}: ${errorMessage}`);
+            } else {
+                // Log unexpected errors at ERROR level
+                this.logger.error(`Failed to delete ACL for cluster ${clusterName}`, error);
+            }
             throw error;
         }
     }
