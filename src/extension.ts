@@ -229,13 +229,13 @@ export async function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.findTopic', async () => {
-            await topicCommands.findTopic(clientManager);
+            await topicCommands.findTopic(clientManager, context);
         })
     );
 
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.findConsumerGroup', async () => {
-            await consumerGroupCommands.findConsumerGroup(clientManager);
+            await consumerGroupCommands.findConsumerGroup(clientManager, context);
         })
     );
 

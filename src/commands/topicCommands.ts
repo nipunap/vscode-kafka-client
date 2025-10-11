@@ -220,7 +220,7 @@ export async function showTopicDetails(clientManager: KafkaClientManager, node: 
 /**
  * Find/search for a topic across all clusters
  */
-export async function findTopic(clientManager: KafkaClientManager) {
+export async function findTopic(clientManager: KafkaClientManager, context?: vscode.ExtensionContext) {
     await ErrorHandler.wrap(
         async () => {
             const clusters = clientManager.getClusters();
@@ -283,11 +283,11 @@ export async function findTopic(clientManager: KafkaClientManager) {
             );
 
             if (selectedTopic) {
-                // Show topic details
+                // Show topic details with HTML webview
                 await showTopicDetails(clientManager, {
                     clusterName: selectedCluster,
                     topicName: selectedTopic.label
-                });
+                }, context);
             }
         },
         'Searching for topics'

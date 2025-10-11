@@ -269,7 +269,7 @@ export async function resetConsumerGroupOffsets(clientManager: KafkaClientManage
 /**
  * Find/search for a consumer group across all clusters
  */
-export async function findConsumerGroup(clientManager: KafkaClientManager) {
+export async function findConsumerGroup(clientManager: KafkaClientManager, context?: vscode.ExtensionContext) {
     try {
         const clusters = clientManager.getClusters();
 
@@ -347,11 +347,11 @@ export async function findConsumerGroup(clientManager: KafkaClientManager) {
         );
 
         if (selectedGroup) {
-            // Show consumer group details
+            // Show consumer group details with HTML webview
             await showConsumerGroupDetails(clientManager, {
                 clusterName: selectedCluster,
                 groupId: selectedGroup.label
-            });
+            }, context);
         }
     } catch (error: any) {
         const errorMsg = error?.message || error?.toString() || 'Unknown error';
