@@ -46,6 +46,7 @@ export class DocumentationService {
             font-family: var(--vscode-editor-font-family);
             overflow-x: auto;
             color: var(--vscode-textPreformat-foreground);
+            white-space: pre-wrap;
         }
         .highlight {
             background: var(--vscode-inputValidation-infoBackground);
