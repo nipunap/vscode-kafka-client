@@ -96,86 +96,8 @@ suite('Topic Commands Test Suite', () => {
     });
 
     suite('produceMessage', () => {
-        test('should produce message with key and value', async () => {
-            const node = { clusterName: 'test-cluster', topicName: 'test-topic' };
-
-            sandbox.stub(vscode.window, 'showInputBox')
-                .onFirstCall().resolves('message-key')
-                .onSecondCall().resolves('message-value');
-
-            clientManager.produceMessage.resolves();
-            sandbox.stub(vscode.window, 'showInformationMessage');
-
-            await topicCommands.produceMessage(clientManager as any, node);
-
-            assert.ok(clientManager.produceMessage.calledOnce);
-            assert.ok(clientManager.produceMessage.calledWith('test-cluster', 'test-topic', 'message-key', 'message-value'));
-        });
-
-        test('should produce message without key', async () => {
-            const node = { clusterName: 'test-cluster', topicName: 'test-topic' };
-
-            sandbox.stub(vscode.window, 'showInputBox')
-                .onFirstCall().resolves(undefined)      // no key
-                .onSecondCall().resolves('message-value');
-
-            clientManager.produceMessage.resolves();
-            sandbox.stub(vscode.window, 'showInformationMessage');
-
-            await topicCommands.produceMessage(clientManager as any, node);
-
-            assert.ok(clientManager.produceMessage.calledWith('test-cluster', 'test-topic', undefined, 'message-value'));
-        });
-
-        test('should not produce if value is not provided', async () => {
-            const node = { clusterName: 'test-cluster', topicName: 'test-topic' };
-
-            sandbox.stub(vscode.window, 'showInputBox')
-                .onFirstCall().resolves('key')
-                .onSecondCall().resolves(undefined);
-
-            await topicCommands.produceMessage(clientManager as any, node);
-
-            assert.ok(clientManager.produceMessage.notCalled);
-        });
-    });
-
-    suite('consumeMessages', () => {
-        test('should consume messages from beginning', async () => {
-            const node = { clusterName: 'test-cluster', topicName: 'test-topic' };
-
-            sandbox.stub(vscode.window, 'showQuickPick').resolves('Beginning' as any);
-            sandbox.stub(vscode.window, 'showInputBox').resolves('10');
-
-            const messages = [
-                { partition: 0, offset: '1', key: Buffer.from('key'), value: Buffer.from('value') }
-            ];
-            clientManager.consumeMessages.resolves(messages);
-
-            sandbox.stub(vscode.workspace, 'openTextDocument').resolves({} as any);
-            sandbox.stub(vscode.window, 'showTextDocument').resolves({} as any);
-
-            // Mock withProgress to immediately call the callback
-            const withProgressStub = sandbox.stub(vscode.window, 'withProgress');
-            withProgressStub.callsFake(async (options, task) => {
-                return await task({ report: () => {} } as any, {} as any);
-            });
-
-            await topicCommands.consumeMessages(clientManager as any, node);
-
-            assert.ok(clientManager.consumeMessages.calledOnce);
-            assert.ok(clientManager.consumeMessages.calledWith('test-cluster', 'test-topic', true, 10));
-        });
-
-        test('should abort if consumption options are not selected', async () => {
-            const node = { clusterName: 'test-cluster', topicName: 'test-topic' };
-
-            sandbox.stub(vscode.window, 'showQuickPick').resolves(undefined);
-
-            await topicCommands.consumeMessages(clientManager as any, node);
-
-            assert.ok(clientManager.consumeMessages.notCalled);
-        });
+        // Old produceMessage and consumeMessages functions removed in v0.6.0
+        // Replaced by advanced producer webview (kafka.produceMessage) and streaming consumer (kafka.consumeMessages)
     });
 
     suite('showTopicDetails', () => {

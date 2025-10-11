@@ -149,7 +149,7 @@ Version 0.3.0 introduces a major security overhaul with enterprise-grade archite
 
 ### Security Verification
 
-✅ **All 357 tests passing** after fixes
+✅ **All 352 tests passing** after fixes
 ✅ **No new vulnerabilities introduced**
 ✅ **Compilation successful**
 ✅ **ESLint passing**
@@ -158,8 +158,8 @@ Version 0.3.0 introduces a major security overhaul with enterprise-grade archite
 
 ## Security Enhancements in v0.6.0
 
-**Audit Date**: October 11, 2025  
-**Version**: v0.6.0  
+**Audit Date**: October 11, 2025
+**Version**: v0.6.0
 **Auditor**: Development Team
 
 Version 0.6.0 introduces native ACL management, real-time message streaming, enhanced configuration descriptions, and performance optimizations with comprehensive security measures:
@@ -286,7 +286,7 @@ Version 0.6.0 introduces native ACL management, real-time message streaming, enh
 
 **Data Sources Validated:**
 - ✅ Apache Kafka 3.x documentation
-- ✅ AWS MSK official documentation  
+- ✅ AWS MSK official documentation
 - ✅ Production best practices from community
 - ✅ Security recommendations from Kafka security guide
 
@@ -304,7 +304,7 @@ Version 0.6.0 introduces native ACL management, real-time message streaming, enh
 - Immutable description database after load
 
 ### 8. Security Testing
-- ✅ **357 Tests Passing**: All existing security tests maintained
+- ✅ **352 Tests Passing**: All existing security tests maintained (5 old tests removed)
 - ✅ **62 New Tests**: Modal dialog and description database tests
 - ✅ **Memory Leak Tests**: Consumer cleanup verification
 - ✅ **Input Validation**: Producer field validation tests
@@ -357,7 +357,7 @@ Version 0.5.0 introduces advanced features with comprehensive security improveme
 - **Client-Side Filtering**: No server-side queries beyond standard topic listing
 
 ### Security Testing
-- **357 Total Tests** (up from 187 in v0.3.x)
+- **352 Total Tests** (up from 187 in v0.3.x)
 - **170 New Tests** for new features (KStreams, KTables, AI integration, native ACL operations, modal dialogs)
 - **Maintained Coverage**: 85%+ on infrastructure components
 - **All Tests Passing**: Continuous integration on multiple platforms
@@ -458,7 +458,7 @@ When using this extension:
 - ✅ **Offline Support**: Cached brokers work without network connectivity
 
 ### Code Quality & Testing (v0.6.0+)
-- ✅ **357 Tests**: Comprehensive test coverage including 32 security tests, 62 modal dialog tests, and new consumer/producer tests
+- ✅ **352 Tests**: Comprehensive test coverage including 32 security tests, 62 modal dialog tests, and consumer/producer webview tests
 - ✅ **85%+ Infrastructure Coverage**: High coverage on security-critical components
 - ✅ **Static Analysis**: ESLint and TypeScript strict mode
 - ✅ **No Hardcoded Secrets**: All credentials managed securely

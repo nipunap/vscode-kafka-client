@@ -250,20 +250,20 @@ Get intelligent, context-aware recommendations for your Kafka resources in a **c
 ### Topics
 - **Create**: Right-click cluster → "Create Topic"
 - **View Details**: Click topic → Rich HTML view with partitions, offsets, configurations, and AI recommendations
-- **Produce Message (Quick)**: Right-click → "Produce Message (Quick)" → Enter key/value for simple messages
-- **Produce Message (Form)**: Right-click → "Produce Message (Form)" → Advanced producer with:
-  - Pre-built templates (User Event, Order, IoT Telemetry, etc.)
-  - Custom headers (key-value pairs)
-  - Partition selection
+- **Produce Message**: Right-click → "Produce Message" → Advanced producer webview with:
+  - Pre-built templates (Simple, User Event, Order, IoT Telemetry)
+  - Custom headers (key-value pairs, add/remove dynamically)
+  - Partition selection (auto or manual)
+  - Message key and value fields
   - Real-time success/error feedback
-- **Consume Messages**: Right-click → "Consume Messages" → Fetch limited number of messages (10-1000)
-- **Stream Messages (Real-time)**: Right-click → "Stream Messages (Real-time)" → Live message streaming with:
+  - Message count and error tracking
+- **Consume Messages**: Right-click → "Consume Messages" → Real-time message streaming with:
   - Start/Stop/Pause/Resume controls
-  - Choose: Start from latest or beginning
-  - Real-time message display (newest first)
-  - Human-readable timestamp conversion (👤 icon)
-  - Auto-scroll and message limit (1000 max)
-  - Export messages to JSON
+  - Choose: Start from latest or beginning of topic
+  - Live message display (newest first, auto-scroll)
+  - Human-readable timestamp conversion (👤 icon to toggle)
+  - Memory-safe buffer (max 1000 messages)
+  - Export messages to JSON file
   - Uptime and message count tracking
 - **Delete**: Right-click → "Delete Topic" (requires confirmation)
 - **Search**: Use Cmd+F / Ctrl+F in detail view to find configurations
@@ -448,7 +448,7 @@ src/
 ├── types/
 │   ├── acl.ts                      # ACL interfaces
 │   └── nodes.ts                    # Tree node types (including KStream/KTable nodes)
-└── test/                           # Test suite (357 tests)
+└── test/                           # Test suite (352 tests)
 ```
 
 ### Architecture Patterns
@@ -469,14 +469,14 @@ npm install             # Install dependencies
 npm run compile         # Compile TypeScript
 npm run watch           # Watch mode
 npm run lint            # ESLint
-npm test                # Run all 357 tests
+npm test                # Run all 352 tests
 npm run package         # Create .vsix
 npm run publish         # Publish to marketplace
 ```
 
 ### Test Coverage
 
-**357 tests passing** across:
+**352 tests passing** across:
 - Infrastructure (Logger, ErrorHandler, CredentialManager, EventBus, ConnectionPool)
 - Services (Topic, ConsumerGroup, Broker, Producer, Documentation)
 - Providers (Topics, Consumer Groups, Brokers, ACLs, KStreams, KTables)
@@ -512,7 +512,7 @@ npm run publish         # Publish to marketplace
 All PRs must pass:
 - ✅ ESLint
 - ✅ TypeScript compilation
-- ✅ 357 tests
+- ✅ 352 tests
 - ✅ Multi-OS (Ubuntu, Windows, macOS)
 - ✅ Multi-Node (18.x, 20.x)
 

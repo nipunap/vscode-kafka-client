@@ -142,12 +142,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.produceMessage', async (node) => {
-            await topicCommands.produceMessage(clientManager, node);
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.produceMessageWithForm', async (node) => {
             // Validate input
             if (!node || !node.clusterName || !node.topicName) {
                 vscode.window.showErrorMessage('Invalid topic selection. Please try again.');
@@ -167,12 +161,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.consumeMessages', async (node) => {
-            await topicCommands.consumeMessages(clientManager, node);
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.streamMessages', async (node) => {
             // Validate input
             if (!node || !node.clusterName || !node.topicName) {
                 vscode.window.showErrorMessage('Invalid topic selection. Please try again.');
