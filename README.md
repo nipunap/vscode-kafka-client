@@ -17,6 +17,7 @@ A comprehensive Kafka management extension for Visual Studio Code with full AWS 
 - 📋 **Topic Operations** - Create, delete, produce, consume with rich HTML detail views
 - 📡 **Real-Time Message Streaming** - Live message consumer with start/stop/pause controls and human-readable timestamps
 - 📤 **Advanced Producer** - Interactive form with templates, headers, partition selection, and key/value support
+- 💾 **Export & Backup** - Export topics and consumer groups to JSON, CSV, or plain text for documentation and audits
 - 🌊 **Kafka Streams** - Dedicated views for KStreams and KTables with pattern-based filtering
 - 🖥️ **Broker Monitoring** - Rich detail views with all configurations and metadata
 - 👥 **Consumer Groups** - Color-coded health status, lag tracking, detailed HTML views
@@ -273,6 +274,16 @@ Get intelligent, context-aware recommendations for your Kafka resources in a **c
 - **KStreams View**: Shows topics matching stream patterns (`-stream-`, `KSTREAM`, `-repartition`)
 - **KTables View**: Shows topics matching table patterns (`-changelog`, `-ktable-`, `-state-`)
 - **Same Operations**: Produce, consume, view details like regular topics
+
+### Export & Backup
+- **Export Topics**: Right-click cluster → "Export Topics to File"
+  - Multiple formats: JSON (structured), CSV (spreadsheet), Plain Text (list)
+  - Includes cluster name, export date, and topic count
+  - Auto-generated filenames with timestamp
+- **Export Consumer Groups**: Right-click cluster → "Export Consumer Groups to File"
+  - Export with full details: Group ID, State, Protocol Type, Protocol
+  - Same format options: JSON, CSV, Plain Text
+  - Perfect for audit trails, documentation, and backups
 - **Smart Filtering**: Automatically categorizes topics based on naming conventions
 
 ### Brokers
