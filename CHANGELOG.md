@@ -4,6 +4,54 @@ All notable changes to the "Kafka Client" extension will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/) and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.0](https://github.com/nipunap/vscode-kafka-client/compare/v0.5.0...v0.6.0) (2025-10-11)
+
+
+### ⚠ BREAKING CHANGES
+
+* Old simple producer and batch consumer commands removed
+
+- Remove old produceMessage function (simple input boxes)
+- Remove old consumeMessages function (batch limited to text document)
+- Replace kafka.produceMessage with advanced producer webview
+- Replace kafka.consumeMessages with real-time streaming consumer
+- Remove kafka.produceMessageWithForm command
+- Remove kafka.streamMessages command (consolidated into consumeMessages)
+- Simplify command menu (2 commands instead of 4)
+- Update tests: Remove 5 old tests (352 tests total, down from 357)
+- Update documentation to reflect new simplified commands
+
+Benefits:
+- Cleaner UX: One "Produce Message" instead of two options
+- Cleaner UX: One "Consume Messages" for streaming instead of batch
+- Advanced features by default (templates, headers, pause/resume)
+- Consistent naming across extension
+* None (backward compatible)
+
+Resolves: #message-streaming
+Resolves: #enhanced-descriptions
+
+### ✨ Features
+
+* add export buttons for topics and consumer groups ([c6c45c9](https://github.com/nipunap/vscode-kafka-client/commit/c6c45c9397de756d3cdbfa335438e28b66aed3b5))
+* add real-time message streaming and enhanced configuration descriptions ([eac91ff](https://github.com/nipunap/vscode-kafka-client/commit/eac91ff6f4b402e0cbd7662ef478e51d0e77614f))
+
+
+### 🐛 Bug Fixes
+
+* topic and consumer group search showing old YAML view instead of HTML webview ([22b46c1](https://github.com/nipunap/vscode-kafka-client/commit/22b46c1791a7e54a905a6cc2947e217fce78fa2d))
+
+
+### ♻️ Code Refactoring
+
+* remove old producer/consumer, replace with advanced webviews ([a9e5442](https://github.com/nipunap/vscode-kafka-client/commit/a9e5442d75c9422fb3c851af63122c2ce6937e7b))
+
+
+### 📝 Documentation
+
+* add export functionality to README ([9f6c7ee](https://github.com/nipunap/vscode-kafka-client/commit/9f6c7ee47209b464e4a9885b534a6134d3e36f86))
+* consolidate security enhancements into v0.6.0 ([1a0da57](https://github.com/nipunap/vscode-kafka-client/commit/1a0da57f4f18bbe54e1a941640d7125db17b6aad))
+
 ## [0.5.0](https://github.com/nipunap/vscode-kafka-client/compare/v0.4.0...v0.5.0) (2025-10-09)
 
 

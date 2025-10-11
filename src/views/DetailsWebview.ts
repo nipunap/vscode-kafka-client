@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { FieldDescriptions } from '../utils/fieldDescriptions';
+import { formatMilliseconds, formatBytes, isMillisecondsProperty, isBytesProperty } from '../utils/formatters';
 
 /**
  * Utility class for creating consistent HTML detail views
@@ -482,6 +484,155 @@ export class DetailsWebview {
                         font-size: 13px;
                         text-transform: uppercase;
                         letter-spacing: 0.5px;
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                    }
+
+                    .info-icon {
+                        font-size: 14px;
+                        cursor: pointer;
+                        opacity: 0.7;
+                        transition: opacity 0.2s;
+                        display: inline-flex;
+                        align-items: center;
+                        margin-left: 4px;
+                    }
+
+                    .info-icon:hover {
+                        opacity: 1;
+                        transform: scale(1.1);
+                    }
+
+                    /* Human-readable format toggle */
+                    .format-toggle {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 6px;
+                    }
+
+                    .human-icon {
+                        font-size: 16px;
+                        cursor: pointer;
+                        opacity: 0.6;
+                        transition: all 0.2s;
+                        display: inline-flex;
+                        align-items: center;
+                        user-select: none;
+                    }
+
+                    .human-icon:hover {
+                        opacity: 1;
+                        transform: scale(1.15);
+                    }
+
+                    .format-toggle[data-format="human"] .human-icon {
+                        opacity: 1;
+                        filter: brightness(1.2);
+                    }
+
+                    /* Info Modal Styles */
+                    .info-modal {
+                        display: none;
+                        position: fixed;
+                        z-index: 10000;
+                        left: 0;
+                        top: 0;
+                        width: 100%;
+                        height: 100%;
+                        background-color: rgba(0, 0, 0, 0.6);
+                        animation: fadeIn 0.2s;
+                    }
+
+                    .info-modal.show {
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    }
+
+                    .info-modal-content {
+                        background-color: var(--vscode-editor-background);
+                        border: 1px solid var(--vscode-panel-border);
+                        border-radius: 6px;
+                        padding: 20px;
+                        max-width: 600px;
+                        width: 90%;
+                        max-height: 80vh;
+                        overflow-y: auto;
+                        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+                        animation: slideIn 0.2s;
+                        position: relative;
+                    }
+
+                    .info-modal-header {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        margin-bottom: 15px;
+                        padding-bottom: 10px;
+                        border-bottom: 1px solid var(--vscode-panel-border);
+                    }
+
+                    .info-modal-title {
+                        font-size: 16px;
+                        font-weight: 600;
+                        color: var(--vscode-foreground);
+                        font-family: var(--vscode-font-family);
+                    }
+
+                    .info-modal-close {
+                        background: none;
+                        border: none;
+                        font-size: 24px;
+                        cursor: pointer;
+                        color: var(--vscode-foreground);
+                        opacity: 0.7;
+                        padding: 0;
+                        width: 30px;
+                        height: 30px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        border-radius: 4px;
+                    }
+
+                    .info-modal-close:hover {
+                        opacity: 1;
+                        background-color: var(--vscode-list-hoverBackground);
+                    }
+
+                    .info-modal-body {
+                        color: var(--vscode-foreground);
+                        line-height: 1.6;
+                        font-size: 14px;
+                        font-family: var(--vscode-font-family);
+                    }
+
+                    .info-modal-field {
+                        display: inline-block;
+                        background: var(--vscode-badge-background);
+                        color: var(--vscode-badge-foreground);
+                        padding: 2px 8px;
+                        border-radius: 3px;
+                        font-weight: 600;
+                        margin-bottom: 10px;
+                        font-family: var(--vscode-editor-font-family);
+                    }
+
+                    @keyframes fadeIn {
+                        from { opacity: 0; }
+                        to { opacity: 1; }
+                    }
+
+                    @keyframes slideIn {
+                        from {
+                            transform: translateY(-20px);
+                            opacity: 0;
+                        }
+                        to {
+                            transform: translateY(0);
+                            opacity: 1;
+                        }
                     }
 
                     .property-value {
@@ -809,8 +960,73 @@ export class DetailsWebview {
 
                 ${this.renderSections(data.sections)}
 
+                <!-- Info Modal -->
+                <div id="infoModal" class="info-modal" onclick="closeInfoModalOnBackdrop(event)">
+                    <div class="info-modal-content">
+                        <div class="info-modal-header">
+                            <div class="info-modal-title">
+                                <span id="infoModalFieldName" class="info-modal-field"></span>
+                            </div>
+                            <button class="info-modal-close" onclick="closeInfoModal()" aria-label="Close">×</button>
+                        </div>
+                        <div class="info-modal-body" id="infoModalDescription"></div>
+                    </div>
+                </div>
+
                 <script>
                     ${this.getScript(data)}
+
+                    // Info Modal Functions
+                    function showInfoModal(element) {
+                        const fieldName = element.getAttribute('data-field');
+                        const description = element.getAttribute('data-description');
+
+                        const modal = document.getElementById('infoModal');
+                        const fieldNameEl = document.getElementById('infoModalFieldName');
+                        const descriptionEl = document.getElementById('infoModalDescription');
+
+                        fieldNameEl.textContent = fieldName;
+                        descriptionEl.textContent = description;
+
+                        modal.classList.add('show');
+                    }
+
+                    function closeInfoModal() {
+                        const modal = document.getElementById('infoModal');
+                        modal.classList.remove('show');
+                    }
+
+                    function closeInfoModalOnBackdrop(event) {
+                        if (event.target.id === 'infoModal') {
+                            closeInfoModal();
+                        }
+                    }
+
+                    // Close modal on Escape key
+                    document.addEventListener('keydown', function(event) {
+                        if (event.key === 'Escape') {
+                            closeInfoModal();
+                        }
+                    });
+
+                    // Toggle between raw and human-readable format
+                    function toggleFormat(element) {
+                        const currentFormat = element.getAttribute('data-format');
+                        const rawValue = element.getAttribute('data-raw');
+                        const humanValue = element.getAttribute('data-human');
+
+                        if (currentFormat === 'raw') {
+                            // Switch to human format
+                            element.setAttribute('data-format', 'human');
+                            element.childNodes[0].textContent = humanValue;
+                            element.querySelector('.human-icon').title = 'Click to show raw value';
+                        } else {
+                            // Switch to raw format
+                            element.setAttribute('data-format', 'raw');
+                            element.childNodes[0].textContent = rawValue;
+                            element.querySelector('.human-icon').title = 'Click to show human-readable format';
+                        }
+                    }
                 </script>
             </body>
             </html>
@@ -838,17 +1054,21 @@ export class DetailsWebview {
     }
 
     private renderProperties(properties: Property[]): string {
+        const fieldDescriptions = FieldDescriptions.getInstance();
+
         return `
             <div class="property-grid">
-                ${properties.map(prop => `
+                ${properties.map(prop => {
+                    const infoIcon = fieldDescriptions.getInfoIconHtml(prop.label);
+                    return `
                     <div class="property">
-                        <div class="property-label">${prop.label}</div>
+                        <div class="property-label">${prop.label}${infoIcon}</div>
                         <div class="property-value">
                             ${prop.badge ? `<span class="badge badge-${prop.badge.type}">${prop.badge.text}</span>` : ''}
                             ${prop.code ? `<code>${this.escapeHtml(prop.value)}</code>` : this.escapeHtml(prop.value)}
                         </div>
                     </div>
-                `).join('')}
+                `}).join('')}
             </div>
         `;
     }
@@ -858,17 +1078,74 @@ export class DetailsWebview {
             return '<div class="empty-state">No data available</div>';
         }
 
+        const fieldDescriptions = FieldDescriptions.getInstance();
+
+        // Determine which columns contain Property and Value for config tables
+        const propertyColIndex = table.headers.findIndex(h => {
+            const label = typeof h === 'string' ? h : h.label;
+            return label && label.toUpperCase() === 'PROPERTY';
+        });
+        const valueColIndex = table.headers.findIndex(h => {
+            const label = typeof h === 'string' ? h : h.label;
+            return label && label.toUpperCase() === 'VALUE';
+        });
+
+        const isConfigTable = propertyColIndex >= 0 && valueColIndex >= 0;
+
         return `
             <table class="table">
                 <thead>
                     <tr>
-                        ${table.headers.map(h => `<th>${h}</th>`).join('')}
+                        ${table.headers.map(h => {
+                            if (typeof h === 'string') {
+                                // Check if this is a configuration property (from first column)
+                                const infoIcon = fieldDescriptions.getInfoIconHtml(h);
+                                return `<th title="Column: ${h}">${h}${infoIcon}</th>`;
+                            } else {
+                                const tooltip = h.tooltip || `Column: ${h.label}`;
+                                const infoIcon = fieldDescriptions.getInfoIconHtml(h.label);
+                                return `<th title="${tooltip}" style="cursor: help;">${h.label}${infoIcon}</th>`;
+                            }
+                        }).join('')}
                     </tr>
                 </thead>
                 <tbody>
                     ${table.rows.map(row => `
                         <tr>
-                            ${row.map(cell => `<td>${this.escapeHtml(String(cell))}</td>`).join('')}
+                            ${row.map((cell, colIndex) => {
+                                let cellContent = this.escapeHtml(String(cell));
+
+                                // Add info icon to first column cells (property names in config tables)
+                                if (colIndex === 0 && typeof cell === 'string') {
+                                    const infoIcon = fieldDescriptions.getInfoIconHtml(cell);
+                                    cellContent = cellContent + infoIcon;
+                                }
+
+                                // Add human-readable icon for config table VALUE column
+                                if (isConfigTable && colIndex === valueColIndex && propertyColIndex >= 0) {
+                                    const propertyName = String(row[propertyColIndex]);
+                                    const rawValue = String(cell);
+
+                                    // Check if this property should have human-readable format
+                                    if ((isMillisecondsProperty(propertyName) || isBytesProperty(propertyName)) &&
+                                        rawValue !== 'N/A' && rawValue !== '' && !isNaN(parseFloat(rawValue))) {
+
+                                        const formatType = isMillisecondsProperty(propertyName) ? 'ms' : 'bytes';
+                                        const humanValue = formatType === 'ms'
+                                            ? formatMilliseconds(rawValue)
+                                            : formatBytes(rawValue);
+
+                                        cellContent = `
+                                            <span class="format-toggle" data-raw="${this.escapeHtml(rawValue)}" data-human="${this.escapeHtml(humanValue)}" data-format="raw">
+                                                ${cellContent}
+                                                <span class="human-icon" onclick="toggleFormat(this.parentElement)" title="Click to show human-readable format">👤</span>
+                                            </span>
+                                        `;
+                                    }
+                                }
+
+                                return `<td>${cellContent}</td>`;
+                            }).join('')}
                         </tr>
                     `).join('')}
                 </tbody>
@@ -944,6 +1221,6 @@ export interface Property {
 }
 
 export interface TableData {
-    headers: string[];
+    headers: string[] | { label: string; tooltip?: string }[];
     rows: any[][];
 }

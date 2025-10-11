@@ -1,4 +1,15 @@
-import { Kafka, Admin, Producer, SASLOptions, logLevel } from 'kafkajs';
+import {
+    Kafka,
+    Admin,
+    Producer,
+    Consumer,
+    SASLOptions,
+    logLevel,
+    AclResourceTypes,
+    AclOperationTypes,
+    AclPermissionTypes,
+    ResourcePatternTypes
+} from 'kafkajs';
 import * as vscode from 'vscode';
 import { promises as fs } from 'fs';
 import { ClusterConnection } from '../forms/clusterConnectionForm';
@@ -13,6 +24,8 @@ import { ConsumerGroupService } from '../services/ConsumerGroupService';
 import { BrokerService } from '../services/BrokerService';
 import { ProducerService } from '../services/ProducerService';
 import { ACL, ACLDetails, ACLConfig } from '../types/acl';
+import { ACLTypeMapper } from '../utils/aclTypeMapper';
+import { KafkaErrorClassifier } from '../utils/kafkaErrorClassifier';
 
 // Type alias for cluster configuration
 type ClusterConfig = ClusterConnection;
@@ -23,6 +36,7 @@ export class KafkaClientManager {
     private kafkaInstances: Map<string, Kafka> = new Map();
     private admins: Map<string, Admin> = new Map();
     private producers: Map<string, Producer> = new Map();
+    private consumers: Map<string, Consumer> = new Map();
     private connectionPool: ConnectionPool;
     private configurationService: ConfigurationService;
     private mskAdapter: MSKAdapter;
@@ -80,7 +94,10 @@ export class KafkaClientManager {
 
         // Handle MSK clusters - fetch bootstrap brokers using MSKAdapter
         let brokers = connection.brokers || [];
-        if (connection.type === 'msk' && connection.clusterArn && connection.region) {
+        // Only fetch from AWS if brokers are not already cached
+        // This allows TLS connections to work without AWS credentials after initial setup
+        if (connection.type === 'msk' && connection.clusterArn && connection.region && brokers.length === 0) {
+            this.logger.debug(`Fetching MSK brokers for ${connection.name} from AWS API`);
             brokers = await this.mskAdapter.getBootstrapBrokers(
                 connection.region,
                 connection.clusterArn,
@@ -91,6 +108,10 @@ export class KafkaClientManager {
             // Cache the brokers in the connection object to avoid re-fetching from AWS
             // This is important for TLS connections where AWS credentials are only needed once
             connection.brokers = brokers;
+            // Save the updated configuration with cached brokers
+            this.saveConfiguration();
+        } else if (connection.type === 'msk' && brokers.length > 0) {
+            this.logger.debug(`Using ${brokers.length} cached MSK brokers for ${connection.name}`);
         }
 
         if (brokers.length === 0) {
@@ -431,6 +452,43 @@ export class KafkaClientManager {
         return await this.producerService.sendMessage(producer, topic, key, value);
     }
 
+    /**
+     * Produce advanced messages with full KafkaJS options support (headers, partition, etc.)
+     */
+    async produceAdvancedMessages(
+        clusterName: string,
+        topic: string,
+        messages: Array<{
+            key?: string | Buffer;
+            value: string | Buffer;
+            partition?: number;
+            headers?: Record<string, string | Buffer>;
+            timestamp?: string;
+        }>
+    ) {
+        const producer = await this.getProducer(clusterName);
+
+        try {
+            this.logger.debug(`Sending ${messages.length} advanced message(s) to topic: ${topic}`);
+
+            await producer.send({
+                topic,
+                messages: messages.map(msg => ({
+                    key: msg.key,
+                    value: msg.value,
+                    partition: msg.partition,
+                    headers: msg.headers,
+                    timestamp: msg.timestamp
+                }))
+            });
+
+            this.logger.info(`Successfully sent ${messages.length} message(s) to topic: ${topic}`);
+        } catch (error: any) {
+            this.logger.error(`Failed to send messages to topic: ${topic}`, error);
+            throw error;
+        }
+    }
+
     async consumeMessages(
         clusterName: string,
         topic: string,
@@ -702,25 +760,118 @@ export class KafkaClientManager {
     }
 
     async getACLs(clusterName: string): Promise<ACL[]> {
-        // Note: KafkaJS doesn't have built-in ACL support
-        // ACL management requires direct Kafka admin API access through kafka-acls CLI
-        // This is an expected limitation, so we log at debug level to avoid opening error logs
-        this.logger.debug(`ACL management not available for cluster ${clusterName} - KafkaJS doesn't support ACL operations`);
-        throw new Error('ACL management requires kafka-acls CLI tool. Use the ACL Help command for guidance.');
+        this.logger.debug(`Fetching ACLs for cluster ${clusterName}`);
+        const admin = await this.getAdmin(clusterName);
+
+        try {
+            // Query all ACLs using KafkaJS admin API
+            const result = await admin.describeAcls({
+                resourceType: AclResourceTypes.ANY,
+                resourceName: undefined,
+                resourcePatternType: ResourcePatternTypes.ANY,
+                principal: undefined,
+                host: undefined,
+                operation: AclOperationTypes.ANY,
+                permissionType: AclPermissionTypes.ANY
+            });
+
+            // Transform KafkaJS format to extension format
+            const acls: ACL[] = [];
+            for (const resource of result.resources) {
+                for (const acl of resource.acls) {
+                    acls.push({
+                        resourceType: ACLTypeMapper.fromKafkaJSResourceType(resource.resourceType) as any,
+                        resourceName: resource.resourceName,
+                        resourcePatternType: ACLTypeMapper.fromKafkaJSPatternType(resource.resourcePatternType),
+                        principal: acl.principal,
+                        host: acl.host,
+                        operation: ACLTypeMapper.fromKafkaJSOperation(acl.operation),
+                        permissionType: ACLTypeMapper.fromKafkaJSPermission(acl.permissionType) as any
+                    });
+                }
+            }
+
+            this.logger.info(`Retrieved ${acls.length} ACLs for cluster ${clusterName}`);
+            return acls;
+        } catch (error: any) {
+            // Use centralized error classification
+            const logLevel = KafkaErrorClassifier.getLogLevel(error);
+            const message = KafkaErrorClassifier.getUserFriendlyMessage(error, `Cluster ${clusterName}`);
+
+            if (logLevel === 'warn') {
+                this.logger.warn(message);
+            } else {
+                this.logger.error(message, error);
+            }
+            throw error;
+        }
     }
 
-    async createACL(clusterName: string, _aclConfig: ACLConfig): Promise<void> {
-        // Note: This would require direct Kafka admin API access
-        // KafkaJS doesn't support ACL operations directly
-        this.logger.debug(`ACL creation not available for cluster ${clusterName} - KafkaJS doesn't support ACL operations`);
-        throw new Error('ACL management requires kafka-acls CLI tool. Use the ACL Help command for guidance.');
+    async createACL(clusterName: string, aclConfig: ACLConfig): Promise<void> {
+        this.logger.debug(`Creating ACL for cluster ${clusterName}`, aclConfig);
+        const admin = await this.getAdmin(clusterName);
+
+        try {
+            await admin.createAcls({
+                acl: [{
+                    resourceType: ACLTypeMapper.toKafkaJSResourceType(aclConfig.resourceType),
+                    resourceName: aclConfig.resourceName,
+                    resourcePatternType: ACLTypeMapper.toKafkaJSPatternType(aclConfig.resourcePatternType || 'LITERAL'),
+                    principal: aclConfig.principal,
+                    host: aclConfig.host || '*',
+                    operation: ACLTypeMapper.toKafkaJSOperation(aclConfig.operation),
+                    permissionType: ACLTypeMapper.toKafkaJSPermission(aclConfig.permissionType)
+                }]
+            });
+
+            this.logger.info(`Successfully created ACL for cluster ${clusterName}`);
+        } catch (error: any) {
+            // Use centralized error classification
+            const logLevel = KafkaErrorClassifier.getLogLevel(error);
+            const message = KafkaErrorClassifier.getUserFriendlyMessage(error, `Create ACL on ${clusterName}`);
+
+            if (logLevel === 'warn') {
+                this.logger.warn(message);
+            } else {
+                this.logger.error(message, error);
+            }
+            throw error;
+        }
     }
 
-    async deleteACL(clusterName: string, _aclConfig: Omit<ACLConfig, 'permissionType'>): Promise<void> {
-        // Note: This would require direct Kafka admin API access
-        // KafkaJS doesn't support ACL operations directly
-        this.logger.debug(`ACL deletion not available for cluster ${clusterName} - KafkaJS doesn't support ACL operations`);
-        throw new Error('ACL management requires kafka-acls CLI tool. Use the ACL Help command for guidance.');
+    async deleteACL(clusterName: string, aclConfig: Omit<ACLConfig, 'permissionType'>): Promise<void> {
+        this.logger.debug(`Deleting ACL for cluster ${clusterName}`, aclConfig);
+        const admin = await this.getAdmin(clusterName);
+
+        try {
+            const result = await admin.deleteAcls({
+                filters: [{
+                    resourceType: ACLTypeMapper.toKafkaJSResourceType(aclConfig.resourceType),
+                    resourceName: aclConfig.resourceName,
+                    resourcePatternType: ACLTypeMapper.toKafkaJSPatternType(aclConfig.resourcePatternType || 'LITERAL'),
+                    principal: aclConfig.principal,
+                    host: aclConfig.host || '*',
+                    operation: ACLTypeMapper.toKafkaJSOperation(aclConfig.operation),
+                    permissionType: AclPermissionTypes.ANY // Delete both ALLOW and DENY
+                }]
+            });
+
+            const deletedCount = result.filterResponses.reduce((sum, response) =>
+                sum + (response.matchingAcls?.length || 0), 0);
+
+            this.logger.info(`Successfully deleted ${deletedCount} ACL(s) for cluster ${clusterName}`);
+        } catch (error: any) {
+            // Use centralized error classification
+            const logLevel = KafkaErrorClassifier.getLogLevel(error);
+            const message = KafkaErrorClassifier.getUserFriendlyMessage(error, `Delete ACL on ${clusterName}`);
+
+            if (logLevel === 'warn') {
+                this.logger.warn(message);
+            } else {
+                this.logger.error(message, error);
+            }
+            throw error;
+        }
     }
 
     async getACLDetails(clusterName: string, acl: ACL): Promise<ACLDetails> {
@@ -746,8 +897,8 @@ export class KafkaClientManager {
                 (acl.resourceName === topicName || acl.resourceName === '*')
             );
         } catch (error: any) {
-            // If ACLs aren't available (e.g., CLI tool not available), return empty array
-            // This allows the UI to gracefully handle missing ACL support
+            // If ACLs aren't available (e.g., authorization disabled on cluster), return empty array
+            // This allows the UI to gracefully handle clusters without ACL support
             this.logger.debug(`ACLs not available for topic ${topicName}: ${error?.message}`);
             return [];
         }
@@ -840,6 +991,84 @@ export class KafkaClientManager {
             throw new Error(
                 `Failed to connect to Kafka producer: ${error?.message || 'Unknown error'}.`
             );
+        }
+    }
+
+    /**
+     * Get or create a consumer for the specified cluster
+     * Each cluster can have its own consumer instance
+     */
+    async getConsumer(clusterName: string, groupId?: string): Promise<Consumer> {
+        const consumerKey = `${clusterName}-${groupId || 'default'}`;
+
+        // Return existing consumer if available
+        if (this.consumers.has(consumerKey)) {
+            return this.consumers.get(consumerKey)!;
+        }
+
+        const connection = this.clusters.get(clusterName);
+        if (!connection) {
+            throw new Error(`Cluster ${clusterName} not found`);
+        }
+
+        try {
+            // For MSK clusters, fetch brokers if not already cached
+            let brokers = connection.brokers || [];
+            if (connection.type === 'msk' && connection.clusterArn && connection.region && brokers.length === 0) {
+                this.logger.debug(`Fetching MSK brokers for ${clusterName} (not cached)`);
+                brokers = await this.mskAdapter.getBootstrapBrokers(
+                    connection.region,
+                    connection.clusterArn,
+                    connection.saslMechanism,
+                    connection.awsProfile
+                );
+                // Cache the brokers to avoid re-fetching from AWS
+                connection.brokers = brokers;
+            }
+
+            // Build Kafka configuration
+            const kafkaConfig = await this.buildKafkaConfig(connection, brokers);
+            const kafka = new Kafka(kafkaConfig);
+
+            // Create consumer with unique group ID
+            const consumer = kafka.consumer({
+                groupId: groupId || `vscode-kafka-client-${Date.now()}`,
+                // Use earliest to allow reading from beginning
+                sessionTimeout: 30000,
+                heartbeatInterval: 3000
+            });
+
+            // Connect the consumer
+            await consumer.connect();
+            this.logger.info(`Consumer connected for cluster ${clusterName} with group ${groupId || 'default'}`);
+
+            // Cache the consumer
+            this.consumers.set(consumerKey, consumer);
+
+            return consumer;
+        } catch (error: any) {
+            this.logger.error(`Failed to get consumer for cluster ${clusterName}`, error);
+            throw new Error(
+                `Failed to connect to Kafka consumer: ${error?.message || 'Unknown error'}.`
+            );
+        }
+    }
+
+    /**
+     * Disconnect and remove a consumer for the specified cluster
+     */
+    async disconnectConsumer(clusterName: string, groupId?: string): Promise<void> {
+        const consumerKey = `${clusterName}-${groupId || 'default'}`;
+        const consumer = this.consumers.get(consumerKey);
+
+        if (consumer) {
+            try {
+                await consumer.disconnect();
+                this.consumers.delete(consumerKey);
+                this.logger.info(`Consumer disconnected for cluster ${clusterName}`);
+            } catch (error: any) {
+                this.logger.error(`Error disconnecting consumer for cluster ${clusterName}`, error);
+            }
         }
     }
 

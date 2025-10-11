@@ -6,22 +6,26 @@
 [![Downloads](https://img.shields.io/visual-studio-marketplace/d/NipunaPerera.vscode-kafka-client)](https://marketplace.visualstudio.com/items?itemName=NipunaPerera.vscode-kafka-client)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
 
-A comprehensive Kafka management extension for Visual Studio Code with full AWS MSK support, ACL management, and enterprise-grade features.
+A comprehensive Kafka management extension for Visual Studio Code with full AWS MSK support, native ACL management, and enterprise-grade features.
 
 ## ✨ Features
 
 - 🤖 **AI-Powered Advisor** - Get intelligent recommendations for topics, brokers, and consumer groups using GitHub Copilot
 - 🔌 **Multi-Cluster Management** - Apache Kafka and AWS MSK with IAM authentication
 - ☁️ **AWS Integration** - Auto-discovery, profile management, role assumption, credential tracking
-- 🛡️ **ACL Management** - View, create, delete access control lists integrated with topics
+- 🛡️ **Native ACL Management** - Full create, read, delete operations via KafkaJS API (no CLI required)
 - 📋 **Topic Operations** - Create, delete, produce, consume with rich HTML detail views
+- 📡 **Real-Time Message Streaming** - Live message consumer with start/stop/pause controls and human-readable timestamps
+- 📤 **Advanced Producer** - Interactive form with templates, headers, partition selection, and key/value support
+- 💾 **Export & Backup** - Export topics and consumer groups to JSON, CSV, or plain text for documentation and audits
 - 🌊 **Kafka Streams** - Dedicated views for KStreams and KTables with pattern-based filtering
 - 🖥️ **Broker Monitoring** - Rich detail views with all configurations and metadata
 - 👥 **Consumer Groups** - Color-coded health status, lag tracking, detailed HTML views
 - 📊 **Rich Detail Views** - Interactive HTML panels with search (Cmd+F), copy as JSON, and AI recommendations
+- ⚡ **Smart Caching** - 5-minute dashboard cache with instant reload (40-200x faster)
 - 🔐 **Security** - Multiple auth methods (SSL/TLS, SASL, AWS IAM), secure credential storage
 - 🔍 **Smart Search** - Find resources across clusters with fuzzy matching
-- ⚡ **Performance** - Connection pooling and optimized data fetching
+- 🚀 **Performance** - Connection pooling, broker caching, optimized data fetching
 
 ## 📸 Screenshots
 
@@ -85,7 +89,9 @@ Even simpler - no client certificates needed for standard TLS:
 1. **Authentication Method**: TLS
 2. Choose AWS Profile and Region
 3. **Discover Clusters** → Select cluster
-4. **Done!** (Client certificates only required for mutual TLS)
+4. **Done!** Bootstrap brokers are cached - AWS credentials only needed once
+
+**Performance Note**: After initial setup, TLS connections load instantly from cache. AWS credentials are only needed for the first connection or when explicitly refreshing cluster configuration.
 
 ## 🔐 Authentication & Security
 
@@ -163,43 +169,47 @@ x_security_token_expires = 2025-10-01T15:30:00Z
 
 ## 🛡️ ACL Management
 
-View and manage Kafka Access Control Lists integrated directly with topics.
+Native ACL operations powered by KafkaJS - no external CLI tools required.
 
 ### Features
 - 🔗 **Topic Integration** - ACLs displayed directly under topics for better context
-- 📋 **View ACLs** - Browse topic-specific ACLs with rich HTML formatting
+- 📋 **View ACLs** - Browse topic-specific ACLs with rich HTML formatting via `describeAcls()` API
 - 📊 **Dashboard Display** - Topic dashboards show ACL permissions with visual indicators
-- ➕ **Create ACLs** - Interactive CLI command generation
-- ❌ **Delete ACLs** - Safe removal with command preview
+- ➕ **Create ACLs** - Interactive form with instant creation via `createAcls()` API
+- ❌ **Delete ACLs** - Safe removal with confirmation via `deleteAcls()` API
 - 📚 **Interactive Help** - Rich HTML documentation with examples
+- ⚡ **Native API** - Direct KafkaJS integration (no kafka-acls CLI dependency)
 
 ### Required Permissions
 
-**Read-Only Access:**
-```bash
-kafka-acls --add \
-  --allow-principal User:your-user \
-  --operation Describe --cluster
+**For Viewing ACLs:**
+- `Describe` on cluster
+- `Describe` on topics
 
+**For Managing ACLs:**
+- `Alter` on cluster (to create/delete ACLs)
+- `Describe` on resources (to view existing ACLs)
+
+**Example Setup:**
+```bash
+# Allow user to manage ACLs
 kafka-acls --add \
   --allow-principal User:your-user \
-  --operation Describe --topic '*'
+  --operation Alter \
+  --operation Describe \
+  --cluster
+
+# Allow user to view resources
+kafka-acls --add \
+  --allow-principal User:your-user \
+  --operation Describe \
+  --topic '*' --group '*'
 ```
 
-**Full Access:**
+**Verify ACL Management Access:**
 ```bash
-kafka-acls --add \
-  --allow-principal User:your-user \
-  --operation All --cluster
-
-kafka-acls --add \
-  --allow-principal User:your-user \
-  --operation All --topic '*'
-```
-
-**Check Your Permissions:**
-```bash
-kafka-acls --list --principal User:your-user
+# Should succeed if you have permissions
+kafka-acls --list
 ```
 
 ## 📚 Usage
@@ -241,8 +251,21 @@ Get intelligent, context-aware recommendations for your Kafka resources in a **c
 ### Topics
 - **Create**: Right-click cluster → "Create Topic"
 - **View Details**: Click topic → Rich HTML view with partitions, offsets, configurations, and AI recommendations
-- **Produce**: Right-click → "Produce Message" → Enter key/value
-- **Consume**: Right-click → "Consume Messages" → From Beginning/Latest
+- **Produce Message**: Right-click → "Produce Message" → Advanced producer webview with:
+  - Pre-built templates (Simple, User Event, Order, IoT Telemetry)
+  - Custom headers (key-value pairs, add/remove dynamically)
+  - Partition selection (auto or manual)
+  - Message key and value fields
+  - Real-time success/error feedback
+  - Message count and error tracking
+- **Consume Messages**: Right-click → "Consume Messages" → Real-time message streaming with:
+  - Start/Stop/Pause/Resume controls
+  - Choose: Start from latest or beginning of topic
+  - Live message display (newest first, auto-scroll)
+  - Human-readable timestamp conversion (👤 icon to toggle)
+  - Memory-safe buffer (max 1000 messages)
+  - Export messages to JSON file
+  - Uptime and message count tracking
 - **Delete**: Right-click → "Delete Topic" (requires confirmation)
 - **Search**: Use Cmd+F / Ctrl+F in detail view to find configurations
 - **Export**: Click "Copy as JSON" to export all details
@@ -251,6 +274,16 @@ Get intelligent, context-aware recommendations for your Kafka resources in a **c
 - **KStreams View**: Shows topics matching stream patterns (`-stream-`, `KSTREAM`, `-repartition`)
 - **KTables View**: Shows topics matching table patterns (`-changelog`, `-ktable-`, `-state-`)
 - **Same Operations**: Produce, consume, view details like regular topics
+
+### Export & Backup
+- **Export Topics**: Right-click cluster → "Export Topics to File"
+  - Multiple formats: JSON (structured), CSV (spreadsheet), Plain Text (list)
+  - Includes cluster name, export date, and topic count
+  - Auto-generated filenames with timestamp
+- **Export Consumer Groups**: Right-click cluster → "Export Consumer Groups to File"
+  - Export with full details: Group ID, State, Protocol Type, Protocol
+  - Same format options: JSON, CSV, Plain Text
+  - Perfect for audit trails, documentation, and backups
 - **Smart Filtering**: Automatically categorizes topics based on naming conventions
 
 ### Brokers
@@ -269,14 +302,26 @@ Get intelligent, context-aware recommendations for your Kafka resources in a **c
 - **Integrated View**: ACLs are displayed under each topic in the Clusters view
 - **Topic-Specific**: Expand any topic → Click "🔒 ACLs" to view permissions for that topic
 - **Rich Details**: Click ACL → See formatted details in HTML with resource, principal, operation, and permission type
-- **Create**: Right-click cluster → "Create ACL" → Copy CLI command
-- **Delete**: Right-click ACL → "Delete ACL" → Copy CLI command
+- **Create**: Right-click cluster → "Create ACL" → Interactive form → Instant creation via KafkaJS API
+- **Delete**: Right-click ACL → "Delete ACL" → Confirm → Instant deletion via KafkaJS API
+- **Native Operations**: All ACL operations use KafkaJS `describeAcls()`, `createAcls()`, `deleteAcls()` APIs
 - **Help**: Right-click ACL container → "ACL Help" for interactive documentation
 
-### Cluster Dashboard
+### Dashboards & Caching
+
+**Cluster Dashboard:**
 - Right-click cluster → "Show Cluster Dashboard"
 - View real-time metrics, partition distribution charts, top topics, broker info
-- Refresh for latest data
+- **Smart Caching**: Data cached for 5 minutes for instant reload (100-200x faster)
+- Cache age displayed: "📍 Data age: 2m | Last updated: 3:15:30 PM"
+- Click "🔄 Refresh" to fetch fresh data anytime
+
+**Topic Dashboard:**
+- Click any topic to view detailed dashboard
+- Message distribution, partition details, replica distribution charts
+- **Smart Caching**: Cached for 5 minutes (40-60x faster subsequent loads)
+- Instant navigation between topics using cached data
+- Manual refresh available anytime
 
 ## 🔧 Configuration
 
@@ -316,7 +361,10 @@ Get intelligent, context-aware recommendations for your Kafka resources in a **c
 }
 ```
 
-**Note:** Sensitive credentials are stored securely using VSCode's SecretStorage API.
+**Notes:**
+- Sensitive credentials are stored securely using VSCode's SecretStorage API
+- AWS MSK: Bootstrap brokers are cached after first fetch (credentials only needed initially)
+- Dashboard data cached for 5 minutes for instant reload
 
 ## 🐛 Troubleshooting
 
@@ -333,10 +381,12 @@ Get intelligent, context-aware recommendations for your Kafka resources in a **c
 - Refresh: `aws sso login --profile your-profile`
 - Enable debug logging
 
-**Empty Brokers Array**
-- Verify IAM permissions: `kafka:GetBootstrapBrokers`
+**Empty Brokers Array / Cluster Not Found**
+- First time: Verify IAM permissions (`kafka:GetBootstrapBrokers`)
 - Check cluster ARN is correct
-- Ensure credentials are valid
+- Ensure AWS credentials are valid
+- After initial setup: Brokers are cached - credentials only needed for first fetch or explicit refresh
+- If seeing "Cluster not found" after restart: Brokers should load from cache automatically
 
 **Consumer Group Operations Fail**
 - Base profile may have read-only access
@@ -409,7 +459,7 @@ src/
 ├── types/
 │   ├── acl.ts                      # ACL interfaces
 │   └── nodes.ts                    # Tree node types (including KStream/KTable nodes)
-└── test/                           # Test suite (296 tests)
+└── test/                           # Test suite (352 tests)
 ```
 
 ### Architecture Patterns
@@ -430,21 +480,22 @@ npm install             # Install dependencies
 npm run compile         # Compile TypeScript
 npm run watch           # Watch mode
 npm run lint            # ESLint
-npm test                # Run all 296 tests
+npm test                # Run all 352 tests
 npm run package         # Create .vsix
 npm run publish         # Publish to marketplace
 ```
 
 ### Test Coverage
 
-**296 tests passing** across:
+**352 tests passing** across:
 - Infrastructure (Logger, ErrorHandler, CredentialManager, EventBus, ConnectionPool)
 - Services (Topic, ConsumerGroup, Broker, Producer, Documentation)
 - Providers (Topics, Consumer Groups, Brokers, ACLs, KStreams, KTables)
-- Commands (All operations including KStreams and KTables)
+- Commands (All operations including native ACL management)
 - Utilities (Formatters, Validators)
-- Security (ACL management, input sanitization)
+- Security (Native ACL operations, input sanitization, credential management)
 - AI Integration (Availability checks, error handling)
+- Performance (Caching, connection pooling)
 
 ### Key Dependencies
 
@@ -472,7 +523,7 @@ npm run publish         # Publish to marketplace
 All PRs must pass:
 - ✅ ESLint
 - ✅ TypeScript compilation
-- ✅ 296 tests
+- ✅ 352 tests
 - ✅ Multi-OS (Ubuntu, Windows, macOS)
 - ✅ Multi-Node (18.x, 20.x)
 

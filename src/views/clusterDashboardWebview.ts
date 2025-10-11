@@ -3,6 +3,8 @@ import { KafkaClientManager } from '../kafka/kafkaClientManager';
 
 export class ClusterDashboardWebview {
     private panel: vscode.WebviewPanel | undefined;
+    private cache: Map<string, { data: any; timestamp: number }> = new Map();
+    private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache validity
 
     constructor(
         private context: vscode.ExtensionContext,
@@ -12,6 +14,12 @@ export class ClusterDashboardWebview {
     async show(clusterName: string) {
         if (this.panel) {
             this.panel.reveal(vscode.ViewColumn.One);
+            // Check if we should refresh based on cache age
+            const cached = this.cache.get(clusterName);
+            if (cached && (Date.now() - cached.timestamp) < this.CACHE_TTL_MS) {
+                // Cache is still valid, just reveal
+                return;
+            }
         } else {
             this.panel = vscode.window.createWebviewPanel(
                 'kafkaClusterDashboard',
@@ -32,6 +40,9 @@ export class ClusterDashboardWebview {
                 async message => {
                     switch (message.command) {
                         case 'refresh':
+                            // Clear cache for this cluster
+                            this.cache.delete(clusterName);
+
                             // Show loading state
                             this.panel?.webview.postMessage({
                                 command: 'startLoading'
@@ -40,6 +51,11 @@ export class ClusterDashboardWebview {
                             // Fetch data in background
                             try {
                                 const refreshedStats = await this.getClusterStatistics(clusterName);
+                                // Cache the refreshed data
+                                this.cache.set(clusterName, {
+                                    data: refreshedStats,
+                                    timestamp: Date.now()
+                                });
                                 this.panel?.webview.postMessage({
                                     command: 'updateStats',
                                     data: refreshedStats
@@ -56,16 +72,35 @@ export class ClusterDashboardWebview {
             );
         }
 
-        // Show loading state immediately
-        this.panel.webview.html = this.getLoadingHtml(clusterName);
+        // Check cache first
+        const cached = this.cache.get(clusterName);
+        const now = Date.now();
 
-        // Fetch cluster statistics in background
-        this.loadDashboardData(clusterName);
+        if (cached && (now - cached.timestamp) < this.CACHE_TTL_MS) {
+            // Use cached data
+            this.panel.webview.html = this.getLoadingHtml(clusterName);
+            setTimeout(() => {
+                this.panel?.webview.postMessage({
+                    command: 'updateStats',
+                    data: cached.data
+                });
+            }, 10);
+        } else {
+            // Show loading state and fetch fresh data
+            this.panel.webview.html = this.getLoadingHtml(clusterName);
+            this.loadDashboardData(clusterName);
+        }
     }
 
     private async loadDashboardData(clusterName: string) {
         try {
             const stats = await this.getClusterStatisticsParallel(clusterName);
+
+            // Cache the data
+            this.cache.set(clusterName, {
+                data: stats,
+                timestamp: Date.now()
+            });
 
             // Send data to webview
             this.panel?.webview.postMessage({
@@ -548,10 +583,15 @@ export class ClusterDashboardWebview {
         }
 
         function getDashboardTemplate(stats) {
+            const cacheAge = Math.round((Date.now() - new Date(stats.timestamp).getTime()) / 1000);
+            const cacheInfo = cacheAge < 60 ? \`\${cacheAge}s\` : \`\${Math.round(cacheAge / 60)}m\`;
+
             return \`
                 <style>
                     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid var(--vscode-panel-border); }
                     .header h1 { font-size: 24px; font-weight: 600; }
+                    .header-info { display: flex; flex-direction: column; gap: 5px; }
+                    .cache-badge { font-size: 11px; color: var(--vscode-descriptionForeground); background: var(--vscode-badge-background); padding: 2px 8px; border-radius: 10px; display: inline-block; width: fit-content; }
                     .header-actions { display: flex; gap: 10px; }
                     button { background-color: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; padding: 8px 16px; cursor: pointer; border-radius: 4px; font-size: 13px; }
                     button:hover { background-color: var(--vscode-button-hoverBackground); }
@@ -575,9 +615,10 @@ export class ClusterDashboardWebview {
                 </style>
 
                 <div class="header">
-                    <div>
+                    <div class="header-info">
                         <h1>🎛️ Cluster Dashboard</h1>
-                        <p style="margin-top: 5px; color: var(--vscode-descriptionForeground);">\${stats.clusterName}</p>
+                        <p style="margin: 5px 0 0; color: var(--vscode-descriptionForeground);">\${stats.clusterName}</p>
+                        <span class="cache-badge">📍 Data age: \${cacheInfo} | Last updated: \${new Date(stats.timestamp).toLocaleTimeString()}</span>
                     </div>
                     <div class="header-actions">
                         <button onclick="refreshDashboard()">🔄 Refresh</button>
@@ -585,22 +626,28 @@ export class ClusterDashboardWebview {
                 </div>
 
                 <div class="metrics-grid">
-                    <div class="metric-card"><h3>Brokers</h3><div class="metric-value">\${stats.brokerCount}</div><div class="metric-label">Active brokers in cluster</div></div>
-                    <div class="metric-card"><h3>Topics</h3><div class="metric-value">\${stats.topicCount}</div><div class="metric-label">Total topics</div></div>
-                    <div class="metric-card"><h3>Consumer Groups</h3><div class="metric-value">\${stats.consumerGroupCount}</div><div class="metric-label">Active consumer groups</div></div>
-                    <div class="metric-card"><h3>Total Partitions</h3><div class="metric-value">\${stats.clusterStats.totalPartitions}</div><div class="metric-label">Across all topics</div></div>
+                    <div class="metric-card" title="Number of active brokers in the cluster (nodes that store and serve data)" style="cursor: help;"><h3>Brokers</h3><div class="metric-value">\${stats.brokerCount}</div><div class="metric-label">Active brokers in cluster</div></div>
+                    <div class="metric-card" title="Total number of topics in the cluster (logical channels for organizing messages)" style="cursor: help;"><h3>Topics</h3><div class="metric-value">\${stats.topicCount}</div><div class="metric-label">Total topics</div></div>
+                    <div class="metric-card" title="Number of consumer groups consuming from topics in this cluster" style="cursor: help;"><h3>Consumer Groups</h3><div class="metric-value">\${stats.consumerGroupCount}</div><div class="metric-label">Active consumer groups</div></div>
+                    <div class="metric-card" title="Sum of partitions across all topics (each partition = unit of parallelism)" style="cursor: help;"><h3>Total Partitions</h3><div class="metric-value">\${stats.clusterStats.totalPartitions}</div><div class="metric-label">Across all topics</div></div>
                 </div>
 
                 <div class="charts-grid">
-                    <div class="chart-card"><h3>Consumer Group States</h3><div class="chart-container"><canvas id="consumerGroupChart"></canvas></div></div>
-                    <div class="chart-card"><h3>Partition Distribution Across Brokers</h3><div class="chart-container"><canvas id="brokerChart"></canvas></div></div>
-                    <div class="chart-card"><h3>Replication Factor Distribution</h3><div class="chart-container"><canvas id="replicationChart"></canvas></div></div>
+                    <div class="chart-card"><h3 title="Distribution of consumer groups by state (Stable, Empty, Dead, etc.)" style="cursor: help;">Consumer Group States</h3><div class="chart-container"><canvas id="consumerGroupChart"></canvas></div></div>
+                    <div class="chart-card"><h3 title="Number of partition leaders on each broker (should be balanced)" style="cursor: help;">Partition Distribution Across Brokers</h3><div class="chart-container"><canvas id="brokerChart"></canvas></div></div>
+                    <div class="chart-card"><h3 title="Number of topics with each replication factor (RF=3 recommended for production)" style="cursor: help;">Replication Factor Distribution</h3><div class="chart-container"><canvas id="replicationChart"></canvas></div></div>
                 </div>
 
                 <div class="details-section">
                     <h2>📊 Broker Details</h2>
                     <table>
-                        <thead><tr><th>Broker ID</th><th>Host</th><th>Port</th><th>Rack</th><th>Partition Leaders</th></tr></thead>
+                        <thead><tr>
+                            <th title="Unique identifier for each broker in the cluster" style="cursor: help;">Broker ID</th>
+                            <th title="Hostname or IP address of the broker" style="cursor: help;">Host</th>
+                            <th title="Port number the broker listens on" style="cursor: help;">Port</th>
+                            <th title="Rack identifier for rack-aware partition placement" style="cursor: help;">Rack</th>
+                            <th title="Number of partitions where this broker is the leader" style="cursor: help;">Partition Leaders</th>
+                        </tr></thead>
                         <tbody>\${stats.brokers.sort((a, b) => a.id - b.id).map(b => \`<tr><td><strong>\${b.id}</strong></td><td>\${b.host}</td><td>\${b.port}</td><td>\${b.rack}</td><td><strong>\${b.partitionCount}</strong> partitions</td></tr>\`).join('')}</tbody>
                     </table>
                 </div>
@@ -609,7 +656,11 @@ export class ClusterDashboardWebview {
                     <h2>📋 Top Topics by Partition Count</h2>
                     \${stats.isLimitedTopicScan ? \`<p style="color: var(--vscode-descriptionForeground); font-size: 12px; margin-bottom: 10px;">ℹ️ Showing top 10 from \${stats.topicsScanned} topics scanned (\${stats.topicCount} total)</p>\` : ''}
                     <table>
-                        <thead><tr><th>Topic Name</th><th>Partitions</th><th>Replication Factor</th></tr></thead>
+                        <thead><tr>
+                            <th title="Name of the topic" style="cursor: help;">Topic Name</th>
+                            <th title="Number of partitions in the topic (higher = more parallelism)" style="cursor: help;">Partitions</th>
+                            <th title="Number of replicas per partition (higher = more durability)" style="cursor: help;">Replication Factor</th>
+                        </tr></thead>
                         <tbody>\${stats.topicSample.map(t => \`<tr><td><strong>\${t.name}</strong></td><td>\${t.partitions}</td><td>\${t.replicas}</td></tr>\`).join('')}</tbody>
                     </table>
                 </div>
@@ -849,22 +900,22 @@ export class ClusterDashboardWebview {
     </div>
 
     <div class="metrics-grid">
-        <div class="metric-card">
+        <div class="metric-card" title="Number of active brokers in the cluster (nodes that store and serve data)" style="cursor: help;">
             <h3>Brokers</h3>
             <div class="metric-value">${stats.brokerCount}</div>
             <div class="metric-label">Active brokers in cluster</div>
         </div>
-        <div class="metric-card">
+        <div class="metric-card" title="Total number of topics in the cluster (logical channels for organizing messages)" style="cursor: help;">
             <h3>Topics</h3>
             <div class="metric-value">${stats.topicCount}</div>
             <div class="metric-label">Total topics</div>
         </div>
-        <div class="metric-card">
+        <div class="metric-card" title="Number of consumer groups consuming from topics in this cluster" style="cursor: help;">
             <h3>Consumer Groups</h3>
             <div class="metric-value">${stats.consumerGroupCount}</div>
             <div class="metric-label">Active consumer groups</div>
         </div>
-        <div class="metric-card">
+        <div class="metric-card" title="Sum of partitions across all topics (each partition = unit of parallelism)" style="cursor: help;">
             <h3>Total Partitions</h3>
             <div class="metric-value">${stats.clusterStats.totalPartitions}</div>
             <div class="metric-label">Across all topics</div>

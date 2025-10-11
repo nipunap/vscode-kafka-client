@@ -2,7 +2,7 @@
   "name": "vscode-kafka-client",
   "displayName": "Kafka Client",
   "description": "Full-featured Kafka client with AWS MSK support, IAM authentication, role assumption, and auto-discovery",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "publisher": "NipunaPerera",
   "license": "GPL-3.0",
   "icon": "resources/kafka-icon.png",
@@ -116,12 +116,12 @@
       {
         "command": "kafka.produceMessage",
         "title": "Produce Message",
-        "icon": "$(export)"
+        "icon": "$(edit)"
       },
       {
         "command": "kafka.consumeMessages",
         "title": "Consume Messages",
-        "icon": "$(inbox)"
+        "icon": "$(radio-tower)"
       },
       {
         "command": "kafka.viewConsumerGroup",
@@ -224,6 +224,16 @@
         "icon": "$(dashboard)"
       },
       {
+        "command": "kafka.exportTopics",
+        "title": "Export Topics to File",
+        "icon": "$(export)"
+      },
+      {
+        "command": "kafka.exportConsumerGroups",
+        "title": "Export Consumer Groups to File",
+        "icon": "$(export)"
+      },
+      {
         "command": "kafka.showTopicACLDetails",
         "title": "Show Topic ACL Details",
         "icon": "$(info)"
@@ -292,6 +302,26 @@
           "command": "kafka.showClusterDashboard",
           "when": "view == kafkaExplorer && viewItem == cluster",
           "group": "0_info@1"
+        },
+        {
+          "command": "kafka.createACL",
+          "when": "view == kafkaExplorer && viewItem == cluster",
+          "group": "2_acl@1"
+        },
+        {
+          "command": "kafka.deleteACL",
+          "when": "view == kafkaExplorer && viewItem == cluster",
+          "group": "2_acl@2"
+        },
+        {
+          "command": "kafka.exportTopics",
+          "when": "view == kafkaExplorer && viewItem == cluster",
+          "group": "3_export@1"
+        },
+        {
+          "command": "kafka.exportConsumerGroups",
+          "when": "view == kafkaExplorer && viewItem == cluster",
+          "group": "3_export@2"
         },
         {
           "command": "kafka.removeCluster",

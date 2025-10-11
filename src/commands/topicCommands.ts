@@ -85,149 +85,6 @@ export async function deleteTopic(
     }
 }
 
-export async function produceMessage(clientManager: KafkaClientManager, node: TopicNode) {
-    const key = await vscode.window.showInputBox({
-        prompt: 'Enter message key (optional)',
-        placeHolder: 'key'
-    });
-
-    const value = await vscode.window.showInputBox({
-        prompt: 'Enter message value',
-        placeHolder: 'message content'
-    });
-
-    if (!value) {
-        return;
-    }
-
-    await ErrorHandler.wrap(
-        async () => {
-            await clientManager.produceMessage(node.clusterName, node.topicName, key, value);
-            vscode.window.showInformationMessage(`Message sent to topic "${node.topicName}"`);
-        },
-        `Producing message to topic "${node.topicName}"`
-    );
-}
-
-export async function consumeMessages(clientManager: KafkaClientManager, node: TopicNode) {
-    // Validate input
-    if (!node || !node.clusterName || !node.topicName) {
-        vscode.window.showErrorMessage('Invalid topic selection. Please try again.');
-        return;
-    }
-
-    const fromBeginning = await vscode.window.showQuickPick(['Latest', 'Beginning'], {
-        placeHolder: 'Consume from?'
-    });
-
-    if (!fromBeginning) {
-        return;
-    }
-
-    const limitStr = await vscode.window.showInputBox({
-        prompt: 'Number of messages to consume (max 1000)',
-        value: '10',
-        validateInput: (value) => {
-            const num = Number(value);
-            if (isNaN(num)) {
-                return 'Must be a number';
-            }
-            if (num <= 0) {
-                return 'Must be greater than 0';
-            }
-            if (num > 1000) {
-                return 'Maximum is 1000 messages';
-            }
-            return undefined;
-        }
-    });
-
-    if (!limitStr) {
-        return;
-    }
-
-    const limit = Number(limitStr);
-
-    await ErrorHandler.wrap(
-        async () => {
-            await vscode.window.withProgress(
-            {
-                location: vscode.ProgressLocation.Notification,
-                title: `Consuming messages from ${node.topicName}`,
-                cancellable: true
-            },
-            async (progress, token) => {
-                // Create document first with header
-                const document = await vscode.workspace.openTextDocument({
-                    content: `# Consuming from topic: ${node.topicName}\n# Waiting for messages...\n\n`,
-                    language: 'json'
-                });
-                const editor = await vscode.window.showTextDocument(document);
-
-                const messages: any[] = [];
-                let lastUpdateTime = Date.now();
-                const UPDATE_THROTTLE_MS = 100; // Only update UI every 100ms to prevent performance issues
-
-                try {
-                    // Consume with real-time streaming
-                    await clientManager.consumeMessages(
-                        node.clusterName,
-                        node.topicName,
-                        fromBeginning === 'Beginning',
-                        limit,
-                        token,
-                        (message, count) => {
-                            try {
-                                // Update progress
-                                progress.report({
-                                    message: `Received ${count}/${limit} messages`,
-                                    increment: (100 / limit)
-                                });
-
-                                // Add message to array
-                                messages.push(message);
-
-                                // Throttle UI updates to prevent performance issues
-                                const now = Date.now();
-                                if (now - lastUpdateTime >= UPDATE_THROTTLE_MS || count === limit) {
-                                    lastUpdateTime = now;
-
-                                    // Update the document content in real-time (with error handling)
-                                    editor.edit(editBuilder => {
-                                        try {
-                                            editBuilder.replace(
-                                                new vscode.Range(0, 0, document.lineCount, 0),
-                                                `# Consuming from topic: ${node.topicName}\n# Received ${count}/${limit} messages\n\n${formatMessages(messages)}`
-                                            );
-                                        } catch (err) {
-                                            console.error('Failed to update document:', err);
-                                        }
-                                    }).then(undefined, err => {
-                                        console.error('Editor.edit failed:', err);
-                                    });
-                                }
-                            } catch (err) {
-                                console.error('Error in message callback:', err);
-                            }
-                        }
-                    );
-                } catch (error) {
-                    // Update document with error message
-                    editor.edit(editBuilder => {
-                        editBuilder.replace(
-                            new vscode.Range(0, 0, document.lineCount, 0),
-                            `# Consuming from topic: ${node.topicName}\n# Error: ${error}\n\n${messages.length > 0 ? formatMessages(messages) : 'No messages received before error.'}`
-                        );
-                    });
-                    throw error;
-                }
-            }
-        );
-        },
-        `Consuming messages from topic "${node.topicName}"`
-    );
-}
-
 export async function showTopicDetails(clientManager: KafkaClientManager, node: TopicNode, context?: vscode.ExtensionContext) {
     await ErrorHandler.wrap(
         async () => {
@@ -280,7 +137,7 @@ export async function showTopicDetails(clientManager: KafkaClientManager, node: 
                 showAIAdvisor: aiAvailable,
                 notice: {
                     type: 'info',
-                    text: aiAvailable 
+                    text: aiAvailable
                         ? '🤖 Try the AI Advisor for intelligent configuration recommendations! ✏️ Edit mode coming soon.'
                         : '✏️ Edit mode coming soon! You\'ll be able to modify topic configurations directly from this view.'
                 },
@@ -363,7 +220,7 @@ export async function showTopicDetails(clientManager: KafkaClientManager, node: 
 /**
  * Find/search for a topic across all clusters
  */
-export async function findTopic(clientManager: KafkaClientManager) {
+export async function findTopic(clientManager: KafkaClientManager, context?: vscode.ExtensionContext) {
     await ErrorHandler.wrap(
         async () => {
             const clusters = clientManager.getClusters();
@@ -426,11 +283,11 @@ export async function findTopic(clientManager: KafkaClientManager) {
             );
 
             if (selectedTopic) {
-                // Show topic details
+                // Show topic details with HTML webview
                 await showTopicDetails(clientManager, {
                     clusterName: selectedCluster,
                     topicName: selectedTopic.label
-                });
+                }, context);
             }
         },
         'Searching for topics'
@@ -453,6 +310,99 @@ export async function showTopicDashboard(
         const dashboard = new TopicDashboardWebview(context, clientManager);
         await dashboard.show(clusterName, topicName);
     }, 'Show Topic Dashboard');
+}
+
+/**
+ * Export all topics from a cluster to a file
+ */
+export async function exportTopics(clientManager: KafkaClientManager, node: ClusterNode) {
+    await ErrorHandler.wrap(
+        async () => {
+            // Get format choice
+            const format = await vscode.window.showQuickPick(
+                [
+                    { label: 'JSON', description: 'Export as JSON format', value: 'json' },
+                    { label: 'CSV', description: 'Export as comma-separated values', value: 'csv' },
+                    { label: 'Plain Text', description: 'Export as line-separated text', value: 'txt' }
+                ],
+                {
+                    placeHolder: 'Select export format',
+                    ignoreFocusOut: true
+                }
+            );
+
+            if (!format) {
+                return;
+            }
+
+            // Get topics with progress
+            const topics = await vscode.window.withProgress(
+                {
+                    location: vscode.ProgressLocation.Notification,
+                    title: `Loading topics from ${node.clusterName}...`,
+                    cancellable: false
+                },
+                async () => {
+                    return await clientManager.getTopics(node.clusterName);
+                }
+            );
+
+            if (!topics || topics.length === 0) {
+                vscode.window.showInformationMessage(`No topics found in cluster "${node.clusterName}"`);
+                return;
+            }
+
+            // Generate content based on format
+            let content: string;
+            let fileExtension: string;
+
+            switch (format.value) {
+                case 'json':
+                    content = JSON.stringify({
+                        cluster: node.clusterName,
+                        exportDate: new Date().toISOString(),
+                        topicCount: topics.length,
+                        topics: topics
+                    }, null, 2);
+                    fileExtension = 'json';
+                    break;
+                case 'csv':
+                    content = `Cluster,Topic Name\n`;
+                    content += topics.map(topic => `"${node.clusterName}","${topic}"`).join('\n');
+                    fileExtension = 'csv';
+                    break;
+                default: // txt
+                    content = `Cluster: ${node.clusterName}\n`;
+                    content += `Export Date: ${new Date().toISOString()}\n`;
+                    content += `Total Topics: ${topics.length}\n\n`;
+                    content += topics.join('\n');
+                    fileExtension = 'txt';
+            }
+
+            // Save file
+            const uri = await vscode.window.showSaveDialog({
+                defaultUri: vscode.Uri.file(`${node.clusterName}-topics-${Date.now()}.${fileExtension}`),
+                filters: {
+                    'All Files': ['*'],
+                    ...(format.value === 'json' && { 'JSON': ['json'] }),
+                    ...(format.value === 'csv' && { 'CSV': ['csv'] }),
+                    ...(format.value === 'txt' && { 'Text': ['txt'] })
+                }
+            });
+
+            if (uri) {
+                await vscode.workspace.fs.writeFile(uri, Buffer.from(content, 'utf8'));
+                const action = await vscode.window.showInformationMessage(
+                    `Exported ${topics.length} topics to ${uri.fsPath}`,
+                    'Open File'
+                );
+                if (action === 'Open File') {
+                    await vscode.window.showTextDocument(uri);
+                }
+            }
+        },
+        `Exporting topics from cluster "${node.clusterName}"`
+    );
 }
 
 /**
