@@ -36,7 +36,7 @@ export async function showConsumerGroupDetails(clientManager: KafkaClientManager
         }
 
         // Create HTML view
-        const detailsView = new DetailsWebview(context, `Consumer Group: ${node.groupId}`, '👥');
+        const detailsView = new DetailsWebview(`Consumer Group: ${node.groupId}`, '👥');
 
         // Get state badge
         const getStateBadge = (state: string) => {

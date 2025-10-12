@@ -45,7 +45,6 @@ export class KafkaClientManager {
 
     // Health check settings
     private readonly ADMIN_HEALTH_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
-    private readonly ADMIN_MAX_AGE = 30 * 60 * 1000; // 30 minutes
 
     // Service layer
     private topicService: TopicService;
@@ -958,7 +957,7 @@ export class KafkaClientManager {
         }
     }
 
-    async getACLDetails(clusterName: string, acl: ACL): Promise<ACLDetails> {
+    async getACLDetails(_clusterName: string, acl: ACL): Promise<ACLDetails> {
         // Return detailed ACL information
         return {
             principal: acl.principal || 'Unknown',
@@ -1073,7 +1072,7 @@ export class KafkaClientManager {
     private async checkAdminHealth(clusterName: string, admin: Admin): Promise<boolean> {
         try {
             // Quick health check: list cluster metadata (lightweight operation)
-            const metadata = await Promise.race([
+            await Promise.race([
                 admin.describeCluster(),
                 new Promise((_, reject) =>
                     setTimeout(() => reject(new Error('Health check timeout')), 5000)

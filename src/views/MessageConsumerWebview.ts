@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import { KafkaClientManager } from '../kafka/kafkaClientManager';
 import { Logger } from '../infrastructure/Logger';
-import { formatMilliseconds } from '../utils/formatters';
 
 interface ConsumedMessage {
     topic: string;
@@ -40,7 +39,6 @@ export class MessageConsumerWebview {
     private topicName: string = '';
 
     private constructor(
-        private readonly extensionPath: string,
         clientManager: KafkaClientManager,
         logger: Logger
     ) {
@@ -49,13 +47,11 @@ export class MessageConsumerWebview {
     }
 
     public static getInstance(
-        extensionPath: string,
         clientManager: KafkaClientManager,
         logger: Logger
     ): MessageConsumerWebview {
         if (!MessageConsumerWebview.instance) {
             MessageConsumerWebview.instance = new MessageConsumerWebview(
-                extensionPath,
                 clientManager,
                 logger
             );

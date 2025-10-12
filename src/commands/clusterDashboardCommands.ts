@@ -15,7 +15,7 @@ export async function showClusterDashboard(
 ) {
     try {
         if (!dashboardWebview) {
-            dashboardWebview = new ClusterDashboardWebview(context, clientManager);
+            dashboardWebview = new ClusterDashboardWebview(clientManager);
         }
 
         // Show dashboard immediately with loading state

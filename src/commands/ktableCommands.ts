@@ -47,7 +47,7 @@ export async function showKTableDetails(
             }
 
             // Create HTML view
-            const detailsView = new DetailsWebview(context, `KTable: ${node.topicName}`, '📊');
+            const detailsView = new DetailsWebview(`KTable: ${node.topicName}`, '📊');
 
             // Check if AI features are available
             const aiAvailable = await AIAdvisor.checkAvailability();

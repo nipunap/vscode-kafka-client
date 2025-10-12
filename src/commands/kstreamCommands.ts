@@ -47,11 +47,11 @@ export async function showKStreamDetails(
             }
 
             // Create HTML view
-            const detailsView = new DetailsWebview(context, `KStream: ${node.topicName}`, '🌊');
-            
+            const detailsView = new DetailsWebview(`KStream: ${node.topicName}`, '🌊');
+
             // Check if AI features are available
             const aiAvailable = await AIAdvisor.checkAvailability();
-            
+
             // Calculate total messages across all partitions
             let totalMessages = 0;
             if (details.partitionDetails) {
@@ -61,7 +61,7 @@ export async function showKStreamDetails(
                     }
                 }
             }
-            
+
             const data: DetailsData = {
                 title: node.topicName,
                 showCopyButton: true,
@@ -196,7 +196,7 @@ export async function findKStream(clientManager: KafkaClientManager, provider: a
                         if (topic.startsWith('__')) {
                             return false;
                         }
-                        if (topic.endsWith('-changelog') || topic.includes('-ktable-') || 
+                        if (topic.endsWith('-changelog') || topic.includes('-ktable-') ||
                             topic.includes('-store-') || topic.includes('-state-')) {
                             return false;
                         }
@@ -248,4 +248,3 @@ export async function findKStream(clientManager: KafkaClientManager, provider: a
         ErrorHandler.handle(error, 'Find KStream');
     }
 }
-

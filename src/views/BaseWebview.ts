@@ -42,7 +42,7 @@ export abstract class BaseWebview {
      * Show the webview. Creates a new panel if needed, or reveals existing one.
      * Subclasses should call this via super.show() and then load their content.
      */
-    protected show(key: string = this.config.viewType): vscode.WebviewPanel {
+    protected show(): vscode.WebviewPanel {
         if (this.panel) {
             this.panel.reveal(this.config.viewColumn || vscode.ViewColumn.One);
             return this.panel;

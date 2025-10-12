@@ -152,7 +152,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
             // Show the message producer webview
             const messageProducerWebview = MessageProducerWebview.getInstance(
-                context.extensionPath,
                 clientManager,
                 logger
             );
@@ -186,7 +185,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
             // Show the message consumer webview
             const messageConsumerWebview = MessageConsumerWebview.getInstance(
-                context.extensionPath,
                 clientManager,
                 logger
             );

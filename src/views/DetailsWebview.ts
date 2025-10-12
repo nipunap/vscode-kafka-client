@@ -8,11 +8,9 @@ import { formatMilliseconds, formatBytes, isMillisecondsProperty, isBytesPropert
  */
 export class DetailsWebview {
     private panel: vscode.WebviewPanel | undefined;
-    private currentData: DetailsData | undefined;
     private aiRequestHandler: (() => Promise<void>) | undefined;
 
     constructor(
-        private context: vscode.ExtensionContext,
         private title: string,
         private icon: string = '📄'
     ) {}
@@ -21,7 +19,6 @@ export class DetailsWebview {
      * Show the details view with the provided data
      */
     public show(data: DetailsData): void {
-        this.currentData = data;
 
         // Create or reuse webview panel
         if (this.panel) {
@@ -39,7 +36,6 @@ export class DetailsWebview {
 
             this.panel.onDidDispose(() => {
                 this.panel = undefined;
-                this.currentData = undefined;
                 this.aiRequestHandler = undefined;
             });
 

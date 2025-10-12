@@ -5,7 +5,6 @@
 import * as vscode from 'vscode';
 import { KafkaClientManager } from '../kafka/kafkaClientManager';
 import { KafkaExplorerProvider } from '../providers/kafkaExplorerProvider';
-import { formatMessages } from '../utils/formatters';
 import { ErrorHandler } from '../infrastructure/ErrorHandler';
 import { TopicDashboardWebview } from '../views/topicDashboardWebview';
 import { DetailsWebview, DetailsData } from '../views/DetailsWebview';
@@ -115,7 +114,7 @@ export async function showTopicDetails(clientManager: KafkaClientManager, node: 
             }
 
             // Create HTML view
-            const detailsView = new DetailsWebview(context, `Topic: ${node.topicName}`, '📋');
+            const detailsView = new DetailsWebview(`Topic: ${node.topicName}`, '📋');
 
             // Check if AI features are available
             const aiAvailable = await AIAdvisor.checkAvailability();
@@ -430,7 +429,7 @@ export async function showTopicACLDetails(clientManager: KafkaClientManager, nod
         }
 
         // Create HTML view
-        const detailsView = new DetailsWebview(context, `ACL Details`, '🔒');
+        const detailsView = new DetailsWebview(`ACL Details`, '🔒');
         const data: DetailsData = {
             title: `${aclDetails.principal} → ${aclDetails.operation}`,
             showCopyButton: true,
