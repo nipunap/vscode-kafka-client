@@ -502,29 +502,29 @@ export class DetailsWebview {
 
                     /* Human-readable format toggle */
                     .format-toggle {
-                        display: inline-flex;
-                        align-items: center;
-                        gap: 6px;
+                        display: inline-block;
                     }
 
-                    .human-icon {
-                        font-size: 16px;
+                    .human-icon-header {
+                        font-size: 18px;
                         cursor: pointer;
                         opacity: 0.6;
                         transition: all 0.2s;
                         display: inline-flex;
                         align-items: center;
                         user-select: none;
+                        margin-left: 8px;
+                        vertical-align: middle;
                     }
 
-                    .human-icon:hover {
+                    .human-icon-header:hover {
                         opacity: 1;
-                        transform: scale(1.15);
+                        transform: scale(1.2);
                     }
 
-                    .format-toggle[data-format="human"] .human-icon {
+                    .human-icon-header.active {
                         opacity: 1;
-                        filter: brightness(1.2);
+                        filter: brightness(1.3);
                     }
 
                     /* Info Modal Styles */
@@ -1005,22 +1005,40 @@ export class DetailsWebview {
                         }
                     });
 
-                    // Toggle between raw and human-readable format
-                    function toggleFormat(element) {
-                        const currentFormat = element.getAttribute('data-format');
-                        const rawValue = element.getAttribute('data-raw');
-                        const humanValue = element.getAttribute('data-human');
+                    // Toggle all values between raw and human-readable format
+                    function toggleAllFormats() {
+                        const allToggles = document.querySelectorAll('.format-toggle');
+                        if (allToggles.length === 0) return;
 
-                        if (currentFormat === 'raw') {
-                            // Switch to human format
-                            element.setAttribute('data-format', 'human');
-                            element.childNodes[0].textContent = humanValue;
-                            element.querySelector('.human-icon').title = 'Click to show raw value';
-                        } else {
-                            // Switch to raw format
-                            element.setAttribute('data-format', 'raw');
-                            element.childNodes[0].textContent = rawValue;
-                            element.querySelector('.human-icon').title = 'Click to show human-readable format';
+                        // Check current format of first element to determine what to do
+                        const firstToggle = allToggles[0];
+                        const currentFormat = firstToggle.getAttribute('data-format');
+                        const newFormat = currentFormat === 'raw' ? 'human' : 'raw';
+
+                        // Toggle all elements
+                        allToggles.forEach(element => {
+                            const rawValue = element.getAttribute('data-raw');
+                            const humanValue = element.getAttribute('data-human');
+
+                            element.setAttribute('data-format', newFormat);
+                            
+                            // Update text content (first text node)
+                            const textNode = Array.from(element.childNodes).find(node => node.nodeType === Node.TEXT_NODE);
+                            if (textNode) {
+                                textNode.textContent = newFormat === 'human' ? humanValue : rawValue;
+                            }
+                        });
+
+                        // Update header icon appearance
+                        const headerIcon = document.querySelector('.human-icon-header');
+                        if (headerIcon) {
+                            if (newFormat === 'human') {
+                                headerIcon.classList.add('active');
+                                headerIcon.title = 'Click to show raw values';
+                            } else {
+                                headerIcon.classList.remove('active');
+                                headerIcon.title = 'Click to show human-readable values';
+                            }
                         }
                     }
                 </script>
@@ -1092,15 +1110,24 @@ export class DetailsWebview {
             <table class="table">
                 <thead>
                     <tr>
-                        ${table.headers.map(h => {
+                        ${table.headers.map((h, colIndex) => {
+                            const isValueColumn = isConfigTable && colIndex === valueColIndex;
+
                             if (typeof h === 'string') {
                                 // Check if this is a configuration property (from first column)
                                 const infoIcon = fieldDescriptions.getInfoIconHtml(h);
-                                return `<th title="Column: ${h}">${h}${infoIcon}</th>`;
+                                // Add human icon to VALUE column header if it's a config table
+                                const humanIcon = isValueColumn
+                                    ? ` <span class="human-icon-header" onclick="toggleAllFormats()" title="Click to toggle between raw and human-readable format for all values">👤</span>`
+                                    : '';
+                                return `<th title="Column: ${h}">${h}${infoIcon}${humanIcon}</th>`;
                             } else {
                                 const tooltip = h.tooltip || `Column: ${h.label}`;
                                 const infoIcon = fieldDescriptions.getInfoIconHtml(h.label);
-                                return `<th title="${tooltip}" style="cursor: help;">${h.label}${infoIcon}</th>`;
+                                const humanIcon = isValueColumn
+                                    ? ` <span class="human-icon-header" onclick="toggleAllFormats()" title="Click to toggle between raw and human-readable format for all values">👤</span>`
+                                    : '';
+                                return `<th title="${tooltip}" style="cursor: help;">${h.label}${infoIcon}${humanIcon}</th>`;
                             }
                         }).join('')}
                     </tr>
@@ -1117,7 +1144,7 @@ export class DetailsWebview {
                                     cellContent = cellContent + infoIcon;
                                 }
 
-                                // Add human-readable icon for config table VALUE column
+                                // Add human-readable data attributes for config table VALUE column
                                 if (isConfigTable && colIndex === valueColIndex && propertyColIndex >= 0) {
                                     const propertyName = String(row[propertyColIndex]);
                                     const rawValue = String(cell);
@@ -1134,7 +1161,6 @@ export class DetailsWebview {
                                         cellContent = `
                                             <span class="format-toggle" data-raw="${this.escapeHtml(rawValue)}" data-human="${this.escapeHtml(humanValue)}" data-format="raw">
                                                 ${cellContent}
-                                                <span class="human-icon" onclick="toggleFormat(this.parentElement)" title="Click to show human-readable format">👤</span>
                                             </span>
                                         `;
                                     }
