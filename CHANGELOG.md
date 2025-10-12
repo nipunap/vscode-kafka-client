@@ -4,6 +4,35 @@ All notable changes to the "Kafka Client" extension will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/) and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.7.0](https://github.com/nipunap/vscode-kafka-client/compare/v0.6.0...v0.7.0) (2025-10-12)
+
+
+### ✨ Features
+
+* add 10-second timeout for AI parameter details requests ([86433e7](https://github.com/nipunap/vscode-kafka-client/commit/86433e713a27eef4d6cfc033520c8fda5437a6ad))
+* add human-readable config source labels and AI-powered parameter details ([9cb75bd](https://github.com/nipunap/vscode-kafka-client/commit/9cb75bdbdfae8e0cdecb4fcbb85880e3ddae17ff))
+* architectural improvements for production readiness ([9e96295](https://github.com/nipunap/vscode-kafka-client/commit/9e9629549f86c8a92b51345b8edaa28b0d4bad27))
+* move human-readable toggle to table header for bulk operations ([75c5d6a](https://github.com/nipunap/vscode-kafka-client/commit/75c5d6acd17f86c6b12f46cb20b59f7c1b09bb61))
+
+
+### 🐛 Bug Fixes
+
+* add missed files ([da60413](https://github.com/nipunap/vscode-kafka-client/commit/da60413467e9614c1a898ac0b0a1cdeda82bbbdc))
+* add proper HTML formatting to AI-enhanced parameter details ([2735d6c](https://github.com/nipunap/vscode-kafka-client/commit/2735d6cd1e3afdc30c0bca62731c4e13c6340e19))
+* apply header-based human-readable toggle to Message Consumer webview ([8c44048](https://github.com/nipunap/vscode-kafka-client/commit/8c4404866c4642853493767e9c494bae98a123e2))
+* make script tag regex case-insensitive in security tests ([672f7dd](https://github.com/nipunap/vscode-kafka-client/commit/672f7ddbfcad43ce8d90b90aa3fdf1a28573071f)), closes [#29](https://github.com/nipunap/vscode-kafka-client/issues/29)
+* resolve CSP violations for inline event handlers and external scripts ([4e9275e](https://github.com/nipunap/vscode-kafka-client/commit/4e9275e4dc9e23b2408dda353306083d5596614a))
+
+
+### ⚡ Performance Improvements
+
+* simplify AI request flow for faster response times ([bc7ecb3](https://github.com/nipunap/vscode-kafka-client/commit/bc7ecb3a254ba0412735ccb0018a62ac0d87e0e2))
+
+
+### ♻️ Code Refactoring
+
+* comprehensive code cleanup - remove unused code and variables ([3790bbe](https://github.com/nipunap/vscode-kafka-client/commit/3790bbeeaf40c088faa9806ce4fd238a8f8db1f1))
+
 ## [0.6.0](https://github.com/nipunap/vscode-kafka-client/compare/v0.5.0...v0.6.0) (2025-10-11)
 
 

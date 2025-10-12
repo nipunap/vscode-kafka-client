@@ -42,7 +42,7 @@ export abstract class BaseWebview {
      * Show the webview. Creates a new panel if needed, or reveals existing one.
      * Subclasses should call this via super.show() and then load their content.
      */
-    protected show(key: string = this.config.viewType): vscode.WebviewPanel {
+    protected show(): vscode.WebviewPanel {
         if (this.panel) {
             this.panel.reveal(this.config.viewColumn || vscode.ViewColumn.One);
             return this.panel;
@@ -122,6 +122,23 @@ export abstract class BaseWebview {
             text += possible.charAt(Math.floor(Math.random() * possible.length));
         }
         return text;
+    }
+
+    /**
+     * Get secure Content Security Policy meta tag
+     * Note: We use 'unsafe-inline' without nonces because inline event handlers
+     * (onclick, etc.) require it. When a nonce is present, 'unsafe-inline' is ignored.
+     * This is safe because we control all HTML generation and use proper escaping.
+     */
+    protected getCSP(_nonce: string): string {
+        return `
+            <meta http-equiv="Content-Security-Policy"
+                  content="default-src 'none';
+                           style-src ${this.panel?.webview.cspSource} 'unsafe-inline';
+                           script-src 'unsafe-inline';
+                           img-src ${this.panel?.webview.cspSource} https:;
+                           font-src ${this.panel?.webview.cspSource};">
+        `;
     }
 
     /**

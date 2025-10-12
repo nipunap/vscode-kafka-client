@@ -5,13 +5,13 @@
 import * as vscode from 'vscode';
 import { KafkaClientManager } from '../kafka/kafkaClientManager';
 import { KafkaExplorerProvider } from '../providers/kafkaExplorerProvider';
-import { formatMessages } from '../utils/formatters';
 import { ErrorHandler } from '../infrastructure/ErrorHandler';
 import { TopicDashboardWebview } from '../views/topicDashboardWebview';
 import { DetailsWebview, DetailsData } from '../views/DetailsWebview';
 import { TopicNode, ClusterNode } from '../types/nodes';
 import { ACL } from '../types/acl';
 import { AIAdvisor } from '../services/AIAdvisor';
+import { ConfigSourceMapper } from '../utils/configSourceMapper';
 
 export async function createTopic(
     clientManager: KafkaClientManager,
@@ -115,7 +115,7 @@ export async function showTopicDetails(clientManager: KafkaClientManager, node: 
             }
 
             // Create HTML view
-            const detailsView = new DetailsWebview(context, `Topic: ${node.topicName}`, '📋');
+            const detailsView = new DetailsWebview(`Topic: ${node.topicName}`, '📋', context);
 
             // Check if AI features are available
             const aiAvailable = await AIAdvisor.checkAvailability();
@@ -189,7 +189,7 @@ export async function showTopicDetails(clientManager: KafkaClientManager, node: 
                                 ? details.configuration.map((config: any) => [
                                     config.configName || config.name || 'N/A',
                                     config.configValue || config.value || 'N/A',
-                                    config.configSource || config.source || 'default'
+                                    ConfigSourceMapper.toHumanReadable(config.configSource || config.source || 5)
                                 ])
                                 : []
                         }
@@ -211,7 +211,7 @@ export async function showTopicDetails(clientManager: KafkaClientManager, node: 
                 });
             }
 
-            detailsView.show(data);
+            detailsView.showDetails(data);
         },
         `Loading details for topic "${node.topicName}"`
     );
@@ -430,7 +430,7 @@ export async function showTopicACLDetails(clientManager: KafkaClientManager, nod
         }
 
         // Create HTML view
-        const detailsView = new DetailsWebview(context, `ACL Details`, '🔒');
+        const detailsView = new DetailsWebview(`ACL Details`, '🔒', context);
         const data: DetailsData = {
             title: `${aclDetails.principal} → ${aclDetails.operation}`,
             showCopyButton: true,
@@ -488,6 +488,6 @@ export async function showTopicACLDetails(clientManager: KafkaClientManager, nod
             ]
         };
 
-        detailsView.show(data);
+        detailsView.showDetails(data);
     }, 'Show Topic ACL Details');
 }

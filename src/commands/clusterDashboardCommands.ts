@@ -10,12 +10,12 @@ let dashboardWebview: ClusterDashboardWebview | undefined;
 
 export async function showClusterDashboard(
     clientManager: KafkaClientManager,
-    context: vscode.ExtensionContext,
+    _context: vscode.ExtensionContext,
     node: any
 ) {
     try {
         if (!dashboardWebview) {
-            dashboardWebview = new ClusterDashboardWebview(context, clientManager);
+            dashboardWebview = new ClusterDashboardWebview(clientManager);
         }
 
         // Show dashboard immediately with loading state

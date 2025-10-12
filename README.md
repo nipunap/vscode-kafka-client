@@ -23,9 +23,10 @@ A comprehensive Kafka management extension for Visual Studio Code with full AWS 
 - 👥 **Consumer Groups** - Color-coded health status, lag tracking, detailed HTML views
 - 📊 **Rich Detail Views** - Interactive HTML panels with search (Cmd+F), copy as JSON, and AI recommendations
 - ⚡ **Smart Caching** - 5-minute dashboard cache with instant reload (40-200x faster)
-- 🔐 **Security** - Multiple auth methods (SSL/TLS, SASL, AWS IAM), secure credential storage
+- 🔐 **Security** - Multiple auth methods (SSL/TLS, SASL, AWS IAM), secure credential storage, **XSS prevention, CSP enforcement**
 - 🔍 **Smart Search** - Find resources across clusters with fuzzy matching
 - 🚀 **Performance** - Connection pooling, broker caching, optimized data fetching
+- 🛡️ **Enterprise-Grade Security** (v0.7.0) - XSS protection, Content Security Policy, race condition prevention, request lifecycle management
 
 ## 📸 Screenshots
 
@@ -459,7 +460,7 @@ src/
 ├── types/
 │   ├── acl.ts                      # ACL interfaces
 │   └── nodes.ts                    # Tree node types (including KStream/KTable nodes)
-└── test/                           # Test suite (352 tests)
+└── test/                           # Test suite (430 tests, including 27 webview security tests)
 ```
 
 ### Architecture Patterns
@@ -480,22 +481,23 @@ npm install             # Install dependencies
 npm run compile         # Compile TypeScript
 npm run watch           # Watch mode
 npm run lint            # ESLint
-npm test                # Run all 352 tests
+npm test                # Run all 430 tests
 npm run package         # Create .vsix
 npm run publish         # Publish to marketplace
 ```
 
 ### Test Coverage
 
-**352 tests passing** across:
+**430 tests passing** across:
 - Infrastructure (Logger, ErrorHandler, CredentialManager, EventBus, ConnectionPool)
-- Services (Topic, ConsumerGroup, Broker, Producer, Documentation)
+- Services (Topic, ConsumerGroup, Broker, Producer, Documentation, AI)
 - Providers (Topics, Consumer Groups, Brokers, ACLs, KStreams, KTables)
 - Commands (All operations including native ACL management)
 - Utilities (Formatters, Validators)
-- Security (Native ACL operations, input sanitization, credential management)
-- AI Integration (Availability checks, error handling)
+- Security (Native ACL operations, input sanitization, credential management, **XSS prevention, CSP enforcement**)
+- AI Integration (Availability checks, error handling, **request validation, race condition prevention**)
 - Performance (Caching, connection pooling)
+- Webview Security (**27 new tests**: CSP, XSS prevention, request lifecycle management)
 
 ### Key Dependencies
 
@@ -523,7 +525,7 @@ npm run publish         # Publish to marketplace
 All PRs must pass:
 - ✅ ESLint
 - ✅ TypeScript compilation
-- ✅ 352 tests
+- ✅ 430 tests (including 27 webview security tests)
 - ✅ Multi-OS (Ubuntu, Windows, macOS)
 - ✅ Multi-Node (18.x, 20.x)
 

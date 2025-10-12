@@ -4,6 +4,7 @@ import { KTableTreeItem } from '../providers/ktableProvider';
 import { ErrorHandler } from '../infrastructure/ErrorHandler';
 import { DetailsWebview, DetailsData } from '../views/DetailsWebview';
 import { AIAdvisor } from '../services/AIAdvisor';
+import { ConfigSourceMapper } from '../utils/configSourceMapper';
 
 /**
  * Show KTable details in an HTML view
@@ -47,7 +48,7 @@ export async function showKTableDetails(
             }
 
             // Create HTML view
-            const detailsView = new DetailsWebview(context, `KTable: ${node.topicName}`, '📊');
+            const detailsView = new DetailsWebview(`KTable: ${node.topicName}`, '📊', context);
 
             // Check if AI features are available
             const aiAvailable = await AIAdvisor.checkAvailability();
@@ -122,7 +123,7 @@ export async function showKTableDetails(
                                 ? details.configuration.map((config: any) => [
                                     config.configName || config.name || 'N/A',
                                     config.configValue || config.value || 'N/A',
-                                    config.configSource || config.source || 'default'
+                                    ConfigSourceMapper.toHumanReadable(config.configSource || config.source || 5)
                                 ])
                                 : []
                         }
@@ -144,7 +145,7 @@ export async function showKTableDetails(
                 });
             }
 
-            detailsView.show(data);
+            detailsView.showDetails(data);
         },
         `Loading details for KTable "${node.topicName}"`
     );

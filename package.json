@@ -2,7 +2,7 @@
   "name": "vscode-kafka-client",
   "displayName": "Kafka Client",
   "description": "Full-featured Kafka client with AWS MSK support, IAM authentication, role assumption, and auto-discovery",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "publisher": "NipunaPerera",
   "license": "GPL-3.0",
   "icon": "resources/kafka-icon.png",
@@ -187,6 +187,11 @@
         "command": "kafka.showACLHelp",
         "title": "ACL Help",
         "icon": "$(question)"
+      },
+      {
+        "command": "kafka.showAuditLog",
+        "title": "Show Audit Log",
+        "icon": "$(list-ordered)"
       },
       {
         "command": "kafka.showBrokerDetails",
@@ -456,13 +461,14 @@
   "scripts": {
     "vscode:prepublish": "npm run bundle",
     "compile": "tsc -p ./",
+    "compile:strict": "tsc -p ./ --noUnusedLocals --noUnusedParameters",
     "watch": "npm-run-all --parallel watch:*",
     "watch:tsc": "tsc -watch -p ./",
     "watch:esbuild": "node esbuild.js --watch",
     "bundle": "node esbuild.js --production",
     "bundle:dev": "node esbuild.js",
     "lint": "eslint src --ext ts",
-    "pretest": "npm run compile && npm run lint",
+    "pretest": "npm run compile:strict && npm run lint",
     "test": "node ./out/test/runTest.js",
     "test:coverage": "c8 npm test",
     "test:coverage:report": "c8 report --reporter=text --reporter=lcov --reporter=html",

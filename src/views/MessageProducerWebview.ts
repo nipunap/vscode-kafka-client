@@ -30,7 +30,6 @@ export class MessageProducerWebview {
     private topicName: string = '';
 
     private constructor(
-        private readonly extensionPath: string,
         clientManager: KafkaClientManager,
         logger: Logger
     ) {
@@ -39,13 +38,11 @@ export class MessageProducerWebview {
     }
 
     public static getInstance(
-        extensionPath: string,
         clientManager: KafkaClientManager,
         logger: Logger
     ): MessageProducerWebview {
         if (!MessageProducerWebview.instance) {
             MessageProducerWebview.instance = new MessageProducerWebview(
-                extensionPath,
                 clientManager,
                 logger
             );

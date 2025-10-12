@@ -1,79 +1,128 @@
 import * as vscode from 'vscode';
 import { FieldDescriptions } from '../utils/fieldDescriptions';
 import { formatMilliseconds, formatBytes, isMillisecondsProperty, isBytesProperty } from '../utils/formatters';
+import { BaseWebviewWithAI } from './BaseWebviewWithAI';
 
 /**
  * Utility class for creating consistent HTML detail views
  * Provides a foundation for future editing capabilities
+ * Extends BaseWebviewWithAI for AI response formatting capabilities
  */
-export class DetailsWebview {
-    private panel: vscode.WebviewPanel | undefined;
-    private currentData: DetailsData | undefined;
+export class DetailsWebview extends BaseWebviewWithAI {
     private aiRequestHandler: (() => Promise<void>) | undefined;
+    private currentData: DetailsData | undefined;
 
     constructor(
-        private context: vscode.ExtensionContext,
-        private title: string,
-        private icon: string = '📄'
-    ) {}
+        private titleText: string,
+        private icon: string = '📄',
+        context: vscode.ExtensionContext
+    ) {
+        super(
+            {
+                viewType: 'kafkaDetails',
+                title: `${icon} ${titleText}`,
+                enableScripts: true,
+                retainContextWhenHidden: true
+            },
+            context,
+            'DetailsWebview'
+        );
+    }
 
     /**
      * Show the details view with the provided data
      */
-    public show(data: DetailsData): void {
+    public showDetails(data: DetailsData): void {
         this.currentData = data;
-
-        // Create or reuse webview panel
-        if (this.panel) {
-            this.panel.reveal(vscode.ViewColumn.One);
-        } else {
-            this.panel = vscode.window.createWebviewPanel(
-                'kafkaDetails',
-                `${this.icon} ${this.title}`,
-                vscode.ViewColumn.One,
-                {
-                    enableScripts: true,
-                    retainContextWhenHidden: true
-                }
-            );
-
-            this.panel.onDidDispose(() => {
-                this.panel = undefined;
-                this.currentData = undefined;
-                this.aiRequestHandler = undefined;
-            });
-
-            // Handle messages from webview
-            this.panel.webview.onDidReceiveMessage(
-                async message => {
-                    switch (message.command) {
-                        case 'copyAsJson':
-                            await vscode.env.clipboard.writeText(message.data);
-                            vscode.window.showInformationMessage('📋 Copied to clipboard as JSON');
-                            break;
-                        case 'showMessage':
-                            vscode.window.showInformationMessage(message.text);
-                            break;
-                        case 'requestAIAdvice':
-                            // Call the AI request handler if set
-                            if (this.aiRequestHandler) {
-                                try {
-                                    await this.aiRequestHandler();
-                                } catch (error: any) {
-                                    vscode.window.showErrorMessage(`AI Advisor: ${error.message}`);
-                                    this.updateWithAIRecommendations(`Error: ${error.message}\n\nPlease ensure GitHub Copilot is installed and active.`);
-                                }
-                            }
-                            break;
-                    }
-                },
-                undefined,
-                []
-            );
-        }
+        // Use parent's panel management
+        this.panel = super.show();
 
         // Set HTML content
         this.panel.webview.html = this.getHtml(data);
+    }
+
+    /**
+     * Implement abstract method from BaseWebview
+     */
+    protected getHtmlContent(): string {
+        return this.currentData ? this.getHtml(this.currentData) : '';
+    }
+
+    /**
+     * Handle messages from the webview
+     */
+    protected async handleMessage(message: any): Promise<void> {
+        switch (message.command) {
+            case 'copyAsJson':
+                await vscode.env.clipboard.writeText(message.data);
+                vscode.window.showInformationMessage('📋 Copied to clipboard as JSON');
+                break;
+            case 'showMessage':
+                vscode.window.showInformationMessage(message.text);
+                break;
+            case 'requestAIAdvice':
+                // Call the AI request handler if set
+                if (this.aiRequestHandler) {
+                    try {
+                        await this.aiRequestHandler();
+                    } catch (error: any) {
+                        vscode.window.showErrorMessage(`AI Advisor: ${error.message}`);
+                        this.updateWithAIRecommendations(`Error: ${error.message}\n\nPlease ensure GitHub Copilot is installed and active.`);
+                    }
+                }
+                break;
+            case 'getAIParameterDetails':
+                try {
+                    const parameter = message.parameter;
+                    const requestId = message.requestId;
+
+                    // Validate parameter name
+                    if (!parameter || typeof parameter !== 'string' || parameter.length > 200) {
+                        this.panel?.webview.postMessage({
+                            command: 'aiParameterDetailsResponse',
+                            requestId: requestId,
+                            success: false,
+                            error: 'Invalid parameter name'
+                        });
+                        return;
+                    }
+
+                    // Validate request ID
+                    if (requestId === undefined || typeof requestId !== 'number') {
+                        this.logger.warn('Missing or invalid request ID');
+                    }
+
+                    this.logger.info(`Fetching AI details for parameter: ${parameter} (Request ID: ${requestId})`);
+
+                    // Fetch AI details
+                    const { ParameterAIService } = await import('../services/parameterAIService');
+                    const details = await ParameterAIService.getInstance().getParameterDetails(parameter);
+
+                    this.panel?.webview.postMessage({
+                        command: 'aiParameterDetailsResponse',
+                        requestId: requestId,
+                        success: true,
+                        content: details
+                    });
+                } catch (error: any) {
+                    this.logger.error(`Error fetching AI parameter details: ${error.message}`, error);
+                    this.panel?.webview.postMessage({
+                        command: 'aiParameterDetailsResponse',
+                        requestId: message.requestId,
+                        success: false,
+                        error: error.message
+                    });
+                }
+                break;
+        }
+    }
+
+    /**
+     * Override dispose to clean up AI request handler
+     */
+    public dispose(): void {
+        this.aiRequestHandler = undefined;
+        super.dispose();
     }
 
     /**
@@ -313,46 +362,7 @@ export class DetailsWebview {
                 }
             });
 
-            function formatAIResponse(text) {
-                // Enhanced markdown-like formatting
-                let formatted = text;
-                const backtick = String.fromCharCode(96);
-
-                // Headers with bottom border for better separation
-                formatted = formatted.replace(/^### (.+)$/gm, '<h4 style="margin-top: 20px; margin-bottom: 10px; color: var(--primary-color); font-weight: 600;">$1</h4>');
-                formatted = formatted.replace(/^## (.+)$/gm, '<h3 style="margin-top: 25px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid var(--border-color); color: var(--primary-color); font-weight: 700;">$1</h3>');
-                formatted = formatted.replace(/^# (.+)$/gm, '<h2 style="margin-top: 30px; margin-bottom: 15px; color: var(--primary-color); font-weight: 800;">$1</h2>');
-
-                // Bold text
-                formatted = formatted.replace(/\\*\\*([^*]+)\\*\\*/g, '<strong style="color: var(--text-color); font-weight: 600;">$1</strong>');
-
-                // Code blocks with better styling
-                const codeRegex = new RegExp(backtick + '([^' + backtick + ']+)' + backtick, 'g');
-                formatted = formatted.replace(codeRegex, '<code style="background: var(--background); padding: 2px 6px; border-radius: 3px; font-size: 13px; border: 1px solid var(--border-color); color: var(--primary-color); font-family: monospace;">$1</code>');
-
-                // Bullet points with custom styling
-                formatted = formatted.replace(/^- (.+)$/gm, '<div style="margin: 8px 0; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: var(--primary-color);">•</span>$1</div>');
-
-                // Numbered lists
-                formatted = formatted.replace(/^(\\d+)\\. (.+)$/gm, '<div style="margin: 8px 0; padding-left: 25px; position: relative;"><span style="position: absolute; left: 0; color: var(--primary-color); font-weight: 600;">$1.</span>$2</div>');
-
-                // Line breaks (but not after divs)
-                formatted = formatted.split('\\n').map((line, i, arr) => {
-                    // Don't add br after div elements or before headers
-                    if (line.includes('</div>') || line.includes('</h') ||
-                        (i < arr.length - 1 && arr[i + 1].includes('<h'))) {
-                        return line;
-                    }
-                    return line + '<br>';
-                }).join('');
-
-                // Clean up extra br tags
-                formatted = formatted.replace(/<br><br>/g, '<br>');
-                formatted = formatted.replace(/<\\/div><br>/g, '</div>');
-                formatted = formatted.replace(/<\\/h\\d><br>/g, match => match.replace('<br>', ''));
-
-                return formatted;
-            }
+            // Note: escapeHtml() and formatAIResponse() are now loaded from external scripts
         `;
     }
 
@@ -360,13 +370,15 @@ export class DetailsWebview {
      * Generate HTML for the details view
      */
     private getHtml(data: DetailsData): string {
+        const nonce = this.getNonce();
         return `
             <!DOCTYPE html>
             <html lang="en">
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>${this.title}</title>
+                ${this.getCSP(nonce)}
+                <title>${this.titleText}</title>
                 <style>
                     :root {
                         --primary-color: var(--vscode-textLink-foreground);
@@ -506,29 +518,29 @@ export class DetailsWebview {
 
                     /* Human-readable format toggle */
                     .format-toggle {
-                        display: inline-flex;
-                        align-items: center;
-                        gap: 6px;
+                        display: inline-block;
                     }
 
-                    .human-icon {
-                        font-size: 16px;
+                    .human-icon-header {
+                        font-size: 18px;
                         cursor: pointer;
                         opacity: 0.6;
                         transition: all 0.2s;
                         display: inline-flex;
                         align-items: center;
                         user-select: none;
+                        margin-left: 8px;
+                        vertical-align: middle;
                     }
 
-                    .human-icon:hover {
+                    .human-icon-header:hover {
                         opacity: 1;
-                        transform: scale(1.15);
+                        transform: scale(1.2);
                     }
 
-                    .format-toggle[data-format="human"] .human-icon {
+                    .human-icon-header.active {
                         opacity: 1;
-                        filter: brightness(1.2);
+                        filter: brightness(1.3);
                     }
 
                     /* Info Modal Styles */
@@ -619,6 +631,77 @@ export class DetailsWebview {
                         font-family: var(--vscode-editor-font-family);
                     }
 
+                    .info-modal-footer {
+                        margin-top: 15px;
+                        padding-top: 15px;
+                        border-top: 1px solid var(--vscode-panel-border);
+                        display: flex;
+                        justify-content: flex-end;
+                        gap: 10px;
+                    }
+
+                    .info-modal-ai-btn {
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white;
+                        border: none;
+                        padding: 8px 16px;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 13px;
+                        font-weight: 500;
+                        transition: all 0.2s;
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                    }
+
+                    .info-modal-ai-btn:hover {
+                        transform: translateY(-1px);
+                        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+                    }
+
+                    .info-modal-ai-btn:disabled {
+                        opacity: 0.5;
+                        cursor: not-allowed;
+                        transform: none;
+                    }
+
+                    .info-modal-ai-content {
+                        margin-top: 15px;
+                        padding: 15px;
+                        background: var(--vscode-textBlockQuote-background);
+                        border-left: 3px solid #667eea;
+                        border-radius: 4px;
+                        font-size: 13px;
+                        line-height: 1.6;
+                        display: none;
+                    }
+
+                    .info-modal-ai-content.show {
+                        display: block;
+                        animation: fadeIn 0.3s;
+                    }
+
+                    .info-modal-ai-loading {
+                        text-align: center;
+                        padding: 20px;
+                        color: var(--vscode-descriptionForeground);
+                    }
+
+                    .spinner {
+                        display: inline-block;
+                        width: 20px;
+                        height: 20px;
+                        border: 3px solid var(--vscode-descriptionForeground);
+                        border-top-color: transparent;
+                        border-radius: 50%;
+                        animation: spin 1s linear infinite;
+                    }
+
+                    @keyframes spin {
+                        to { transform: rotate(360deg); }
+                    }
+
                     @keyframes fadeIn {
                         from { opacity: 0; }
                         to { opacity: 1; }
@@ -683,6 +766,7 @@ export class DetailsWebview {
                         width: 100%;
                         border-collapse: collapse;
                         margin-top: 10px;
+                        table-layout: auto;
                     }
 
                     .table th {
@@ -699,6 +783,36 @@ export class DetailsWebview {
                     .table td {
                         padding: 12px 10px;
                         border-bottom: 1px solid var(--border-color);
+                        word-wrap: break-word;
+                        overflow-wrap: break-word;
+                        word-break: break-word;
+                    }
+
+                    /* Config tables (3 columns: Property, Value, Source) - use fixed layout */
+                    .table.config-table {
+                        table-layout: fixed;
+                    }
+
+                    .table.config-table th {
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                    }
+
+                    .table.config-table th:first-child {
+                        width: 35%;
+                    }
+
+                    .table.config-table th:nth-child(2) {
+                        width: 45%;
+                    }
+
+                    .table.config-table th:nth-child(3) {
+                        width: 20%;
+                    }
+
+                    .table.config-table td {
+                        max-width: 0;
                     }
 
                     .table tr:last-child td {
@@ -914,10 +1028,11 @@ export class DetailsWebview {
                         100% { transform: rotate(360deg); }
                     }
                 </style>
+                ${this.getCommonAIScripts(nonce)}
             </head>
             <body>
                 <div class="header">
-                    <h1>${this.icon} ${data.title || this.title}</h1>
+                    <h1>${this.icon} ${data.title || this.titleText}</h1>
                     <div class="header-actions">
                         ${data.showAIAdvisor ? '<button class="btn btn-ai" onclick="getAIAdvice()" id="aiButton">🤖 AI Advisor</button>' : ''}
                         ${data.showCopyButton ? '<button class="btn btn-secondary" onclick="copyAsJson()">📋 Copy as JSON</button>' : ''}
@@ -970,23 +1085,59 @@ export class DetailsWebview {
                             <button class="info-modal-close" onclick="closeInfoModal()" aria-label="Close">×</button>
                         </div>
                         <div class="info-modal-body" id="infoModalDescription"></div>
+                        <div class="info-modal-ai-content" id="infoModalAIContent"></div>
+                        ${data.showAIAdvisor ? `
+                        <div class="info-modal-footer">
+                            <button class="info-modal-ai-btn" id="infoModalAIButton" onclick="fetchAIDetails()">
+                                🤖 Get AI Details
+                            </button>
+                        </div>
+                        ` : `
+                        <div class="info-modal-footer" style="justify-content: center;">
+                            <div style="color: var(--vscode-descriptionForeground); font-size: 12px; text-align: center; padding: 8px;">
+                                💡 Install <a href="https://marketplace.visualstudio.com/items?itemName=GitHub.copilot" target="_blank" style="color: var(--vscode-textLink-foreground);">GitHub Copilot</a> to enable AI-powered parameter details
+                            </div>
+                        </div>
+                        `}
                     </div>
                 </div>
 
-                <script>
+                <script nonce="${nonce}">
                     ${this.getScript(data)}
 
                     // Info Modal Functions
+                    let currentFieldName = '';
+                    let currentAIRequestId = 0;
+
+                    // Note: escapeHtml() is now loaded from external script
+
                     function showInfoModal(element) {
                         const fieldName = element.getAttribute('data-field');
                         const description = element.getAttribute('data-description');
 
+                        currentFieldName = fieldName;
+
                         const modal = document.getElementById('infoModal');
                         const fieldNameEl = document.getElementById('infoModalFieldName');
                         const descriptionEl = document.getElementById('infoModalDescription');
+                        const aiContentEl = document.getElementById('infoModalAIContent');
+                        const aiButton = document.getElementById('infoModalAIButton');
 
                         fieldNameEl.textContent = fieldName;
                         descriptionEl.textContent = description;
+
+                        // Cancel any pending AI requests from previous modal
+                        currentAIRequestId++;
+
+                        // Reset AI content (only if AI is available)
+                        if (aiContentEl) {
+                            aiContentEl.classList.remove('show');
+                            aiContentEl.innerHTML = '';
+                        }
+                        if (aiButton) {
+                            aiButton.disabled = false;
+                            aiButton.innerHTML = '🤖 Get AI Details';
+                        }
 
                         modal.classList.add('show');
                     }
@@ -994,6 +1145,10 @@ export class DetailsWebview {
                     function closeInfoModal() {
                         const modal = document.getElementById('infoModal');
                         modal.classList.remove('show');
+                        currentFieldName = '';
+
+                        // Cancel any pending AI requests by incrementing the request ID
+                        currentAIRequestId++;
                     }
 
                     function closeInfoModalOnBackdrop(event) {
@@ -1002,6 +1157,91 @@ export class DetailsWebview {
                         }
                     }
 
+                    function fetchAIDetails() {
+                        if (!currentFieldName) return;
+
+                        const aiContentEl = document.getElementById('infoModalAIContent');
+                        const aiButton = document.getElementById('infoModalAIButton');
+
+                        // Check if AI button exists (AI might not be available)
+                        if (!aiButton || !aiContentEl) {
+                            console.warn('AI features not available');
+                            return;
+                        }
+
+                        // Increment request ID to handle race conditions
+                        currentAIRequestId++;
+                        const requestId = currentAIRequestId;
+
+                        // Show minimal loading state
+                        aiButton.disabled = true;
+                        aiButton.innerHTML = '<span class="spinner"></span> Loading...';
+
+                        aiContentEl.innerHTML = '<div class="info-modal-ai-loading"><span class="spinner"></span></div>';
+                        aiContentEl.classList.add('show');
+
+                        // Request AI details from extension
+                        vscode.postMessage({
+                            command: 'getAIParameterDetails',
+                            parameter: currentFieldName,
+                            requestId: requestId
+                        });
+                    }
+
+                    // Note: escapeHtml() and formatAIResponse() are now loaded from external scripts
+
+                    // Listen for AI response
+                    window.addEventListener('message', event => {
+                        const message = event.data;
+                        if (message.command === 'aiParameterDetailsResponse') {
+                            // Validate request ID to prevent race conditions
+                            if (message.requestId !== currentAIRequestId) {
+                                console.log('Ignoring stale AI response (ID mismatch)');
+                                return;
+                            }
+
+                            const aiContentEl = document.getElementById('infoModalAIContent');
+                            const aiButton = document.getElementById('infoModalAIButton');
+
+                            if (!aiContentEl || !aiButton) {
+                                return; // Elements not found
+                            }
+
+                            if (message.success) {
+                                const formattedContent = formatAIResponse(message.content || '');
+                                aiContentEl.innerHTML = \`
+                                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px; font-weight: 600; color: #667eea;">
+                                        🤖 AI-Enhanced Details
+                                    </div>
+                                    <div>\${formattedContent}</div>
+                                \`;
+                                aiButton.innerHTML = '✓ Details Loaded';
+                            } else {
+                                // Escape error message to prevent XSS
+                                const errorMsg = escapeHtml(message.error || 'Unknown error');
+                                const isTimeout = errorMsg.includes('timed out') || errorMsg.includes('timeout');
+
+                                aiContentEl.innerHTML = \`
+                                    <div style="color: var(--vscode-errorForeground); padding: 15px;">
+                                        <div style="font-weight: 600; margin-bottom: 10px;">
+                                            \${isTimeout ? '⏱️ Request Timed Out' : '❌ Request Failed'}
+                                        </div>
+                                        <div style="margin-bottom: 10px; font-size: 13px;">
+                                            \${isTimeout
+                                                ? 'The AI service took longer than 10 seconds to respond. Showing fallback content.'
+                                                : 'An error occurred while fetching AI details.'}
+                                        </div>
+                                        <div style="font-size: 12px; opacity: 0.8;">
+                                            \${errorMsg}
+                                        </div>
+                                    </div>
+                                \`;
+                                aiButton.disabled = false;
+                                aiButton.innerHTML = '🔄 Retry';
+                            }
+                        }
+                    });
+
                     // Close modal on Escape key
                     document.addEventListener('keydown', function(event) {
                         if (event.key === 'Escape') {
@@ -1009,22 +1249,40 @@ export class DetailsWebview {
                         }
                     });
 
-                    // Toggle between raw and human-readable format
-                    function toggleFormat(element) {
-                        const currentFormat = element.getAttribute('data-format');
-                        const rawValue = element.getAttribute('data-raw');
-                        const humanValue = element.getAttribute('data-human');
+                    // Toggle all values between raw and human-readable format
+                    function toggleAllFormats() {
+                        const allToggles = document.querySelectorAll('.format-toggle');
+                        if (allToggles.length === 0) return;
 
-                        if (currentFormat === 'raw') {
-                            // Switch to human format
-                            element.setAttribute('data-format', 'human');
-                            element.childNodes[0].textContent = humanValue;
-                            element.querySelector('.human-icon').title = 'Click to show raw value';
-                        } else {
-                            // Switch to raw format
-                            element.setAttribute('data-format', 'raw');
-                            element.childNodes[0].textContent = rawValue;
-                            element.querySelector('.human-icon').title = 'Click to show human-readable format';
+                        // Check current format of first element to determine what to do
+                        const firstToggle = allToggles[0];
+                        const currentFormat = firstToggle.getAttribute('data-format');
+                        const newFormat = currentFormat === 'raw' ? 'human' : 'raw';
+
+                        // Toggle all elements
+                        allToggles.forEach(element => {
+                            const rawValue = element.getAttribute('data-raw');
+                            const humanValue = element.getAttribute('data-human');
+
+                            element.setAttribute('data-format', newFormat);
+
+                            // Update text content (first text node)
+                            const textNode = Array.from(element.childNodes).find(node => node.nodeType === Node.TEXT_NODE);
+                            if (textNode) {
+                                textNode.textContent = newFormat === 'human' ? humanValue : rawValue;
+                            }
+                        });
+
+                        // Update header icon appearance
+                        const headerIcon = document.querySelector('.human-icon-header');
+                        if (headerIcon) {
+                            if (newFormat === 'human') {
+                                headerIcon.classList.add('active');
+                                headerIcon.title = 'Click to show raw values';
+                            } else {
+                                headerIcon.classList.remove('active');
+                                headerIcon.title = 'Click to show human-readable values';
+                            }
                         }
                     }
                 </script>
@@ -1093,18 +1351,27 @@ export class DetailsWebview {
         const isConfigTable = propertyColIndex >= 0 && valueColIndex >= 0;
 
         return `
-            <table class="table">
+            <table class="table${isConfigTable ? ' config-table' : ''}">
                 <thead>
                     <tr>
-                        ${table.headers.map(h => {
+                        ${table.headers.map((h, colIndex) => {
+                            const isValueColumn = isConfigTable && colIndex === valueColIndex;
+
                             if (typeof h === 'string') {
                                 // Check if this is a configuration property (from first column)
                                 const infoIcon = fieldDescriptions.getInfoIconHtml(h);
-                                return `<th title="Column: ${h}">${h}${infoIcon}</th>`;
+                                // Add human icon to VALUE column header if it's a config table
+                                const humanIcon = isValueColumn
+                                    ? ` <span class="human-icon-header" onclick="toggleAllFormats()" title="Click to toggle between raw and human-readable format for all values">👤</span>`
+                                    : '';
+                                return `<th title="Column: ${h}">${h}${infoIcon}${humanIcon}</th>`;
                             } else {
                                 const tooltip = h.tooltip || `Column: ${h.label}`;
                                 const infoIcon = fieldDescriptions.getInfoIconHtml(h.label);
-                                return `<th title="${tooltip}" style="cursor: help;">${h.label}${infoIcon}</th>`;
+                                const humanIcon = isValueColumn
+                                    ? ` <span class="human-icon-header" onclick="toggleAllFormats()" title="Click to toggle between raw and human-readable format for all values">👤</span>`
+                                    : '';
+                                return `<th title="${tooltip}" style="cursor: help;">${h.label}${infoIcon}${humanIcon}</th>`;
                             }
                         }).join('')}
                     </tr>
@@ -1121,7 +1388,7 @@ export class DetailsWebview {
                                     cellContent = cellContent + infoIcon;
                                 }
 
-                                // Add human-readable icon for config table VALUE column
+                                // Add human-readable data attributes for config table VALUE column
                                 if (isConfigTable && colIndex === valueColIndex && propertyColIndex >= 0) {
                                     const propertyName = String(row[propertyColIndex]);
                                     const rawValue = String(cell);
@@ -1138,7 +1405,6 @@ export class DetailsWebview {
                                         cellContent = `
                                             <span class="format-toggle" data-raw="${this.escapeHtml(rawValue)}" data-human="${this.escapeHtml(humanValue)}" data-format="raw">
                                                 ${cellContent}
-                                                <span class="human-icon" onclick="toggleFormat(this.parentElement)" title="Click to show human-readable format">👤</span>
                                             </span>
                                         `;
                                     }
@@ -1169,21 +1435,6 @@ export class DetailsWebview {
                 </div>
             `).join('')}
         `;
-    }
-
-    private escapeHtml(text: string): string {
-        return text
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
-    }
-
-    public dispose(): void {
-        if (this.panel) {
-            this.panel.dispose();
-        }
     }
 }
 

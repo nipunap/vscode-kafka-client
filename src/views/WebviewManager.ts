@@ -3,7 +3,6 @@
  * Prevents memory leaks and ensures proper lifecycle management
  */
 
-import * as vscode from 'vscode';
 import { Logger } from '../infrastructure/Logger';
 import { BaseWebview } from './BaseWebview';
 

@@ -7,6 +7,7 @@ import { KafkaClientManager } from '../kafka/kafkaClientManager';
 import { DetailsWebview, DetailsData } from '../views/DetailsWebview';
 import { ErrorHandler } from '../infrastructure/ErrorHandler';
 import { AIAdvisor } from '../services/AIAdvisor';
+import { ConfigSourceMapper } from '../utils/configSourceMapper';
 
 export async function showBrokerDetails(clientManager: KafkaClientManager, node: any, context?: vscode.ExtensionContext) {
     await ErrorHandler.wrap(async () => {
@@ -37,7 +38,7 @@ export async function showBrokerDetails(clientManager: KafkaClientManager, node:
         }
 
         // Create HTML view
-        const detailsView = new DetailsWebview(context, `Broker: ${node.brokerId}`, '🖥️');
+        const detailsView = new DetailsWebview(`Broker: ${node.brokerId}`, '🖥️', context);
 
         // Check if AI features are available
         const aiAvailable = await AIAdvisor.checkAvailability();
@@ -74,7 +75,7 @@ export async function showBrokerDetails(clientManager: KafkaClientManager, node:
                             ? details.configuration.map((config: any) => [
                                 config.configName || config.name || 'N/A',
                                 config.configValue || config.value || 'N/A',
-                                config.configSource || config.source || 'default'
+                                ConfigSourceMapper.toHumanReadable(config.configSource || config.source || 5)
                             ])
                             : []
                     }
@@ -95,7 +96,7 @@ export async function showBrokerDetails(clientManager: KafkaClientManager, node:
             });
         }
 
-        detailsView.show(data);
+        detailsView.showDetails(data);
     }, `Loading broker details for broker ${node.brokerId}`);
 }
 

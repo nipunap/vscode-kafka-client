@@ -4,6 +4,7 @@ import { KStreamTreeItem } from '../providers/kstreamProvider';
 import { ErrorHandler } from '../infrastructure/ErrorHandler';
 import { DetailsWebview, DetailsData } from '../views/DetailsWebview';
 import { AIAdvisor } from '../services/AIAdvisor';
+import { ConfigSourceMapper } from '../utils/configSourceMapper';
 
 /**
  * Show KStream details in an HTML view
@@ -47,11 +48,11 @@ export async function showKStreamDetails(
             }
 
             // Create HTML view
-            const detailsView = new DetailsWebview(context, `KStream: ${node.topicName}`, '🌊');
-            
+            const detailsView = new DetailsWebview(`KStream: ${node.topicName}`, '🌊', context);
+
             // Check if AI features are available
             const aiAvailable = await AIAdvisor.checkAvailability();
-            
+
             // Calculate total messages across all partitions
             let totalMessages = 0;
             if (details.partitionDetails) {
@@ -61,7 +62,7 @@ export async function showKStreamDetails(
                     }
                 }
             }
-            
+
             const data: DetailsData = {
                 title: node.topicName,
                 showCopyButton: true,
@@ -122,7 +123,7 @@ export async function showKStreamDetails(
                                 ? details.configuration.map((config: any) => [
                                     config.configName || config.name || 'N/A',
                                     config.configValue || config.value || 'N/A',
-                                    config.configSource || config.source || 'default'
+                                    ConfigSourceMapper.toHumanReadable(config.configSource || config.source || 5)
                                 ])
                                 : []
                         }
@@ -144,7 +145,7 @@ export async function showKStreamDetails(
                 });
             }
 
-            detailsView.show(data);
+            detailsView.showDetails(data);
         },
         `Loading details for KStream "${node.topicName}"`
     );
@@ -196,7 +197,7 @@ export async function findKStream(clientManager: KafkaClientManager, provider: a
                         if (topic.startsWith('__')) {
                             return false;
                         }
-                        if (topic.endsWith('-changelog') || topic.includes('-ktable-') || 
+                        if (topic.endsWith('-changelog') || topic.includes('-ktable-') ||
                             topic.includes('-store-') || topic.includes('-state-')) {
                             return false;
                         }
@@ -248,4 +249,3 @@ export async function findKStream(clientManager: KafkaClientManager, provider: a
         ErrorHandler.handle(error, 'Find KStream');
     }
 }
-

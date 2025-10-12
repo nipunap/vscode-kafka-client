@@ -377,7 +377,7 @@
     "PROPERTY": "Configuration parameter name",
     "Value": "Current value of the configuration parameter",
     "VALUE": "Current value of the configuration parameter",
-    "Source": "Where config value comes from: 1=Topic override, 4=Dynamic broker default, 5=server.properties, 6=Kafka default",
-    "SOURCE": "Where config value comes from: 1=Topic override, 4=Dynamic broker default, 5=server.properties, 6=Kafka default"
+    "Source": "Where the configuration value originates from. Topic Override = highest priority config, Server Config = static server.properties, Kafka Default = built-in default value",
+    "SOURCE": "Where the configuration value originates from. Topic Override = highest priority config, Server Config = static server.properties, Kafka Default = built-in default value"
   }
 }
