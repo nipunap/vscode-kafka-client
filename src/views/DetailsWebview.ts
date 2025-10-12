@@ -1136,10 +1136,10 @@ export class DetailsWebview {
                             return;
                         }
 
-                        // Show loading state
+                        // Show minimal loading state
                         aiButton.disabled = true;
                         aiButton.innerHTML = '<span class="spinner"></span> Loading...';
-
+                        
                         aiContentEl.innerHTML = '<div class="info-modal-ai-loading"><span class="spinner"></span></div>';
                         aiContentEl.classList.add('show');
 
@@ -1154,17 +1154,17 @@ export class DetailsWebview {
                     function formatAIResponse(content) {
                         // Convert markdown bold to HTML strong tags
                         let formatted = content.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-                        
+
                         // Split into lines and wrap each in a div for better spacing
                         const lines = formatted.split('\\n');
                         let html = '';
-                        
+
                         for (let i = 0; i < lines.length; i++) {
                             const line = lines[i].trim();
                             if (line === '') {
                                 html += '<div style="height: 8px;"></div>';
-                            } else if (line.startsWith('📝') || line.startsWith('🎯') || 
-                                       line.startsWith('⚠️') || line.startsWith('📚') || 
+                            } else if (line.startsWith('📝') || line.startsWith('🎯') ||
+                                       line.startsWith('⚠️') || line.startsWith('📚') ||
                                        line.startsWith('🔗')) {
                                 // Section headers with emoji - add extra spacing and styling
                                 html += \`<div style="margin-top: 12px; margin-bottom: 4px; line-height: 1.5;">\${line}</div>\`;
@@ -1173,7 +1173,7 @@ export class DetailsWebview {
                                 html += \`<div style="margin-left: 20px; line-height: 1.5; color: var(--vscode-foreground);">\${line}</div>\`;
                             }
                         }
-                        
+
                         return html;
                     }
 
@@ -1183,7 +1183,7 @@ export class DetailsWebview {
                         if (message.command === 'aiParameterDetailsResponse') {
                             const aiContentEl = document.getElementById('infoModalAIContent');
                             const aiButton = document.getElementById('infoModalAIButton');
-                            
+
                             if (message.success) {
                                 const formattedContent = formatAIResponse(message.content);
                                 aiContentEl.innerHTML = \`

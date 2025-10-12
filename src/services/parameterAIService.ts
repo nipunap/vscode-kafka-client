@@ -83,24 +83,23 @@ export class ParameterAIService {
             const messages = [
                 vscode.LanguageModelChatMessage.User(`You are a Kafka configuration expert. Provide a COMPACT, CONCISE explanation of the Kafka parameter "${parameterName}".
 
-**Output Format (max 200 words):**
+**Output Format (max 150 words):**
 
-📝 Purpose: [One sentence - what does this parameter do?]
+📝 Purpose: [One clear sentence]
 
 🎯 Default: [Default value] | AWS MSK: [MSK default if different]
 
 ⚠️ Production Recommendation: [Concise best practice]
 
-📚 Use Case: [When/why to modify this parameter]
+📚 Use Case: [When/why to modify]
 
-🔗 Reference: [Short URL to kafka.apache.org docs]
+🔗 Reference: kafka.apache.org/documentation
 
 **Important:**
-- Be COMPACT and CONCISE (max 200 words total)
-- Use emojis as shown above
-- Focus on practical, actionable information
-- Include specific values and recommendations
-- No extra sections or verbose explanations`)
+- Be EXTREMELY COMPACT (max 150 words)
+- One sentence per section
+- No verbose explanations
+- Focus on actionable info only`)
             ];
 
             const response = await model.sendRequest(messages, {}, new vscode.CancellationTokenSource().token);
