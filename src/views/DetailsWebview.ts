@@ -66,11 +66,11 @@ export class DetailsWebview {
                             try {
                                 const parameter = message.parameter;
                                 Logger.getLogger('DetailsWebview').info(`Fetching AI details for parameter: ${parameter}`);
-                                
+
                                 // Use web search to get details from documentation
                                 const { ParameterAIService } = await import('../services/parameterAIService');
                                 const details = await ParameterAIService.getInstance().getParameterDetails(parameter);
-                                
+
                                 this.panel?.webview.postMessage({
                                     command: 'aiParameterDetailsResponse',
                                     success: true,
@@ -1098,7 +1098,7 @@ export class DetailsWebview {
 
                         fieldNameEl.textContent = fieldName;
                         descriptionEl.textContent = description;
-                        
+
                         // Reset AI content (only if AI is available)
                         if (aiContentEl) {
                             aiContentEl.classList.remove('show');
@@ -1139,7 +1139,7 @@ export class DetailsWebview {
                         // Show loading state
                         aiButton.disabled = true;
                         aiButton.innerHTML = '<span class="spinner"></span> Loading...';
-                        
+
                         aiContentEl.innerHTML = '<div class="info-modal-ai-loading"><span class="spinner"></span></div>';
                         aiContentEl.classList.add('show');
 
@@ -1150,19 +1150,47 @@ export class DetailsWebview {
                         });
                     }
 
+                    // Format AI response with proper HTML
+                    function formatAIResponse(content) {
+                        // Convert markdown bold to HTML strong tags
+                        let formatted = content.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+                        
+                        // Split into lines and wrap each in a div for better spacing
+                        const lines = formatted.split('\\n');
+                        let html = '';
+                        
+                        for (let i = 0; i < lines.length; i++) {
+                            const line = lines[i].trim();
+                            if (line === '') {
+                                html += '<div style="height: 8px;"></div>';
+                            } else if (line.startsWith('📝') || line.startsWith('🎯') || 
+                                       line.startsWith('⚠️') || line.startsWith('📚') || 
+                                       line.startsWith('🔗')) {
+                                // Section headers with emoji - add extra spacing and styling
+                                html += \`<div style="margin-top: 12px; margin-bottom: 4px; line-height: 1.5;">\${line}</div>\`;
+                            } else {
+                                // Regular content
+                                html += \`<div style="margin-left: 20px; line-height: 1.5; color: var(--vscode-foreground);">\${line}</div>\`;
+                            }
+                        }
+                        
+                        return html;
+                    }
+
                     // Listen for AI response
                     window.addEventListener('message', event => {
                         const message = event.data;
                         if (message.command === 'aiParameterDetailsResponse') {
                             const aiContentEl = document.getElementById('infoModalAIContent');
                             const aiButton = document.getElementById('infoModalAIButton');
-
+                            
                             if (message.success) {
+                                const formattedContent = formatAIResponse(message.content);
                                 aiContentEl.innerHTML = \`
-                                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-weight: 600; color: #667eea;">
+                                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px; font-weight: 600; color: #667eea;">
                                         🤖 AI-Enhanced Details
                                     </div>
-                                    <div style="white-space: pre-wrap;">\${message.content}</div>
+                                    <div>\${formattedContent}</div>
                                 \`;
                                 aiButton.innerHTML = '✓ Details Loaded';
                             } else {
