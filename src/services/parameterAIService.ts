@@ -62,26 +62,45 @@ export class ParameterAIService {
     }
 
     /**
-     * Get AI-enhanced details using VS Code Language Model API
+     * Get AI-enhanced details using VS Code Language Model API with timeout
      */
     private async getAIEnhancedDetails(parameterName: string): Promise<string> {
         try {
-            const models = await vscode.lm.selectChatModels({
-                vendor: 'copilot',
-                family: 'gpt-4'
+            // Set a 10-second timeout for AI requests
+            const timeoutPromise = new Promise<string>((_, reject) => {
+                setTimeout(() => reject(new Error('AI request timed out after 10 seconds')), 10000);
             });
 
-            const model = models[0] || (await vscode.lm.selectChatModels({
-                vendor: 'copilot',
-                family: 'gpt-3.5-turbo'
-            }))[0];
+            const aiPromise = this.fetchAIResponse(parameterName);
 
-            if (!model) {
-                throw new Error('No AI model available');
-            }
+            // Race between AI request and timeout
+            return await Promise.race([aiPromise, timeoutPromise]);
+        } catch (error: any) {
+            this.logger.warn(`AI request failed, falling back to curated content: ${error.message}`);
+            return this.getCuratedDetails(parameterName);
+        }
+    }
 
-            const messages = [
-                vscode.LanguageModelChatMessage.User(`You are a Kafka configuration expert. Provide a COMPACT, CONCISE explanation of the Kafka parameter "${parameterName}".
+    /**
+     * Fetch response from AI model
+     */
+    private async fetchAIResponse(parameterName: string): Promise<string> {
+        const models = await vscode.lm.selectChatModels({
+            vendor: 'copilot',
+            family: 'gpt-4'
+        });
+
+        const model = models[0] || (await vscode.lm.selectChatModels({
+            vendor: 'copilot',
+            family: 'gpt-3.5-turbo'
+        }))[0];
+
+        if (!model) {
+            throw new Error('No AI model available');
+        }
+
+        const messages = [
+            vscode.LanguageModelChatMessage.User(`You are a Kafka configuration expert. Provide a COMPACT, CONCISE explanation of the Kafka parameter "${parameterName}".
 
 **Output Format (max 150 words):**
 
@@ -100,20 +119,16 @@ export class ParameterAIService {
 - One sentence per section
 - No verbose explanations
 - Focus on actionable info only`)
-            ];
+        ];
 
-            const response = await model.sendRequest(messages, {}, new vscode.CancellationTokenSource().token);
+        const response = await model.sendRequest(messages, {}, new vscode.CancellationTokenSource().token);
 
-            let fullResponse = '';
-            for await (const fragment of response.text) {
-                fullResponse += fragment;
-            }
-
-            return fullResponse.trim() || this.getCuratedDetails(parameterName);
-        } catch (error: any) {
-            this.logger.warn(`AI request failed, falling back to curated content: ${error.message}`);
-            return this.getCuratedDetails(parameterName);
+        let fullResponse = '';
+        for await (const fragment of response.text) {
+            fullResponse += fragment;
         }
+
+        return fullResponse.trim() || this.getCuratedDetails(parameterName);
     }
 
     /**

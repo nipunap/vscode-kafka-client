@@ -1139,7 +1139,7 @@ export class DetailsWebview {
                         // Show minimal loading state
                         aiButton.disabled = true;
                         aiButton.innerHTML = '<span class="spinner"></span> Loading...';
-                        
+
                         aiContentEl.innerHTML = '<div class="info-modal-ai-loading"><span class="spinner"></span></div>';
                         aiContentEl.classList.add('show');
 
