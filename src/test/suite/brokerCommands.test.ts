@@ -34,7 +34,7 @@ suite('Broker Commands Test Suite', () => {
 
             const openTextDocumentStub = sandbox.stub(vscode.workspace, 'openTextDocument').resolves({} as any);
             const showTextDocumentStub = sandbox.stub(vscode.window, 'showTextDocument').resolves({} as any);
-            const withProgressStub = sandbox.stub(vscode.window, 'withProgress').callsFake(async (options: any, task: any) => {
+            const withProgressStub = sandbox.stub(vscode.window, 'withProgress').callsFake(async (_options: any, task: any) => {
                 return await task({ report: () => {} }, { isCancellationRequested: false });
             });
 
@@ -61,7 +61,7 @@ suite('Broker Commands Test Suite', () => {
             sandbox.stub(clientManager, 'getBrokerDetails').rejects(new Error('Connection failed'));
 
             const showErrorStub = sandbox.stub(vscode.window, 'showErrorMessage').resolves(undefined);
-            sandbox.stub(vscode.window, 'withProgress').callsFake(async (options: any, task: any) => {
+            sandbox.stub(vscode.window, 'withProgress').callsFake(async (_options: any, task: any) => {
                 return await task({ report: () => {} }, { isCancellationRequested: false });
             });
 
@@ -80,7 +80,7 @@ suite('Broker Commands Test Suite', () => {
             sandbox.stub(clientManager, 'getBrokerDetails').rejects(new Error('AWS credentials expired'));
 
             const showErrorStub = sandbox.stub(vscode.window, 'showErrorMessage').resolves(undefined);
-            sandbox.stub(vscode.window, 'withProgress').callsFake(async (options: any, task: any) => {
+            sandbox.stub(vscode.window, 'withProgress').callsFake(async (_options: any, task: any) => {
                 return await task({ report: () => {} }, { isCancellationRequested: false });
             });
 
@@ -114,7 +114,7 @@ suite('Broker Commands Test Suite', () => {
                 { nodeId: 2, host: 'broker-2.example.com', port: 9092, rack: 'us-east-1b' }
             ]);
 
-            const withProgressStub = sandbox.stub(vscode.window, 'withProgress').callsFake(async (options: any, task: any) => {
+            const withProgressStub = sandbox.stub(vscode.window, 'withProgress').callsFake(async (_options: any, task: any) => {
                 return await task({ report: () => {} }, { isCancellationRequested: false });
             });
 
@@ -148,7 +148,7 @@ suite('Broker Commands Test Suite', () => {
                 { nodeId: 1, host: 'broker-1.example.com', port: 9092, rack: null }
             ]);
 
-            sandbox.stub(vscode.window, 'withProgress').callsFake(async (options: any, task: any) => {
+            sandbox.stub(vscode.window, 'withProgress').callsFake(async (_options: any, task: any) => {
                 return await task({ report: () => {} }, { isCancellationRequested: false });
             });
 
@@ -165,7 +165,7 @@ suite('Broker Commands Test Suite', () => {
             sandbox.stub(clientManager, 'getClusters').returns(['test-cluster']);
             sandbox.stub(clientManager, 'getBrokers').rejects(new Error('Connection timeout'));
 
-            sandbox.stub(vscode.window, 'withProgress').callsFake(async (options: any, task: any) => {
+            sandbox.stub(vscode.window, 'withProgress').callsFake(async (_options: any, task: any) => {
                 return await task({ report: () => {} }, { isCancellationRequested: false });
             });
 
@@ -181,7 +181,7 @@ suite('Broker Commands Test Suite', () => {
             sandbox.stub(clientManager, 'getClusters').returns(['test-cluster']);
             sandbox.stub(clientManager, 'getBrokers').resolves([]);
 
-            sandbox.stub(vscode.window, 'withProgress').callsFake(async (options: any, task: any) => {
+            sandbox.stub(vscode.window, 'withProgress').callsFake(async (_options: any, task: any) => {
                 return await task({ report: () => {} }, { isCancellationRequested: false });
             });
 
@@ -203,7 +203,7 @@ suite('Broker Commands Test Suite', () => {
             quickPickStub.onFirstCall().resolves('cluster-1' as any);
             quickPickStub.onSecondCall().resolves(undefined);
 
-            sandbox.stub(vscode.window, 'withProgress').callsFake(async (options: any, task: any) => {
+            sandbox.stub(vscode.window, 'withProgress').callsFake(async (_options: any, task: any) => {
                 return await task({ report: () => {} }, { isCancellationRequested: false });
             });
 

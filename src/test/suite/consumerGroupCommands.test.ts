@@ -22,7 +22,7 @@ suite('Consumer Group Commands Test Suite', () => {
     suite('showConsumerGroupDetails', () => {
         test('should show consumer group details successfully', async () => {
             const node = { clusterName: 'test-cluster', groupId: 'test-group' };
-            
+
             const groupDetails = {
                 groupId: 'test-group',
                 state: 'Stable',
@@ -36,9 +36,9 @@ suite('Consumer Group Commands Test Suite', () => {
 
             sandbox.stub(vscode.workspace, 'openTextDocument').resolves({} as any);
             sandbox.stub(vscode.window, 'showTextDocument').resolves({} as any);
-            
+
             const withProgressStub = sandbox.stub(vscode.window, 'withProgress');
-            withProgressStub.callsFake(async (options, task) => {
+            withProgressStub.callsFake(async (_options, task) => {
                 return await task({ report: () => {} } as any, {} as any);
             });
 
@@ -50,12 +50,12 @@ suite('Consumer Group Commands Test Suite', () => {
 
         test('should handle credential errors', async () => {
             const node = { clusterName: 'test-cluster', groupId: 'test-group' };
-            
+
             clientManager.getConsumerGroupDetails.rejects(new Error('AWS credentials expired'));
             const errorStub = sandbox.stub(vscode.window, 'showErrorMessage').resolves(undefined);
-            
+
             const withProgressStub = sandbox.stub(vscode.window, 'withProgress');
-            withProgressStub.callsFake(async (options, task) => {
+            withProgressStub.callsFake(async (_options, task) => {
                 return await task({ report: () => {} } as any, {} as any);
             });
 
@@ -69,7 +69,7 @@ suite('Consumer Group Commands Test Suite', () => {
     suite('deleteConsumerGroup', () => {
         test('should delete consumer group when confirmed', async () => {
             const node = { clusterName: 'test-cluster', groupId: 'test-group' };
-            
+
             sandbox.stub(vscode.window, 'showWarningMessage').resolves('Yes' as any);
             clientManager.deleteConsumerGroup.resolves();
             sandbox.stub(vscode.window, 'showInformationMessage');
@@ -83,7 +83,7 @@ suite('Consumer Group Commands Test Suite', () => {
 
         test('should not delete consumer group when cancelled', async () => {
             const node = { clusterName: 'test-cluster', groupId: 'test-group' };
-            
+
             sandbox.stub(vscode.window, 'showWarningMessage').resolves(undefined);
 
             await consumerGroupCommands.deleteConsumerGroup(clientManager as any, provider, node);
@@ -93,7 +93,7 @@ suite('Consumer Group Commands Test Suite', () => {
 
         test('should handle error for consumer group with active members', async () => {
             const node = { clusterName: 'test-cluster', groupId: 'test-group' };
-            
+
             sandbox.stub(vscode.window, 'showWarningMessage').resolves('Yes' as any);
             clientManager.deleteConsumerGroup.rejects(new Error('GROUP_SUBSCRIBED_TO_TOPIC'));
             const errorStub = sandbox.stub(vscode.window, 'showErrorMessage');
@@ -108,7 +108,7 @@ suite('Consumer Group Commands Test Suite', () => {
     suite('resetConsumerGroupOffsets', () => {
         test('should reset offsets to beginning', async () => {
             const node = { clusterName: 'test-cluster', groupId: 'test-group' };
-            
+
             sandbox.stub(vscode.window, 'showInputBox').resolves('test-topic');
             sandbox.stub(vscode.window, 'showQuickPick').resolves({
                 label: 'Beginning',
@@ -132,7 +132,7 @@ suite('Consumer Group Commands Test Suite', () => {
 
         test('should reset offsets to end', async () => {
             const node = { clusterName: 'test-cluster', groupId: 'test-group' };
-            
+
             sandbox.stub(vscode.window, 'showInputBox').resolves(''); // Empty = all topics
             sandbox.stub(vscode.window, 'showQuickPick').resolves({
                 label: 'End',
@@ -155,11 +155,11 @@ suite('Consumer Group Commands Test Suite', () => {
 
         test('should reset offsets to specific offset', async () => {
             const node = { clusterName: 'test-cluster', groupId: 'test-group' };
-            
+
             const inputStub = sandbox.stub(vscode.window, 'showInputBox');
             inputStub.onFirstCall().resolves('test-topic');
             inputStub.onSecondCall().resolves('12345');
-            
+
             sandbox.stub(vscode.window, 'showQuickPick').resolves({
                 label: 'Specific Offset',
                 description: 'Reset to a specific offset'
@@ -181,7 +181,7 @@ suite('Consumer Group Commands Test Suite', () => {
 
         test('should abort if user cancels', async () => {
             const node = { clusterName: 'test-cluster', groupId: 'test-group' };
-            
+
             sandbox.stub(vscode.window, 'showInputBox').resolves(undefined); // User cancels
 
             await consumerGroupCommands.resetConsumerGroupOffsets(clientManager as any, node);
@@ -191,7 +191,7 @@ suite('Consumer Group Commands Test Suite', () => {
 
         test('should not reset if confirmation is declined', async () => {
             const node = { clusterName: 'test-cluster', groupId: 'test-group' };
-            
+
             sandbox.stub(vscode.window, 'showInputBox').resolves('test-topic');
             sandbox.stub(vscode.window, 'showQuickPick').resolves({
                 label: 'Beginning',
@@ -206,7 +206,7 @@ suite('Consumer Group Commands Test Suite', () => {
 
         test('should handle error for consumer group with active members', async () => {
             const node = { clusterName: 'test-cluster', groupId: 'test-group' };
-            
+
             sandbox.stub(vscode.window, 'showInputBox').resolves('test-topic');
             sandbox.stub(vscode.window, 'showQuickPick').resolves({
                 label: 'Beginning',
@@ -223,4 +223,3 @@ suite('Consumer Group Commands Test Suite', () => {
         });
     });
 });
-

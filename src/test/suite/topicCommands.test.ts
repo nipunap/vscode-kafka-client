@@ -117,7 +117,7 @@ suite('Topic Commands Test Suite', () => {
             sandbox.stub(vscode.window, 'showTextDocument').resolves({} as any);
 
             const withProgressStub = sandbox.stub(vscode.window, 'withProgress');
-            withProgressStub.callsFake(async (options, task) => {
+            withProgressStub.callsFake(async (_options, task) => {
                 return await task({ report: () => {} } as any, {} as any);
             });
 
@@ -134,7 +134,7 @@ suite('Topic Commands Test Suite', () => {
             sandbox.stub(vscode.window, 'showErrorMessage');
 
             const withProgressStub = sandbox.stub(vscode.window, 'withProgress');
-            withProgressStub.callsFake(async (options, task) => {
+            withProgressStub.callsFake(async (_options, task) => {
                 return await task({ report: () => {} } as any, {} as any);
             });
 

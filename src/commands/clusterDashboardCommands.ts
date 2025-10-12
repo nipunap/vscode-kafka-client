@@ -10,7 +10,7 @@ let dashboardWebview: ClusterDashboardWebview | undefined;
 
 export async function showClusterDashboard(
     clientManager: KafkaClientManager,
-    context: vscode.ExtensionContext,
+    _context: vscode.ExtensionContext,
     node: any
 ) {
     try {
