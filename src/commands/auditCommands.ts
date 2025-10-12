@@ -90,7 +90,6 @@ export async function exportAuditLog(): Promise<void> {
 }
 
 function getAuditLogHtml(entries: any[], stats: any): string {
-    const nonce = getNonce();
     return `
         <!DOCTYPE html>
         <html lang="en">
@@ -100,7 +99,7 @@ function getAuditLogHtml(entries: any[], stats: any): string {
             <meta http-equiv="Content-Security-Policy"
                   content="default-src 'none';
                            style-src 'unsafe-inline';
-                           script-src 'nonce-${nonce}';">
+                           script-src 'unsafe-inline';">
             <title>Audit Log</title>
             <style>
                 body {
@@ -236,7 +235,7 @@ function getAuditLogHtml(entries: any[], stats: any): string {
                 </table>
             `}
 
-            <script nonce="${nonce}">
+            <script>
                 const vscode = acquireVsCodeApi();
 
                 function exportLog() {
@@ -250,13 +249,4 @@ function getAuditLogHtml(entries: any[], stats: any): string {
         </body>
         </html>
     `;
-}
-
-function getNonce(): string {
-    let text = '';
-    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    for (let i = 0; i < 32; i++) {
-        text += possible.charAt(Math.floor(Math.random() * possible.length));
-    }
-    return text;
 }
