@@ -460,7 +460,7 @@ src/
 ├── types/
 │   ├── acl.ts                      # ACL interfaces
 │   └── nodes.ts                    # Tree node types (including KStream/KTable nodes)
-└── test/                           # Test suite (379 tests, including 27 security tests)
+└── test/                           # Test suite (430 tests, including 27 webview security tests)
 ```
 
 ### Architecture Patterns
@@ -481,14 +481,14 @@ npm install             # Install dependencies
 npm run compile         # Compile TypeScript
 npm run watch           # Watch mode
 npm run lint            # ESLint
-npm test                # Run all 379 tests
+npm test                # Run all 430 tests
 npm run package         # Create .vsix
 npm run publish         # Publish to marketplace
 ```
 
 ### Test Coverage
 
-**379 tests passing** across:
+**430 tests passing** across:
 - Infrastructure (Logger, ErrorHandler, CredentialManager, EventBus, ConnectionPool)
 - Services (Topic, ConsumerGroup, Broker, Producer, Documentation, AI)
 - Providers (Topics, Consumer Groups, Brokers, ACLs, KStreams, KTables)
@@ -525,7 +525,7 @@ npm run publish         # Publish to marketplace
 All PRs must pass:
 - ✅ ESLint
 - ✅ TypeScript compilation
-- ✅ 379 tests (including 27 security tests)
+- ✅ 430 tests (including 27 webview security tests)
 - ✅ Multi-OS (Ubuntu, Windows, macOS)
 - ✅ Multi-Node (18.x, 20.x)
 

@@ -343,8 +343,8 @@ suite('DetailsWebview Security Test Suite', () => {
         test('should allow inline scripts', () => {
             const html = getWebviewHTML();
 
-            // Should have script tags
-            const scriptTags = html.match(/<script[^>]*>/g) || [];
+            // Should have script tags (case-insensitive to match HTML behavior)
+            const scriptTags = html.match(/<script[^>]*>/gi) || [];
             assert.ok(scriptTags.length > 0, 'Should have script tags');
 
             // May or may not have nonces depending on CSP strategy
