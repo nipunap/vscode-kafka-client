@@ -26,6 +26,7 @@ import { ProducerService } from '../services/ProducerService';
 import { ACL, ACLDetails, ACLConfig } from '../types/acl';
 import { ACLTypeMapper } from '../utils/aclTypeMapper';
 import { KafkaErrorClassifier } from '../utils/kafkaErrorClassifier';
+import { AuditLog, AuditOperation } from '../infrastructure/AuditLog';
 
 // Type alias for cluster configuration
 type ClusterConfig = ClusterConnection;
@@ -35,11 +36,16 @@ export class KafkaClientManager {
     private clusters: Map<string, ClusterConfig> = new Map();
     private kafkaInstances: Map<string, Kafka> = new Map();
     private admins: Map<string, Admin> = new Map();
+    private adminHealthTimestamps: Map<string, number> = new Map();
     private producers: Map<string, Producer> = new Map();
     private consumers: Map<string, Consumer> = new Map();
     private connectionPool: ConnectionPool;
     private configurationService: ConfigurationService;
     private mskAdapter: MSKAdapter;
+
+    // Health check settings
+    private readonly ADMIN_HEALTH_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
+    private readonly ADMIN_MAX_AGE = 30 * 60 * 1000; // 30 minutes
 
     // Service layer
     private topicService: TopicService;
@@ -331,9 +337,31 @@ export class KafkaClientManager {
         return Array.from(this.clusters.keys());
     }
 
-    async getTopics(clusterName: string): Promise<string[]> {
+    async getTopics(clusterName: string, options?: {
+        filter?: string;
+        limit?: number;
+        offset?: number;
+    }): Promise<string[]> {
         const admin = await this.getAdmin(clusterName);
-        return await this.topicService.getTopics(admin);
+        const allTopics = await this.topicService.getTopics(admin);
+
+        // Apply filtering
+        let filteredTopics = allTopics;
+        if (options?.filter) {
+            const filterLower = options.filter.toLowerCase();
+            filteredTopics = allTopics.filter(topic =>
+                topic.toLowerCase().includes(filterLower)
+            );
+        }
+
+        // Apply pagination
+        if (options?.offset !== undefined || options?.limit !== undefined) {
+            const offset = options.offset || 0;
+            const limit = options.limit || filteredTopics.length;
+            filteredTopics = filteredTopics.slice(offset, offset + limit);
+        }
+
+        return filteredTopics;
     }
 
     async getTopicMetadata(clusterName: string, topic: string): Promise<any> {
@@ -810,6 +838,7 @@ export class KafkaClientManager {
     async createACL(clusterName: string, aclConfig: ACLConfig): Promise<void> {
         this.logger.debug(`Creating ACL for cluster ${clusterName}`, aclConfig);
         const admin = await this.getAdmin(clusterName);
+        const startTime = Date.now();
 
         try {
             await admin.createAcls({
@@ -824,8 +853,35 @@ export class KafkaClientManager {
                 }]
             });
 
+            const duration = Date.now() - startTime;
             this.logger.info(`Successfully created ACL for cluster ${clusterName}`);
+
+            // Audit log (no sensitive data)
+            AuditLog.success(
+                AuditOperation.ACL_CREATED,
+                clusterName,
+                aclConfig.resourceName,
+                {
+                    resourceType: aclConfig.resourceType,
+                    operation: aclConfig.operation,
+                    permissionType: aclConfig.permissionType,
+                    principal: aclConfig.principal
+                },
+                duration
+            );
         } catch (error: any) {
+            const duration = Date.now() - startTime;
+
+            // Audit log failure
+            AuditLog.failure(
+                AuditOperation.ACL_CREATED,
+                clusterName,
+                aclConfig.resourceName,
+                error?.message || 'Unknown error',
+                { resourceType: aclConfig.resourceType, operation: aclConfig.operation },
+                duration
+            );
+
             // Use centralized error classification
             const logLevel = KafkaErrorClassifier.getLogLevel(error);
             const message = KafkaErrorClassifier.getUserFriendlyMessage(error, `Create ACL on ${clusterName}`);
@@ -842,6 +898,7 @@ export class KafkaClientManager {
     async deleteACL(clusterName: string, aclConfig: Omit<ACLConfig, 'permissionType'>): Promise<void> {
         this.logger.debug(`Deleting ACL for cluster ${clusterName}`, aclConfig);
         const admin = await this.getAdmin(clusterName);
+        const startTime = Date.now();
 
         try {
             const result = await admin.deleteAcls({
@@ -858,9 +915,36 @@ export class KafkaClientManager {
 
             const deletedCount = result.filterResponses.reduce((sum, response) =>
                 sum + (response.matchingAcls?.length || 0), 0);
+            const duration = Date.now() - startTime;
 
             this.logger.info(`Successfully deleted ${deletedCount} ACL(s) for cluster ${clusterName}`);
+
+            // Audit log (no sensitive data)
+            AuditLog.success(
+                AuditOperation.ACL_DELETED,
+                clusterName,
+                aclConfig.resourceName,
+                {
+                    resourceType: aclConfig.resourceType,
+                    operation: aclConfig.operation,
+                    deletedCount,
+                    principal: aclConfig.principal
+                },
+                duration
+            );
         } catch (error: any) {
+            const duration = Date.now() - startTime;
+
+            // Audit log failure
+            AuditLog.failure(
+                AuditOperation.ACL_DELETED,
+                clusterName,
+                aclConfig.resourceName,
+                error?.message || 'Unknown error',
+                { resourceType: aclConfig.resourceType, operation: aclConfig.operation },
+                duration
+            );
+
             // Use centralized error classification
             const logLevel = KafkaErrorClassifier.getLogLevel(error);
             const message = KafkaErrorClassifier.getUserFriendlyMessage(error, `Delete ACL on ${clusterName}`);
@@ -920,6 +1004,31 @@ export class KafkaClientManager {
             throw new Error(`Cluster ${clusterName} not found`);
         }
 
+        // Check if existing admin connection needs health check
+        const existingAdmin = this.admins.get(clusterName);
+        const lastHealthCheck = this.adminHealthTimestamps.get(clusterName) || 0;
+        const now = Date.now();
+
+        if (existingAdmin && (now - lastHealthCheck) < this.ADMIN_HEALTH_CHECK_INTERVAL) {
+            // Recent health check passed, return existing admin
+            this.logger.debug(`Using cached admin for ${clusterName} (last checked ${Math.round((now - lastHealthCheck) / 1000)}s ago)`);
+            return existingAdmin;
+        }
+
+        if (existingAdmin && (now - lastHealthCheck) >= this.ADMIN_HEALTH_CHECK_INTERVAL) {
+            // Time for health check
+            const isHealthy = await this.checkAdminHealth(clusterName, existingAdmin);
+            if (isHealthy) {
+                this.adminHealthTimestamps.set(clusterName, now);
+                this.logger.debug(`Admin health check passed for ${clusterName}`);
+                return existingAdmin;
+            } else {
+                // Connection is stale, disconnect and recreate
+                this.logger.warn(`Admin connection stale for ${clusterName}, reconnecting...`);
+                await this.disconnectAdmin(clusterName);
+            }
+        }
+
         try {
             // For MSK clusters, fetch brokers if not already cached
             // Note: For TLS connections (non-IAM), brokers are cached after initial fetch
@@ -945,12 +1054,52 @@ export class KafkaClientManager {
                 () => new Kafka(kafkaConfig) // Factory function that creates Kafka instance
             );
 
+            // Cache admin and set health timestamp
+            this.admins.set(clusterName, admin);
+            this.adminHealthTimestamps.set(clusterName, now);
+
             return admin;
         } catch (error: any) {
             this.logger.error(`Failed to connect to cluster ${clusterName}`, error);
             throw new Error(
                 `Failed to connect to Kafka cluster: ${error?.message || 'Unknown error'}. Please check that the brokers are accessible and your credentials are valid.`
             );
+        }
+    }
+
+    /**
+     * Check if admin connection is healthy
+     */
+    private async checkAdminHealth(clusterName: string, admin: Admin): Promise<boolean> {
+        try {
+            // Quick health check: list cluster metadata (lightweight operation)
+            const metadata = await Promise.race([
+                admin.describeCluster(),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Health check timeout')), 5000)
+                )
+            ]);
+            return true;
+        } catch (error: any) {
+            this.logger.warn(`Admin health check failed for ${clusterName}: ${error?.message}`);
+            return false;
+        }
+    }
+
+    /**
+     * Disconnect admin connection
+     */
+    private async disconnectAdmin(clusterName: string): Promise<void> {
+        const admin = this.admins.get(clusterName);
+        if (admin) {
+            try {
+                await admin.disconnect();
+                this.logger.debug(`Disconnected admin for ${clusterName}`);
+            } catch (error: any) {
+                this.logger.warn(`Error disconnecting admin for ${clusterName}: ${error?.message}`);
+            }
+            this.admins.delete(clusterName);
+            this.adminHealthTimestamps.delete(clusterName);
         }
     }
 

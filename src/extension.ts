@@ -10,6 +10,7 @@ import * as topicCommands from './commands/topicCommands';
 import * as consumerGroupCommands from './commands/consumerGroupCommands';
 import * as brokerCommands from './commands/brokerCommands';
 import * as aclCommands from './commands/aclCommands';
+import * as auditCommands from './commands/auditCommands';
 import * as kstreamCommands from './commands/kstreamCommands';
 import * as ktableCommands from './commands/ktableCommands';
 import * as clusterDashboardCommands from './commands/clusterDashboardCommands';
@@ -306,6 +307,12 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.showACLHelp', async () => {
             await aclCommands.showACLHelp(clientManager, context);
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('kafka.showAuditLog', async () => {
+            await auditCommands.showAuditLog();
         })
     );
 

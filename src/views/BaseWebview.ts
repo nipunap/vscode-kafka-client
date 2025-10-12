@@ -125,6 +125,20 @@ export abstract class BaseWebview {
     }
 
     /**
+     * Get secure Content Security Policy meta tag
+     */
+    protected getCSP(nonce: string): string {
+        return `
+            <meta http-equiv="Content-Security-Policy"
+                  content="default-src 'none';
+                           style-src ${this.panel?.webview.cspSource} 'unsafe-inline';
+                           script-src 'nonce-${nonce}';
+                           img-src ${this.panel?.webview.cspSource} https:;
+                           font-src ${this.panel?.webview.cspSource};">
+        `;
+    }
+
+    /**
      * Escape HTML special characters
      */
     protected escapeHtml(text: string): string {

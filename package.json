@@ -189,6 +189,11 @@
         "icon": "$(question)"
       },
       {
+        "command": "kafka.showAuditLog",
+        "title": "Show Audit Log",
+        "icon": "$(list-ordered)"
+      },
+      {
         "command": "kafka.showBrokerDetails",
         "title": "Show Broker Details",
         "icon": "$(info)"

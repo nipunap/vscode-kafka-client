@@ -48,6 +48,38 @@ export class KafkaExplorerProvider extends BaseProvider<KafkaTreeItem> {
                         ];
                     }
 
+                    // Warn if too many topics
+                    const MAX_TOPICS_WITHOUT_WARNING = 100;
+                    if (topics.length > MAX_TOPICS_WITHOUT_WARNING) {
+                        const warning = new KafkaTreeItem(
+                            `⚠️ ${topics.length} topics found. Use "Find Topic" (Cmd+Shift+P) to search`,
+                            vscode.TreeItemCollapsibleState.None,
+                            'topicsWarning',
+                            el!.clusterName,
+                            undefined,
+                            undefined,
+                            'Consider using the search function for better performance'
+                        );
+                        // Show warning at top, then limited topics
+                        const limitedTopics = topics.slice(0, 100).map(
+                            topic =>
+                                new KafkaTreeItem(
+                                    topic,
+                                    vscode.TreeItemCollapsibleState.Collapsed,
+                                    'topic',
+                                    el!.clusterName,
+                                    topic
+                                )
+                        );
+                        const showMore = new KafkaTreeItem(
+                            `... and ${topics.length - 100} more. Use "Find Topic" to search`,
+                            vscode.TreeItemCollapsibleState.None,
+                            'topicsMore',
+                            el!.clusterName
+                        );
+                        return [warning, ...limitedTopics, showMore];
+                    }
+
                     return topics.map(
                         topic =>
                             new KafkaTreeItem(
