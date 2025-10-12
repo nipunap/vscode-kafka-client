@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { FieldDescriptions } from '../utils/fieldDescriptions';
 import { formatMilliseconds, formatBytes, isMillisecondsProperty, isBytesProperty } from '../utils/formatters';
+import { Logger } from '../infrastructure/Logger';
 
 /**
  * Utility class for creating consistent HTML detail views
@@ -59,6 +60,29 @@ export class DetailsWebview {
                                     vscode.window.showErrorMessage(`AI Advisor: ${error.message}`);
                                     this.updateWithAIRecommendations(`Error: ${error.message}\n\nPlease ensure GitHub Copilot is installed and active.`);
                                 }
+                            }
+                            break;
+                        case 'getAIParameterDetails':
+                            try {
+                                const parameter = message.parameter;
+                                Logger.getLogger('DetailsWebview').info(`Fetching AI details for parameter: ${parameter}`);
+                                
+                                // Use web search to get details from documentation
+                                const { ParameterAIService } = await import('../services/parameterAIService');
+                                const details = await ParameterAIService.getInstance().getParameterDetails(parameter);
+                                
+                                this.panel?.webview.postMessage({
+                                    command: 'aiParameterDetailsResponse',
+                                    success: true,
+                                    content: details
+                                });
+                            } catch (error: any) {
+                                Logger.getLogger('DetailsWebview').error(`Error fetching AI parameter details: ${error.message}`, error);
+                                this.panel?.webview.postMessage({
+                                    command: 'aiParameterDetailsResponse',
+                                    success: false,
+                                    error: error.message
+                                });
                             }
                             break;
                     }
@@ -615,6 +639,77 @@ export class DetailsWebview {
                         font-family: var(--vscode-editor-font-family);
                     }
 
+                    .info-modal-footer {
+                        margin-top: 15px;
+                        padding-top: 15px;
+                        border-top: 1px solid var(--vscode-panel-border);
+                        display: flex;
+                        justify-content: flex-end;
+                        gap: 10px;
+                    }
+
+                    .info-modal-ai-btn {
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white;
+                        border: none;
+                        padding: 8px 16px;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 13px;
+                        font-weight: 500;
+                        transition: all 0.2s;
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                    }
+
+                    .info-modal-ai-btn:hover {
+                        transform: translateY(-1px);
+                        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+                    }
+
+                    .info-modal-ai-btn:disabled {
+                        opacity: 0.5;
+                        cursor: not-allowed;
+                        transform: none;
+                    }
+
+                    .info-modal-ai-content {
+                        margin-top: 15px;
+                        padding: 15px;
+                        background: var(--vscode-textBlockQuote-background);
+                        border-left: 3px solid #667eea;
+                        border-radius: 4px;
+                        font-size: 13px;
+                        line-height: 1.6;
+                        display: none;
+                    }
+
+                    .info-modal-ai-content.show {
+                        display: block;
+                        animation: fadeIn 0.3s;
+                    }
+
+                    .info-modal-ai-loading {
+                        text-align: center;
+                        padding: 20px;
+                        color: var(--vscode-descriptionForeground);
+                    }
+
+                    .spinner {
+                        display: inline-block;
+                        width: 20px;
+                        height: 20px;
+                        border: 3px solid var(--vscode-descriptionForeground);
+                        border-top-color: transparent;
+                        border-radius: 50%;
+                        animation: spin 1s linear infinite;
+                    }
+
+                    @keyframes spin {
+                        to { transform: rotate(360deg); }
+                    }
+
                     @keyframes fadeIn {
                         from { opacity: 0; }
                         to { opacity: 1; }
@@ -966,6 +1061,20 @@ export class DetailsWebview {
                             <button class="info-modal-close" onclick="closeInfoModal()" aria-label="Close">×</button>
                         </div>
                         <div class="info-modal-body" id="infoModalDescription"></div>
+                        <div class="info-modal-ai-content" id="infoModalAIContent"></div>
+                        ${data.showAIAdvisor ? `
+                        <div class="info-modal-footer">
+                            <button class="info-modal-ai-btn" id="infoModalAIButton" onclick="fetchAIDetails()">
+                                🤖 Get AI Details
+                            </button>
+                        </div>
+                        ` : `
+                        <div class="info-modal-footer" style="justify-content: center;">
+                            <div style="color: var(--vscode-descriptionForeground); font-size: 12px; text-align: center; padding: 8px;">
+                                💡 Install <a href="https://marketplace.visualstudio.com/items?itemName=GitHub.copilot" target="_blank" style="color: var(--vscode-textLink-foreground);">GitHub Copilot</a> to enable AI-powered parameter details
+                            </div>
+                        </div>
+                        `}
                     </div>
                 </div>
 
@@ -973,16 +1082,32 @@ export class DetailsWebview {
                     ${this.getScript(data)}
 
                     // Info Modal Functions
+                    let currentFieldName = '';
+
                     function showInfoModal(element) {
                         const fieldName = element.getAttribute('data-field');
                         const description = element.getAttribute('data-description');
 
+                        currentFieldName = fieldName;
+
                         const modal = document.getElementById('infoModal');
                         const fieldNameEl = document.getElementById('infoModalFieldName');
                         const descriptionEl = document.getElementById('infoModalDescription');
+                        const aiContentEl = document.getElementById('infoModalAIContent');
+                        const aiButton = document.getElementById('infoModalAIButton');
 
                         fieldNameEl.textContent = fieldName;
                         descriptionEl.textContent = description;
+                        
+                        // Reset AI content (only if AI is available)
+                        if (aiContentEl) {
+                            aiContentEl.classList.remove('show');
+                            aiContentEl.innerHTML = '';
+                        }
+                        if (aiButton) {
+                            aiButton.disabled = false;
+                            aiButton.innerHTML = '🤖 Get AI Details';
+                        }
 
                         modal.classList.add('show');
                     }
@@ -990,6 +1115,7 @@ export class DetailsWebview {
                     function closeInfoModal() {
                         const modal = document.getElementById('infoModal');
                         modal.classList.remove('show');
+                        currentFieldName = '';
                     }
 
                     function closeInfoModalOnBackdrop(event) {
@@ -997,6 +1123,59 @@ export class DetailsWebview {
                             closeInfoModal();
                         }
                     }
+
+                    function fetchAIDetails() {
+                        if (!currentFieldName) return;
+
+                        const aiContentEl = document.getElementById('infoModalAIContent');
+                        const aiButton = document.getElementById('infoModalAIButton');
+
+                        // Check if AI button exists (AI might not be available)
+                        if (!aiButton || !aiContentEl) {
+                            console.warn('AI features not available');
+                            return;
+                        }
+
+                        // Show loading state
+                        aiButton.disabled = true;
+                        aiButton.innerHTML = '<span class="spinner"></span> Loading...';
+                        
+                        aiContentEl.innerHTML = '<div class="info-modal-ai-loading"><span class="spinner"></span></div>';
+                        aiContentEl.classList.add('show');
+
+                        // Request AI details from extension
+                        vscode.postMessage({
+                            command: 'getAIParameterDetails',
+                            parameter: currentFieldName
+                        });
+                    }
+
+                    // Listen for AI response
+                    window.addEventListener('message', event => {
+                        const message = event.data;
+                        if (message.command === 'aiParameterDetailsResponse') {
+                            const aiContentEl = document.getElementById('infoModalAIContent');
+                            const aiButton = document.getElementById('infoModalAIButton');
+
+                            if (message.success) {
+                                aiContentEl.innerHTML = \`
+                                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-weight: 600; color: #667eea;">
+                                        🤖 AI-Enhanced Details
+                                    </div>
+                                    <div style="white-space: pre-wrap;">\${message.content}</div>
+                                \`;
+                                aiButton.innerHTML = '✓ Details Loaded';
+                            } else {
+                                aiContentEl.innerHTML = \`
+                                    <div style="color: var(--vscode-errorForeground);">
+                                        ❌ Failed to fetch AI details: \${message.error || 'Unknown error'}
+                                    </div>
+                                \`;
+                                aiButton.disabled = false;
+                                aiButton.innerHTML = '🤖 Retry AI Details';
+                            }
+                        }
+                    });
 
                     // Close modal on Escape key
                     document.addEventListener('keydown', function(event) {

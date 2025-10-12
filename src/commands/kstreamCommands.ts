@@ -4,6 +4,7 @@ import { KStreamTreeItem } from '../providers/kstreamProvider';
 import { ErrorHandler } from '../infrastructure/ErrorHandler';
 import { DetailsWebview, DetailsData } from '../views/DetailsWebview';
 import { AIAdvisor } from '../services/AIAdvisor';
+import { ConfigSourceMapper } from '../utils/configSourceMapper';
 
 /**
  * Show KStream details in an HTML view
@@ -122,7 +123,7 @@ export async function showKStreamDetails(
                                 ? details.configuration.map((config: any) => [
                                     config.configName || config.name || 'N/A',
                                     config.configValue || config.value || 'N/A',
-                                    config.configSource || config.source || 'default'
+                                    ConfigSourceMapper.toHumanReadable(config.configSource || config.source || 5)
                                 ])
                                 : []
                         }

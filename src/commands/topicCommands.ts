@@ -11,6 +11,7 @@ import { DetailsWebview, DetailsData } from '../views/DetailsWebview';
 import { TopicNode, ClusterNode } from '../types/nodes';
 import { ACL } from '../types/acl';
 import { AIAdvisor } from '../services/AIAdvisor';
+import { ConfigSourceMapper } from '../utils/configSourceMapper';
 
 export async function createTopic(
     clientManager: KafkaClientManager,
@@ -188,7 +189,7 @@ export async function showTopicDetails(clientManager: KafkaClientManager, node: 
                                 ? details.configuration.map((config: any) => [
                                     config.configName || config.name || 'N/A',
                                     config.configValue || config.value || 'N/A',
-                                    config.configSource || config.source || 'default'
+                                    ConfigSourceMapper.toHumanReadable(config.configSource || config.source || 5)
                                 ])
                                 : []
                         }
