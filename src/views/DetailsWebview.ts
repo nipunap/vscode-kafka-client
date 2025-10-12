@@ -1021,7 +1021,7 @@ export class DetailsWebview {
                             const humanValue = element.getAttribute('data-human');
 
                             element.setAttribute('data-format', newFormat);
-                            
+
                             // Update text content (first text node)
                             const textNode = Array.from(element.childNodes).find(node => node.nodeType === Node.TEXT_NODE);
                             if (textNode) {

@@ -484,22 +484,30 @@ export class MessageConsumerWebview {
             gap: 6px;
         }
 
-        .human-icon {
-            font-size: 16px;
+        .human-icon-header {
+            font-size: 18px;
             cursor: pointer;
             opacity: 0.6;
             transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
             user-select: none;
+            margin-left: 8px;
+            vertical-align: middle;
         }
 
-        .human-icon:hover {
+        .human-icon-header:hover {
             opacity: 1;
-            transform: scale(1.15);
+            transform: scale(1.2);
         }
 
-        .format-toggle[data-format="human"] .human-icon {
+        .human-icon-header.active {
             opacity: 1;
-            filter: brightness(1.2);
+            filter: brightness(1.3);
+        }
+
+        .format-toggle {
+            display: inline-block;
         }
 
         .empty-state {
@@ -566,7 +574,10 @@ export class MessageConsumerWebview {
         <div class="message-row message-header">
             <div class="message-cell">Partition</div>
             <div class="message-cell">Offset</div>
-            <div class="message-cell">Timestamp</div>
+            <div class="message-cell">
+                Timestamp
+                <span class="human-icon-header" onclick="toggleAllTimestamps()" title="Make the values human readable">👤</span>
+            </div>
             <div class="message-cell">Key</div>
             <div class="message-cell">Value</div>
         </div>
@@ -642,7 +653,6 @@ export class MessageConsumerWebview {
                 <div class="message-cell">
                     <span class="format-toggle" data-raw="\${escapeHtml(timestamp)}" data-human="\${escapeHtml(humanTimestamp)}" data-format="raw">
                         \${escapeHtml(timestamp)}
-                        <span class="human-icon" onclick="toggleTimestamp(this.parentElement)" title="Click to show human-readable time">👤</span>
                     </span>
                 </div>
                 <div class="message-cell"><code>\${escapeHtml(msg.key || '-')}</code></div>
@@ -652,19 +662,39 @@ export class MessageConsumerWebview {
             messagesBody.insertBefore(row, messagesBody.firstChild);
         }
 
-        function toggleTimestamp(element) {
-            const currentFormat = element.getAttribute('data-format');
-            const rawValue = element.getAttribute('data-raw');
-            const humanValue = element.getAttribute('data-human');
+        function toggleAllTimestamps() {
+            const allToggles = document.querySelectorAll('.format-toggle');
+            if (allToggles.length === 0) return;
 
-            if (currentFormat === 'raw') {
-                element.setAttribute('data-format', 'human');
-                element.childNodes[0].textContent = humanValue;
-                element.querySelector('.human-icon').title = 'Click to show raw timestamp';
-            } else {
-                element.setAttribute('data-format', 'raw');
-                element.childNodes[0].textContent = rawValue;
-                element.querySelector('.human-icon').title = 'Click to show human-readable time';
+            // Check current format of first element to determine what to do
+            const firstToggle = allToggles[0];
+            const currentFormat = firstToggle.getAttribute('data-format');
+            const newFormat = currentFormat === 'raw' ? 'human' : 'raw';
+
+            // Toggle all timestamp elements
+            allToggles.forEach(element => {
+                const rawValue = element.getAttribute('data-raw');
+                const humanValue = element.getAttribute('data-human');
+
+                element.setAttribute('data-format', newFormat);
+                
+                // Update text content (first text node)
+                const textNode = Array.from(element.childNodes).find(node => node.nodeType === Node.TEXT_NODE);
+                if (textNode) {
+                    textNode.textContent = newFormat === 'human' ? humanValue : rawValue;
+                }
+            });
+
+            // Update header icon appearance
+            const headerIcon = document.querySelector('.human-icon-header');
+            if (headerIcon) {
+                if (newFormat === 'human') {
+                    headerIcon.classList.add('active');
+                    headerIcon.title = 'Show raw timestamp values';
+                } else {
+                    headerIcon.classList.remove('active');
+                    headerIcon.title = 'Make the values human readable';
+                }
             }
         }
 
