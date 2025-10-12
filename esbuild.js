@@ -10,9 +10,36 @@
  */
 
 const esbuild = require('esbuild');
+const fs = require('fs');
+const path = require('path');
 
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
+
+/**
+ * Copy webview scripts from src to dist
+ */
+function copyWebviewScripts() {
+    const scriptsSource = 'src/views/webviewScripts';
+    const scriptsDest = 'dist/webviewScripts';
+
+    try {
+        // Create destination directory
+        fs.mkdirSync(scriptsDest, { recursive: true });
+
+        // Copy all .js files
+        const files = fs.readdirSync(scriptsSource).filter(file => file.endsWith('.js'));
+        files.forEach(file => {
+            fs.copyFileSync(
+                path.join(scriptsSource, file),
+                path.join(scriptsDest, file)
+            );
+        });
+        console.log(`[scripts] Copied ${files.length} webview scripts to dist/`);
+    } catch (error) {
+        console.error('[scripts] Failed to copy webview scripts:', error.message);
+    }
+}
 
 /**
  * @type {import('esbuild').Plugin}
@@ -29,6 +56,9 @@ const esbuildProblemMatcherPlugin = {
                 console.error(`    ${location.file}:${location.line}:${location.column}:`);
             });
             console.log('[watch] build finished');
+
+            // Copy webview scripts after each build
+            copyWebviewScripts();
         });
     },
 };
@@ -75,6 +105,7 @@ async function main() {
     } else {
         await ctx.rebuild();
         await ctx.dispose();
+        copyWebviewScripts(); // Copy scripts for non-watch builds
         console.log('[build] complete');
     }
 }

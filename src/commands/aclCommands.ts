@@ -22,7 +22,7 @@ export async function showACLDetails(clientManager: KafkaClientManager, node: { 
         }
 
         // Create HTML view
-        const detailsView = new DetailsWebview(`ACL Details`, '🔒');
+        const detailsView = new DetailsWebview(`ACL Details`, '🔒', context);
         const data: DetailsData = {
             title: `${aclDetails.principal} → ${aclDetails.operation}`,
             showCopyButton: true,
@@ -80,7 +80,7 @@ export async function showACLDetails(clientManager: KafkaClientManager, node: { 
             ]
         };
 
-        detailsView.show(data);
+        detailsView.showDetails(data);
     }, 'Show ACL Details');
 }
 

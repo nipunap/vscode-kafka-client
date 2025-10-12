@@ -48,7 +48,7 @@ export async function showKTableDetails(
             }
 
             // Create HTML view
-            const detailsView = new DetailsWebview(`KTable: ${node.topicName}`, '📊');
+            const detailsView = new DetailsWebview(`KTable: ${node.topicName}`, '📊', context);
 
             // Check if AI features are available
             const aiAvailable = await AIAdvisor.checkAvailability();
@@ -145,7 +145,7 @@ export async function showKTableDetails(
                 });
             }
 
-            detailsView.show(data);
+            detailsView.showDetails(data);
         },
         `Loading details for KTable "${node.topicName}"`
     );

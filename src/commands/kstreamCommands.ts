@@ -48,7 +48,7 @@ export async function showKStreamDetails(
             }
 
             // Create HTML view
-            const detailsView = new DetailsWebview(`KStream: ${node.topicName}`, '🌊');
+            const detailsView = new DetailsWebview(`KStream: ${node.topicName}`, '🌊', context);
 
             // Check if AI features are available
             const aiAvailable = await AIAdvisor.checkAvailability();
@@ -145,7 +145,7 @@ export async function showKStreamDetails(
                 });
             }
 
-            detailsView.show(data);
+            detailsView.showDetails(data);
         },
         `Loading details for KStream "${node.topicName}"`
     );

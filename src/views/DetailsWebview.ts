@@ -1,99 +1,128 @@
 import * as vscode from 'vscode';
 import { FieldDescriptions } from '../utils/fieldDescriptions';
 import { formatMilliseconds, formatBytes, isMillisecondsProperty, isBytesProperty } from '../utils/formatters';
-import { Logger } from '../infrastructure/Logger';
+import { BaseWebviewWithAI } from './BaseWebviewWithAI';
 
 /**
  * Utility class for creating consistent HTML detail views
  * Provides a foundation for future editing capabilities
+ * Extends BaseWebviewWithAI for AI response formatting capabilities
  */
-export class DetailsWebview {
-    private panel: vscode.WebviewPanel | undefined;
+export class DetailsWebview extends BaseWebviewWithAI {
     private aiRequestHandler: (() => Promise<void>) | undefined;
+    private currentData: DetailsData | undefined;
 
     constructor(
-        private title: string,
-        private icon: string = '📄'
-    ) {}
+        private titleText: string,
+        private icon: string = '📄',
+        context: vscode.ExtensionContext
+    ) {
+        super(
+            {
+                viewType: 'kafkaDetails',
+                title: `${icon} ${titleText}`,
+                enableScripts: true,
+                retainContextWhenHidden: true
+            },
+            context,
+            'DetailsWebview'
+        );
+    }
 
     /**
      * Show the details view with the provided data
      */
-    public show(data: DetailsData): void {
-
-        // Create or reuse webview panel
-        if (this.panel) {
-            this.panel.reveal(vscode.ViewColumn.One);
-        } else {
-            this.panel = vscode.window.createWebviewPanel(
-                'kafkaDetails',
-                `${this.icon} ${this.title}`,
-                vscode.ViewColumn.One,
-                {
-                    enableScripts: true,
-                    retainContextWhenHidden: true
-                }
-            );
-
-            this.panel.onDidDispose(() => {
-                this.panel = undefined;
-                this.aiRequestHandler = undefined;
-            });
-
-            // Handle messages from webview
-            this.panel.webview.onDidReceiveMessage(
-                async message => {
-                    switch (message.command) {
-                        case 'copyAsJson':
-                            await vscode.env.clipboard.writeText(message.data);
-                            vscode.window.showInformationMessage('📋 Copied to clipboard as JSON');
-                            break;
-                        case 'showMessage':
-                            vscode.window.showInformationMessage(message.text);
-                            break;
-                        case 'requestAIAdvice':
-                            // Call the AI request handler if set
-                            if (this.aiRequestHandler) {
-                                try {
-                                    await this.aiRequestHandler();
-                                } catch (error: any) {
-                                    vscode.window.showErrorMessage(`AI Advisor: ${error.message}`);
-                                    this.updateWithAIRecommendations(`Error: ${error.message}\n\nPlease ensure GitHub Copilot is installed and active.`);
-                                }
-                            }
-                            break;
-                        case 'getAIParameterDetails':
-                            try {
-                                const parameter = message.parameter;
-                                Logger.getLogger('DetailsWebview').info(`Fetching AI details for parameter: ${parameter}`);
-
-                                // Use web search to get details from documentation
-                                const { ParameterAIService } = await import('../services/parameterAIService');
-                                const details = await ParameterAIService.getInstance().getParameterDetails(parameter);
-
-                                this.panel?.webview.postMessage({
-                                    command: 'aiParameterDetailsResponse',
-                                    success: true,
-                                    content: details
-                                });
-                            } catch (error: any) {
-                                Logger.getLogger('DetailsWebview').error(`Error fetching AI parameter details: ${error.message}`, error);
-                                this.panel?.webview.postMessage({
-                                    command: 'aiParameterDetailsResponse',
-                                    success: false,
-                                    error: error.message
-                                });
-                            }
-                            break;
-                    }
-                },
-                undefined,
-                []
-            );
-        }
+    public showDetails(data: DetailsData): void {
+        this.currentData = data;
+        // Use parent's panel management
+        this.panel = super.show();
 
         // Set HTML content
         this.panel.webview.html = this.getHtml(data);
+    }
+
+    /**
+     * Implement abstract method from BaseWebview
+     */
+    protected getHtmlContent(): string {
+        return this.currentData ? this.getHtml(this.currentData) : '';
+    }
+
+    /**
+     * Handle messages from the webview
+     */
+    protected async handleMessage(message: any): Promise<void> {
+        switch (message.command) {
+            case 'copyAsJson':
+                await vscode.env.clipboard.writeText(message.data);
+                vscode.window.showInformationMessage('📋 Copied to clipboard as JSON');
+                break;
+            case 'showMessage':
+                vscode.window.showInformationMessage(message.text);
+                break;
+            case 'requestAIAdvice':
+                // Call the AI request handler if set
+                if (this.aiRequestHandler) {
+                    try {
+                        await this.aiRequestHandler();
+                    } catch (error: any) {
+                        vscode.window.showErrorMessage(`AI Advisor: ${error.message}`);
+                        this.updateWithAIRecommendations(`Error: ${error.message}\n\nPlease ensure GitHub Copilot is installed and active.`);
+                    }
+                }
+                break;
+            case 'getAIParameterDetails':
+                try {
+                    const parameter = message.parameter;
+                    const requestId = message.requestId;
+
+                    // Validate parameter name
+                    if (!parameter || typeof parameter !== 'string' || parameter.length > 200) {
+                        this.panel?.webview.postMessage({
+                            command: 'aiParameterDetailsResponse',
+                            requestId: requestId,
+                            success: false,
+                            error: 'Invalid parameter name'
+                        });
+                        return;
+                    }
+
+                    // Validate request ID
+                    if (requestId === undefined || typeof requestId !== 'number') {
+                        this.logger.warn('Missing or invalid request ID');
+                    }
+
+                    this.logger.info(`Fetching AI details for parameter: ${parameter} (Request ID: ${requestId})`);
+
+                    // Fetch AI details
+                    const { ParameterAIService } = await import('../services/parameterAIService');
+                    const details = await ParameterAIService.getInstance().getParameterDetails(parameter);
+
+                    this.panel?.webview.postMessage({
+                        command: 'aiParameterDetailsResponse',
+                        requestId: requestId,
+                        success: true,
+                        content: details
+                    });
+                } catch (error: any) {
+                    this.logger.error(`Error fetching AI parameter details: ${error.message}`, error);
+                    this.panel?.webview.postMessage({
+                        command: 'aiParameterDetailsResponse',
+                        requestId: message.requestId,
+                        success: false,
+                        error: error.message
+                    });
+                }
+                break;
+        }
+    }
+
+    /**
+     * Override dispose to clean up AI request handler
+     */
+    public dispose(): void {
+        this.aiRequestHandler = undefined;
+        super.dispose();
     }
 
     /**
@@ -333,46 +362,7 @@ export class DetailsWebview {
                 }
             });
 
-            function formatAIResponse(text) {
-                // Enhanced markdown-like formatting
-                let formatted = text;
-                const backtick = String.fromCharCode(96);
-
-                // Headers with bottom border for better separation
-                formatted = formatted.replace(/^### (.+)$/gm, '<h4 style="margin-top: 20px; margin-bottom: 10px; color: var(--primary-color); font-weight: 600;">$1</h4>');
-                formatted = formatted.replace(/^## (.+)$/gm, '<h3 style="margin-top: 25px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid var(--border-color); color: var(--primary-color); font-weight: 700;">$1</h3>');
-                formatted = formatted.replace(/^# (.+)$/gm, '<h2 style="margin-top: 30px; margin-bottom: 15px; color: var(--primary-color); font-weight: 800;">$1</h2>');
-
-                // Bold text
-                formatted = formatted.replace(/\\*\\*([^*]+)\\*\\*/g, '<strong style="color: var(--text-color); font-weight: 600;">$1</strong>');
-
-                // Code blocks with better styling
-                const codeRegex = new RegExp(backtick + '([^' + backtick + ']+)' + backtick, 'g');
-                formatted = formatted.replace(codeRegex, '<code style="background: var(--background); padding: 2px 6px; border-radius: 3px; font-size: 13px; border: 1px solid var(--border-color); color: var(--primary-color); font-family: monospace;">$1</code>');
-
-                // Bullet points with custom styling
-                formatted = formatted.replace(/^- (.+)$/gm, '<div style="margin: 8px 0; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: var(--primary-color);">•</span>$1</div>');
-
-                // Numbered lists
-                formatted = formatted.replace(/^(\\d+)\\. (.+)$/gm, '<div style="margin: 8px 0; padding-left: 25px; position: relative;"><span style="position: absolute; left: 0; color: var(--primary-color); font-weight: 600;">$1.</span>$2</div>');
-
-                // Line breaks (but not after divs)
-                formatted = formatted.split('\\n').map((line, i, arr) => {
-                    // Don't add br after div elements or before headers
-                    if (line.includes('</div>') || line.includes('</h') ||
-                        (i < arr.length - 1 && arr[i + 1].includes('<h'))) {
-                        return line;
-                    }
-                    return line + '<br>';
-                }).join('');
-
-                // Clean up extra br tags
-                formatted = formatted.replace(/<br><br>/g, '<br>');
-                formatted = formatted.replace(/<\\/div><br>/g, '</div>');
-                formatted = formatted.replace(/<\\/h\\d><br>/g, match => match.replace('<br>', ''));
-
-                return formatted;
-            }
+            // Note: escapeHtml() and formatAIResponse() are now loaded from external scripts
         `;
     }
 
@@ -380,13 +370,15 @@ export class DetailsWebview {
      * Generate HTML for the details view
      */
     private getHtml(data: DetailsData): string {
+        const nonce = this.getNonce();
         return `
             <!DOCTYPE html>
             <html lang="en">
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>${this.title}</title>
+                ${this.getCSP(nonce)}
+                <title>${this.titleText}</title>
                 <style>
                     :root {
                         --primary-color: var(--vscode-textLink-foreground);
@@ -774,6 +766,7 @@ export class DetailsWebview {
                         width: 100%;
                         border-collapse: collapse;
                         margin-top: 10px;
+                        table-layout: auto;
                     }
 
                     .table th {
@@ -790,6 +783,36 @@ export class DetailsWebview {
                     .table td {
                         padding: 12px 10px;
                         border-bottom: 1px solid var(--border-color);
+                        word-wrap: break-word;
+                        overflow-wrap: break-word;
+                        word-break: break-word;
+                    }
+
+                    /* Config tables (3 columns: Property, Value, Source) - use fixed layout */
+                    .table.config-table {
+                        table-layout: fixed;
+                    }
+
+                    .table.config-table th {
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                    }
+
+                    .table.config-table th:first-child {
+                        width: 35%;
+                    }
+
+                    .table.config-table th:nth-child(2) {
+                        width: 45%;
+                    }
+
+                    .table.config-table th:nth-child(3) {
+                        width: 20%;
+                    }
+
+                    .table.config-table td {
+                        max-width: 0;
                     }
 
                     .table tr:last-child td {
@@ -1005,10 +1028,11 @@ export class DetailsWebview {
                         100% { transform: rotate(360deg); }
                     }
                 </style>
+                ${this.getCommonAIScripts(nonce)}
             </head>
             <body>
                 <div class="header">
-                    <h1>${this.icon} ${data.title || this.title}</h1>
+                    <h1>${this.icon} ${data.title || this.titleText}</h1>
                     <div class="header-actions">
                         ${data.showAIAdvisor ? '<button class="btn btn-ai" onclick="getAIAdvice()" id="aiButton">🤖 AI Advisor</button>' : ''}
                         ${data.showCopyButton ? '<button class="btn btn-secondary" onclick="copyAsJson()">📋 Copy as JSON</button>' : ''}
@@ -1078,11 +1102,14 @@ export class DetailsWebview {
                     </div>
                 </div>
 
-                <script>
+                <script nonce="${nonce}">
                     ${this.getScript(data)}
 
                     // Info Modal Functions
                     let currentFieldName = '';
+                    let currentAIRequestId = 0;
+
+                    // Note: escapeHtml() is now loaded from external script
 
                     function showInfoModal(element) {
                         const fieldName = element.getAttribute('data-field');
@@ -1098,6 +1125,9 @@ export class DetailsWebview {
 
                         fieldNameEl.textContent = fieldName;
                         descriptionEl.textContent = description;
+
+                        // Cancel any pending AI requests from previous modal
+                        currentAIRequestId++;
 
                         // Reset AI content (only if AI is available)
                         if (aiContentEl) {
@@ -1116,6 +1146,9 @@ export class DetailsWebview {
                         const modal = document.getElementById('infoModal');
                         modal.classList.remove('show');
                         currentFieldName = '';
+
+                        // Cancel any pending AI requests by incrementing the request ID
+                        currentAIRequestId++;
                     }
 
                     function closeInfoModalOnBackdrop(event) {
@@ -1136,6 +1169,10 @@ export class DetailsWebview {
                             return;
                         }
 
+                        // Increment request ID to handle race conditions
+                        currentAIRequestId++;
+                        const requestId = currentAIRequestId;
+
                         // Show minimal loading state
                         aiButton.disabled = true;
                         aiButton.innerHTML = '<span class="spinner"></span> Loading...';
@@ -1146,46 +1183,32 @@ export class DetailsWebview {
                         // Request AI details from extension
                         vscode.postMessage({
                             command: 'getAIParameterDetails',
-                            parameter: currentFieldName
+                            parameter: currentFieldName,
+                            requestId: requestId
                         });
                     }
 
-                    // Format AI response with proper HTML
-                    function formatAIResponse(content) {
-                        // Convert markdown bold to HTML strong tags
-                        let formatted = content.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-
-                        // Split into lines and wrap each in a div for better spacing
-                        const lines = formatted.split('\\n');
-                        let html = '';
-
-                        for (let i = 0; i < lines.length; i++) {
-                            const line = lines[i].trim();
-                            if (line === '') {
-                                html += '<div style="height: 8px;"></div>';
-                            } else if (line.startsWith('📝') || line.startsWith('🎯') ||
-                                       line.startsWith('⚠️') || line.startsWith('📚') ||
-                                       line.startsWith('🔗')) {
-                                // Section headers with emoji - add extra spacing and styling
-                                html += \`<div style="margin-top: 12px; margin-bottom: 4px; line-height: 1.5;">\${line}</div>\`;
-                            } else {
-                                // Regular content
-                                html += \`<div style="margin-left: 20px; line-height: 1.5; color: var(--vscode-foreground);">\${line}</div>\`;
-                            }
-                        }
-
-                        return html;
-                    }
+                    // Note: escapeHtml() and formatAIResponse() are now loaded from external scripts
 
                     // Listen for AI response
                     window.addEventListener('message', event => {
                         const message = event.data;
                         if (message.command === 'aiParameterDetailsResponse') {
+                            // Validate request ID to prevent race conditions
+                            if (message.requestId !== currentAIRequestId) {
+                                console.log('Ignoring stale AI response (ID mismatch)');
+                                return;
+                            }
+
                             const aiContentEl = document.getElementById('infoModalAIContent');
                             const aiButton = document.getElementById('infoModalAIButton');
 
+                            if (!aiContentEl || !aiButton) {
+                                return; // Elements not found
+                            }
+
                             if (message.success) {
-                                const formattedContent = formatAIResponse(message.content);
+                                const formattedContent = formatAIResponse(message.content || '');
                                 aiContentEl.innerHTML = \`
                                     <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px; font-weight: 600; color: #667eea;">
                                         🤖 AI-Enhanced Details
@@ -1194,13 +1217,27 @@ export class DetailsWebview {
                                 \`;
                                 aiButton.innerHTML = '✓ Details Loaded';
                             } else {
+                                // Escape error message to prevent XSS
+                                const errorMsg = escapeHtml(message.error || 'Unknown error');
+                                const isTimeout = errorMsg.includes('timed out') || errorMsg.includes('timeout');
+
                                 aiContentEl.innerHTML = \`
-                                    <div style="color: var(--vscode-errorForeground);">
-                                        ❌ Failed to fetch AI details: \${message.error || 'Unknown error'}
+                                    <div style="color: var(--vscode-errorForeground); padding: 15px;">
+                                        <div style="font-weight: 600; margin-bottom: 10px;">
+                                            \${isTimeout ? '⏱️ Request Timed Out' : '❌ Request Failed'}
+                                        </div>
+                                        <div style="margin-bottom: 10px; font-size: 13px;">
+                                            \${isTimeout
+                                                ? 'The AI service took longer than 10 seconds to respond. Showing fallback content.'
+                                                : 'An error occurred while fetching AI details.'}
+                                        </div>
+                                        <div style="font-size: 12px; opacity: 0.8;">
+                                            \${errorMsg}
+                                        </div>
                                     </div>
                                 \`;
                                 aiButton.disabled = false;
-                                aiButton.innerHTML = '🤖 Retry AI Details';
+                                aiButton.innerHTML = '🔄 Retry';
                             }
                         }
                     });
@@ -1314,7 +1351,7 @@ export class DetailsWebview {
         const isConfigTable = propertyColIndex >= 0 && valueColIndex >= 0;
 
         return `
-            <table class="table">
+            <table class="table${isConfigTable ? ' config-table' : ''}">
                 <thead>
                     <tr>
                         ${table.headers.map((h, colIndex) => {
@@ -1398,21 +1435,6 @@ export class DetailsWebview {
                 </div>
             `).join('')}
         `;
-    }
-
-    private escapeHtml(text: string): string {
-        return text
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
-    }
-
-    public dispose(): void {
-        if (this.panel) {
-            this.panel.dispose();
-        }
     }
 }
 

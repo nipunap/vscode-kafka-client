@@ -20,6 +20,9 @@ jobs:
   wait-for-ci:
     name: Wait for CI
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - name: Wait for CI checks
         uses: lewagon/wait-on-check-action@v1.3.4

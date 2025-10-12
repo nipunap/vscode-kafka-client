@@ -66,9 +66,9 @@ export class ParameterAIService {
      */
     private async getAIEnhancedDetails(parameterName: string): Promise<string> {
         try {
-            // Set a 10-second timeout for AI requests
+            // Set a 5-second timeout for AI requests
             const timeoutPromise = new Promise<string>((_, reject) => {
-                setTimeout(() => reject(new Error('AI request timed out after 10 seconds')), 10000);
+                setTimeout(() => reject(new Error('AI request timed out after 5 seconds')), 5000);
             });
 
             const aiPromise = this.fetchAIResponse(parameterName);

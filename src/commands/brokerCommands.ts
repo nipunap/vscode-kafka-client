@@ -38,7 +38,7 @@ export async function showBrokerDetails(clientManager: KafkaClientManager, node:
         }
 
         // Create HTML view
-        const detailsView = new DetailsWebview(`Broker: ${node.brokerId}`, '🖥️');
+        const detailsView = new DetailsWebview(`Broker: ${node.brokerId}`, '🖥️', context);
 
         // Check if AI features are available
         const aiAvailable = await AIAdvisor.checkAvailability();
@@ -96,7 +96,7 @@ export async function showBrokerDetails(clientManager: KafkaClientManager, node:
             });
         }
 
-        detailsView.show(data);
+        detailsView.showDetails(data);
     }, `Loading broker details for broker ${node.brokerId}`);
 }
 

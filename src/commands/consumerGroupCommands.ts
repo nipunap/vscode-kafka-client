@@ -36,14 +36,14 @@ export async function showConsumerGroupDetails(clientManager: KafkaClientManager
         }
 
         // Create HTML view
-        const detailsView = new DetailsWebview(`Consumer Group: ${node.groupId}`, '👥');
+        const detailsView = new DetailsWebview(`Consumer Group: ${node.groupId}`, '👥', context);
 
         // Get state badge
         const getStateBadge = (state: string) => {
             const stateUpper = state.toUpperCase();
-            if (stateUpper === 'STABLE') return { type: 'success' as const, text: 'STABLE' };
-            if (stateUpper === 'EMPTY') return { type: 'warning' as const, text: 'EMPTY' };
-            if (stateUpper === 'DEAD') return { type: 'danger' as const, text: 'DEAD' };
+            if (stateUpper === 'STABLE') { return { type: 'success' as const, text: 'STABLE' }; }
+            if (stateUpper === 'EMPTY') { return { type: 'warning' as const, text: 'EMPTY' }; }
+            if (stateUpper === 'DEAD') { return { type: 'danger' as const, text: 'DEAD' }; }
             return { type: 'info' as const, text: stateUpper };
         };
 
@@ -123,7 +123,7 @@ export async function showConsumerGroupDetails(clientManager: KafkaClientManager
             ]
         };
 
-        detailsView.show(data);
+        detailsView.showDetails(data);
     }, `Loading consumer group details for "${node.groupId}"`);
 }
 

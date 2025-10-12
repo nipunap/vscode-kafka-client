@@ -115,7 +115,7 @@ export async function showTopicDetails(clientManager: KafkaClientManager, node: 
             }
 
             // Create HTML view
-            const detailsView = new DetailsWebview(`Topic: ${node.topicName}`, '📋');
+            const detailsView = new DetailsWebview(`Topic: ${node.topicName}`, '📋', context);
 
             // Check if AI features are available
             const aiAvailable = await AIAdvisor.checkAvailability();
@@ -211,7 +211,7 @@ export async function showTopicDetails(clientManager: KafkaClientManager, node: 
                 });
             }
 
-            detailsView.show(data);
+            detailsView.showDetails(data);
         },
         `Loading details for topic "${node.topicName}"`
     );
@@ -430,7 +430,7 @@ export async function showTopicACLDetails(clientManager: KafkaClientManager, nod
         }
 
         // Create HTML view
-        const detailsView = new DetailsWebview(`ACL Details`, '🔒');
+        const detailsView = new DetailsWebview(`ACL Details`, '🔒', context);
         const data: DetailsData = {
             title: `${aclDetails.principal} → ${aclDetails.operation}`,
             showCopyButton: true,
@@ -488,6 +488,6 @@ export async function showTopicACLDetails(clientManager: KafkaClientManager, nod
             ]
         };
 
-        detailsView.show(data);
+        detailsView.showDetails(data);
     }, 'Show Topic ACL Details');
 }
