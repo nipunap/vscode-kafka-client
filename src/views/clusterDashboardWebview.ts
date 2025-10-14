@@ -163,7 +163,18 @@ export class ClusterDashboardWebview {
 
             const topicDetails = await this.getTopTopicsParallel(clusterName, topics);
 
-            // Phase 4: Finalize
+            // Phase 4: Get top consumer groups
+            this.panel?.webview.postMessage({
+                command: 'updateProgress',
+                progress: { step: 'Analyzing consumer groups...', percent: 75 }
+            });
+
+            const topConsumerGroups = await this.getTopConsumerGroupsParallel(
+                clusterName,
+                consumerGroups
+            );
+
+            // Phase 5: Finalize
             this.panel?.webview.postMessage({
                 command: 'updateProgress',
                 progress: { step: 'Finalizing...', percent: 90 }
@@ -202,6 +213,7 @@ export class ClusterDashboardWebview {
                 topicsScanned: topics.length,
                 consumerGroupCount: consumerGroups.length,
                 consumerGroupStates,
+                topConsumerGroups,
                 clusterStats
             };
         } catch (error: any) {
@@ -323,6 +335,61 @@ export class ClusterDashboardWebview {
         return allTopicDetails
             .sort((a, b) => b.partitions - a.partitions)
             .slice(0, 10);
+    }
+
+    /**
+     * Get top consumer groups by member count with their topic details
+     * Fetches details only for groups with active members
+     */
+    private async getTopConsumerGroupsParallel(
+        clusterName: string,
+        consumerGroups: any[]
+    ): Promise<any[]> {
+        // Filter groups with members > 0, sort by member count, take top 10
+        const groupsWithMembers = consumerGroups
+            .filter(g => (g.members?.length || 0) > 0)
+            .sort((a, b) => (b.members?.length || 0) - (a.members?.length || 0))
+            .slice(0, 10);
+
+        // Fetch details in parallel
+        return await Promise.all(
+            groupsWithMembers.map(async group => {
+                try {
+                    const details = await this.clientManager.getConsumerGroupDetails(
+                        clusterName,
+                        group.groupId
+                    );
+                    
+                    // Extract unique topics from offsets
+                    const topicsMap = new Map<string, number>();
+                    if (details.offsets && Array.isArray(details.offsets)) {
+                        details.offsets.forEach((o: any) => {
+                            if (o.topic) {
+                                topicsMap.set(o.topic, (topicsMap.get(o.topic) || 0) + 1);
+                            }
+                        });
+                    }
+
+                    return {
+                        groupId: group.groupId,
+                        memberCount: group.members?.length || 0,
+                        state: group.state || 'Unknown',
+                        topics: Array.from(topicsMap.entries()).map(([name, partitions]) => ({
+                            name,
+                            partitions
+                        }))
+                    };
+                } catch (_error) {
+                    // Return group with empty topics on error
+                    return {
+                        groupId: group.groupId,
+                        memberCount: group.members?.length || 0,
+                        state: group.state || 'Unknown',
+                        topics: []
+                    };
+                }
+            })
+        );
     }
 
     private async getClusterStatistics(clusterName: string): Promise<any> {
@@ -674,6 +741,25 @@ export class ClusterDashboardWebview {
                     tr:last-child td { border-bottom: none; }
                     tr:hover { background-color: var(--vscode-list-hoverBackground); }
                     .timestamp { font-size: 12px; color: var(--vscode-descriptionForeground); margin-top: 20px; text-align: center; }
+                    .consumer-groups-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; margin-bottom: 30px; }
+                    .consumer-group-card { background: var(--vscode-editor-background); border: 1px solid var(--vscode-panel-border); border-radius: 8px; padding: 15px; }
+                    .cg-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+                    .cg-header h3 { font-size: 14px; font-weight: 600; margin: 0; }
+                    .state-badge { font-size: 10px; padding: 3px 8px; border-radius: 10px; text-transform: uppercase; font-weight: 500; }
+                    .state-stable { background: rgba(75, 192, 192, 0.2); color: #4bc0c0; }
+                    .state-empty { background: rgba(255, 159, 64, 0.2); color: #ff9f40; }
+                    .state-dead { background: rgba(255, 99, 132, 0.2); color: #ff6384; }
+                    .state-unknown { background: rgba(153, 102, 255, 0.2); color: #9966ff; }
+                    .cg-stats { display: flex; gap: 20px; margin-bottom: 12px; }
+                    .stat { display: flex; flex-direction: column; }
+                    .stat-value { font-size: 24px; font-weight: 600; }
+                    .stat-label { font-size: 11px; color: var(--vscode-descriptionForeground); text-transform: uppercase; }
+                    .toggle-topics { width: 100%; margin-top: 8px; font-size: 12px; }
+                    .topics-list { margin-top: 10px; max-height: 200px; overflow-y: auto; }
+                    .topic-item { display: flex; justify-content: space-between; padding: 6px 8px; background: var(--vscode-list-hoverBackground); border-radius: 4px; margin-bottom: 4px; font-size: 12px; }
+                    .topic-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; margin-right: 10px; }
+                    .topic-partitions { color: var(--vscode-descriptionForeground); white-space: nowrap; }
+                    .no-topics { font-size: 12px; color: var(--vscode-descriptionForeground); text-align: center; padding: 10px; }
                 </style>
 
                 <div class="header">
@@ -727,6 +813,45 @@ export class ClusterDashboardWebview {
                         </tr></thead>
                         <tbody>\${stats.topicSample.map(t => \`<tr><td><strong>\${t.name}</strong></td><td>\${t.partitions}</td><td>\${t.replicas}</td></tr>\`).join('')}</tbody>
                     </table>
+                </div>
+
+                <div class="details-section">
+                    <h2>👥 Top Consumer Groups by Members</h2>
+                    \${stats.topConsumerGroups && stats.topConsumerGroups.length > 0 ? \`
+                        <div class="consumer-groups-grid">
+                            \${stats.topConsumerGroups.map(cg => \`
+                                <div class="consumer-group-card">
+                                    <div class="cg-header">
+                                        <h3>\${cg.groupId}</h3>
+                                        <span class="state-badge state-\${cg.state.toLowerCase()}">\${cg.state}</span>
+                                    </div>
+                                    <div class="cg-stats">
+                                        <div class="stat">
+                                            <span class="stat-value">\${cg.memberCount}</span>
+                                            <span class="stat-label">Members</span>
+                                        </div>
+                                        <div class="stat">
+                                            <span class="stat-value">\${cg.topics.length}</span>
+                                            <span class="stat-label">Topics</span>
+                                        </div>
+                                    </div>
+                                    \${cg.topics.length > 0 ? \`
+                                        <button class="toggle-topics" onclick="toggleTopics('\${cg.groupId}')">
+                                            📋 Show Topics (\${cg.topics.length})
+                                        </button>
+                                        <div id="topics-\${cg.groupId}" class="topics-list" style="display: none;">
+                                            \${cg.topics.map(t => \`
+                                                <div class="topic-item">
+                                                    <span class="topic-name">\${t.name}</span>
+                                                    <span class="topic-partitions">\${t.partitions} partitions</span>
+                                                </div>
+                                            \`).join('')}
+                                        </div>
+                                    \` : '<p class="no-topics">No topics</p>'}
+                                </div>
+                            \`).join('')}
+                        </div>
+                    \` : '<p style="color: var(--vscode-descriptionForeground); font-size: 13px;">No active consumer groups with members found.</p>'}
                 </div>
 
                 <div class="timestamp">Last updated: \${new Date(stats.timestamp).toLocaleString()}</div>
@@ -790,6 +915,18 @@ export class ClusterDashboardWebview {
                 data: { labels: Object.keys(replicationFactors).map(rf => 'RF ' + rf), datasets: [{ data: Object.values(replicationFactors), backgroundColor: ['rgba(255, 99, 132, 0.8)', 'rgba(54, 162, 235, 0.8)', 'rgba(255, 206, 86, 0.8)', 'rgba(75, 192, 192, 0.8)'], borderWidth: 0 }] },
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
             });
+        }
+
+        function toggleTopics(groupId) {
+            const topicsList = document.getElementById('topics-' + groupId);
+            const button = event.target;
+            if (topicsList.style.display === 'none') {
+                topicsList.style.display = 'block';
+                button.textContent = '📋 Hide Topics (' + topicsList.children.length + ')';
+            } else {
+                topicsList.style.display = 'none';
+                button.textContent = '📋 Show Topics (' + topicsList.children.length + ')';
+            }
         }
 
         function refreshDashboard() {
