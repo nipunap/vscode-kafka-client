@@ -163,7 +163,18 @@ export class ClusterDashboardWebview {
 
             const topicDetails = await this.getTopTopicsParallel(clusterName, topics);
 
-            // Phase 4: Finalize
+            // Phase 4: Get top consumer groups
+            this.panel?.webview.postMessage({
+                command: 'updateProgress',
+                progress: { step: 'Analyzing consumer groups...', percent: 75 }
+            });
+
+            const topConsumerGroups = await this.getTopConsumerGroupsParallel(
+                clusterName,
+                consumerGroups
+            );
+
+            // Phase 5: Finalize
             this.panel?.webview.postMessage({
                 command: 'updateProgress',
                 progress: { step: 'Finalizing...', percent: 90 }
@@ -202,6 +213,7 @@ export class ClusterDashboardWebview {
                 topicsScanned: topics.length,
                 consumerGroupCount: consumerGroups.length,
                 consumerGroupStates,
+                topConsumerGroups,
                 clusterStats
             };
         } catch (error: any) {
@@ -323,6 +335,76 @@ export class ClusterDashboardWebview {
         return allTopicDetails
             .sort((a, b) => b.partitions - a.partitions)
             .slice(0, 10);
+    }
+
+    /**
+     * Get top consumer groups with their topic details
+     * Shows groups that have topics assigned (via offsets)
+     * Sorts by member count (primary), then by number of topics (secondary)
+     */
+    private async getTopConsumerGroupsParallel(
+        clusterName: string,
+        consumerGroups: any[]
+    ): Promise<any[]> {
+        // Sort by member count first, then take top 20 for details fetching
+        // This ensures we fetch details for the most active groups
+        const topGroups = consumerGroups
+            .sort((a, b) => (b.members?.length || 0) - (a.members?.length || 0))
+            .slice(0, 20); // Fetch 20 to ensure we get 10 with topics after filtering
+
+        // Fetch details in parallel
+        const groupsWithDetails = await Promise.all(
+            topGroups.map(async group => {
+                try {
+                    const details = await this.clientManager.getConsumerGroupDetails(
+                        clusterName,
+                        group.groupId
+                    );
+
+                    // Extract unique topics from offsets
+                    const topicsMap = new Map<string, number>();
+                    if (details.offsets && Array.isArray(details.offsets)) {
+                        details.offsets.forEach((o: any) => {
+                            if (o.topic) {
+                                topicsMap.set(o.topic, (topicsMap.get(o.topic) || 0) + 1);
+                            }
+                        });
+                    }
+
+                    return {
+                        groupId: group.groupId,
+                        memberCount: group.members?.length || 0,
+                        state: group.state || 'Unknown',
+                        topics: Array.from(topicsMap.entries()).map(([name, partitions]) => ({
+                            name,
+                            partitions
+                        }))
+                    };
+                } catch (_error) {
+                    // Return group with empty topics on error
+                    return {
+                        groupId: group.groupId,
+                        memberCount: group.members?.length || 0,
+                        state: group.state || 'Unknown',
+                        topics: []
+                    };
+                }
+            })
+        );
+
+        // Filter groups with topics and non-Empty state, then sort by member count (descending), then by topic count
+        return groupsWithDetails
+            .filter(g => g.topics.length > 0 && g.state?.trim().toLowerCase() !== 'empty')
+            .sort((a, b) => {
+                // Primary sort: by member count
+                const memberDiff = b.memberCount - a.memberCount;
+                if (memberDiff !== 0) {
+                    return memberDiff;
+                }
+                // Secondary sort: by number of topics
+                return b.topics.length - a.topics.length;
+            })
+            .slice(0, 10); // Take top 10
     }
 
     private async getClusterStatistics(clusterName: string): Promise<any> {
@@ -673,7 +755,66 @@ export class ClusterDashboardWebview {
                     td { padding: 12px; font-size: 13px; border-bottom: 1px solid var(--vscode-panel-border); }
                     tr:last-child td { border-bottom: none; }
                     tr:hover { background-color: var(--vscode-list-hoverBackground); }
+
+                    /* Broker table specific styles */
+                    .broker-table td:nth-child(1) { width: 80px; text-align: center; }
+                    .broker-table td:nth-child(2) { max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+                    .broker-table td:nth-child(3) { width: 80px; text-align: center; }
+                    .broker-table td:nth-child(4) { width: 100px; text-align: center; }
+                    .broker-table td:nth-child(5) { width: 100px; text-align: center; font-weight: 600; }
+                    .broker-table td:nth-child(6) { width: 100px; text-align: center; }
+                    .broker-table td:nth-child(7) { width: 80px; text-align: center; }
+                    .broker-table th:nth-child(1) { width: 80px; text-align: center; }
+                    .broker-table th:nth-child(3) { width: 80px; text-align: center; }
+                    .broker-table th:nth-child(4) { width: 100px; text-align: center; }
+                    .broker-table th:nth-child(5) { width: 100px; text-align: center; }
+                    .broker-table th:nth-child(6) { width: 100px; text-align: center; }
+                    .broker-table th:nth-child(7) { width: 80px; text-align: center; }
+
+                    /* Consumer groups table specific styles */
+                    .consumer-groups-table { table-layout: fixed; }
+                    .consumer-groups-table td:first-child { max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                    .consumer-groups-table td:first-child strong { cursor: default; }
+                    .consumer-groups-table th:nth-child(2), .consumer-groups-table td:nth-child(2) { width: 100px; text-align: center; }
+                    .consumer-groups-table th:nth-child(3), .consumer-groups-table td:nth-child(3) { width: 100px; text-align: center; }
+                    .consumer-groups-table th:nth-child(4), .consumer-groups-table td:nth-child(4) { width: 120px; text-align: center; }
+
                     .timestamp { font-size: 12px; color: var(--vscode-descriptionForeground); margin-top: 20px; text-align: center; }
+                    .state-badge {
+                        font-size: 10px;
+                        padding: 3px 8px;
+                        border-radius: 10px;
+                        text-transform: uppercase;
+                        font-weight: 500;
+                        white-space: nowrap;
+                        display: inline-block;
+                    }
+                    .state-stable { background: rgba(75, 192, 192, 0.2); color: #4bc0c0; }
+                    .state-empty { background: rgba(255, 159, 64, 0.2); color: #ff9f40; }
+                    .state-dead { background: rgba(255, 99, 132, 0.2); color: #ff6384; }
+                    .state-unknown { background: rgba(153, 102, 255, 0.2); color: #9966ff; }
+                    .toggle-topics-btn {
+                        font-size: 11px;
+                        padding: 4px 8px;
+                        cursor: pointer;
+                        background-color: var(--vscode-button-secondaryBackground);
+                        color: var(--vscode-button-secondaryForeground);
+                        border: none;
+                        border-radius: 4px;
+                    }
+                    .toggle-topics-btn:hover {
+                        background-color: var(--vscode-button-secondaryHoverBackground);
+                    }
+                    .topics-detail {
+                        margin-top: 8px;
+                        padding: 8px;
+                        background: var(--vscode-list-hoverBackground);
+                        border-radius: 4px;
+                    }
+                    .topics-detail ul li {
+                        margin: 4px 0;
+                        color: var(--vscode-foreground);
+                    }
                 </style>
 
                 <div class="header">
@@ -702,7 +843,7 @@ export class ClusterDashboardWebview {
 
                 <div class="details-section">
                     <h2>📊 Broker Details</h2>
-                    <table>
+                    <table class="broker-table">
                         <thead><tr>
                             <th title="Unique identifier for each broker in the cluster" style="cursor: help;">Broker ID</th>
                             <th title="Hostname or IP address of the broker" style="cursor: help;">Host</th>
@@ -712,7 +853,7 @@ export class ClusterDashboardWebview {
                             <th title="Total number of partition replicas on this broker" style="cursor: help;">Replicas</th>
                             <th title="Number of in-sync replicas on this broker" style="cursor: help;">ISR</th>
                         </tr></thead>
-                        <tbody>\${stats.brokers.sort((a, b) => a.id - b.id).map(b => \`<tr><td><strong>\${b.id}</strong></td><td>\${b.host}</td><td>\${b.port}</td><td>\${b.rack}</td><td><strong>\${b.leaderCount || b.partitionCount}</strong></td><td>\${b.replicaCount || 0}</td><td>\${b.isrCount || 0}</td></tr>\`).join('')}</tbody>
+                        <tbody>\${stats.brokers.sort((a, b) => a.id - b.id).map(b => \`<tr><td><strong>\${b.id}</strong></td><td title="\${b.host}">\${b.host}</td><td>\${b.port}</td><td>\${b.rack}</td><td><strong>\${b.leaderCount || b.partitionCount}</strong></td><td>\${b.replicaCount || 0}</td><td>\${b.isrCount || 0}</td></tr>\`).join('')}</tbody>
                     </table>
                 </div>
 
@@ -727,6 +868,48 @@ export class ClusterDashboardWebview {
                         </tr></thead>
                         <tbody>\${stats.topicSample.map(t => \`<tr><td><strong>\${t.name}</strong></td><td>\${t.partitions}</td><td>\${t.replicas}</td></tr>\`).join('')}</tbody>
                     </table>
+                </div>
+
+                <div class="details-section">
+                    <h2>👥 Top Consumer Groups by Members</h2>
+                    \${stats.topConsumerGroups && stats.topConsumerGroups.length > 0 ? \`
+                        <table class="consumer-groups-table">
+                            <thead><tr>
+                                <th>Consumer Group</th>
+                                <th>Members</th>
+                                <th>Topics</th>
+                                <th>State</th>
+                                <th>Topic Details</th>
+                            </tr></thead>
+                            <tbody>
+                                \${stats.topConsumerGroups.map((cg, idx) => \`
+                                    <tr>
+                                        <td title="\${cg.groupId}"><strong>\${cg.groupId}</strong></td>
+                                        <td>\${cg.memberCount}</td>
+                                        <td>\${cg.topics.length}</td>
+                                        <td><span class="state-badge state-\${cg.state.toLowerCase()}">\${cg.state}</span></td>
+                                        <td>
+                                            \${cg.topics.length > 0 ? \`
+                                                <button class="toggle-topics-btn"
+                                                        onclick="toggleTopicsTable('cg-\${idx}')"
+                                                        aria-expanded="false"
+                                                        aria-controls="cg-\${idx}">
+                                                    Show Topics (\${cg.topics.length})
+                                                </button>
+                                                <div id="cg-\${idx}" class="topics-detail" style="display: none;" role="region">
+                                                    <ul style="margin: 8px 0 0 0; padding-left: 20px; font-size: 12px;">
+                                                        \${cg.topics.map(t => \`
+                                                            <li title="\${t.name}"><strong>\${t.name}</strong> (\${t.partitions} partitions)</li>
+                                                        \`).join('')}
+                                                    </ul>
+                                                </div>
+                                            \` : '-'}
+                                        </td>
+                                    </tr>
+                                \`).join('')}
+                            </tbody>
+                        </table>
+                    \` : '<p style="color: var(--vscode-descriptionForeground); font-size: 13px;">No active consumer groups found.</p>'}
                 </div>
 
                 <div class="timestamp">Last updated: \${new Date(stats.timestamp).toLocaleString()}</div>
@@ -790,6 +973,22 @@ export class ClusterDashboardWebview {
                 data: { labels: Object.keys(replicationFactors).map(rf => 'RF ' + rf), datasets: [{ data: Object.values(replicationFactors), backgroundColor: ['rgba(255, 99, 132, 0.8)', 'rgba(54, 162, 235, 0.8)', 'rgba(255, 206, 86, 0.8)', 'rgba(75, 192, 192, 0.8)'], borderWidth: 0 }] },
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
             });
+        }
+
+        function toggleTopicsTable(id) {
+            const topicsDetail = document.getElementById(id);
+            const button = event.target;
+            const topicCount = topicsDetail.querySelectorAll('li').length;
+
+            if (topicsDetail.style.display === 'none') {
+                topicsDetail.style.display = 'block';
+                button.textContent = 'Hide Topics (' + topicCount + ')';
+                button.setAttribute('aria-expanded', 'true');
+            } else {
+                topicsDetail.style.display = 'none';
+                button.textContent = 'Show Topics (' + topicCount + ')';
+                button.setAttribute('aria-expanded', 'false');
+            }
         }
 
         function refreshDashboard() {

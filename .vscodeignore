@@ -12,6 +12,10 @@ out/test/**
 *.vsix
 *.vsix.sha256
 
+# Ensure webview scripts are included
+!dist/webviewScripts/
+!dist/webviewScripts/*.js
+
 # Scripts
 scripts/**
 

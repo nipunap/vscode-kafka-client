@@ -2,7 +2,7 @@
   "name": "vscode-kafka-client",
   "displayName": "Kafka Client",
   "description": "Full-featured Kafka client with AWS MSK support, IAM authentication, role assumption, and auto-discovery",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "publisher": "NipunaPerera",
   "license": "GPL-3.0",
   "icon": "resources/kafka-icon.png",
@@ -511,6 +511,7 @@
     "release:patch": "commit-and-tag-version --release-as patch"
   },
   "devDependencies": {
+    "ovsx": "^0.8.3",
     "@types/ini": "^4.1.1",
     "@types/mocha": "^10.0.10",
     "@types/node": "^20.0.0",

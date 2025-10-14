@@ -4,6 +4,13 @@ All notable changes to the "Kafka Client" extension will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/) and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.0](https://github.com/nipunap/vscode-kafka-client/compare/v0.7.1...v0.8.0) (2025-10-14)
+
+
+### ✨ Features
+
+* add Open VSX Registry publishing support ([9abcf08](https://github.com/nipunap/vscode-kafka-client/commit/9abcf08f8794890d914fc0fcd62af3b95c8302a0))
+
 ## [0.7.1](https://github.com/nipunap/vscode-kafka-client/compare/v0.7.0...v0.7.1) (2025-10-14)
 
 
