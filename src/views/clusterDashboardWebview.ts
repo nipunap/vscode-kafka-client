@@ -755,7 +755,7 @@ export class ClusterDashboardWebview {
                     td { padding: 12px; font-size: 13px; border-bottom: 1px solid var(--vscode-panel-border); }
                     tr:last-child td { border-bottom: none; }
                     tr:hover { background-color: var(--vscode-list-hoverBackground); }
-                    
+
                     /* Broker table specific styles */
                     .broker-table td:nth-child(1) { width: 80px; text-align: center; }
                     .broker-table td:nth-child(2) { max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -770,7 +770,7 @@ export class ClusterDashboardWebview {
                     .broker-table th:nth-child(5) { width: 100px; text-align: center; }
                     .broker-table th:nth-child(6) { width: 100px; text-align: center; }
                     .broker-table th:nth-child(7) { width: 80px; text-align: center; }
-                    
+
                     /* Consumer groups table specific styles */
                     .consumer-groups-table { table-layout: fixed; }
                     .consumer-groups-table td:first-child { max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -778,14 +778,14 @@ export class ClusterDashboardWebview {
                     .consumer-groups-table th:nth-child(2), .consumer-groups-table td:nth-child(2) { width: 100px; text-align: center; }
                     .consumer-groups-table th:nth-child(3), .consumer-groups-table td:nth-child(3) { width: 100px; text-align: center; }
                     .consumer-groups-table th:nth-child(4), .consumer-groups-table td:nth-child(4) { width: 120px; text-align: center; }
-                    
+
                     .timestamp { font-size: 12px; color: var(--vscode-descriptionForeground); margin-top: 20px; text-align: center; }
-                    .state-badge { 
-                        font-size: 10px; 
-                        padding: 3px 8px; 
-                        border-radius: 10px; 
-                        text-transform: uppercase; 
-                        font-weight: 500; 
+                    .state-badge {
+                        font-size: 10px;
+                        padding: 3px 8px;
+                        border-radius: 10px;
+                        text-transform: uppercase;
+                        font-weight: 500;
                         white-space: nowrap;
                         display: inline-block;
                     }
@@ -890,7 +890,7 @@ export class ClusterDashboardWebview {
                                         <td><span class="state-badge state-\${cg.state.toLowerCase()}">\${cg.state}</span></td>
                                         <td>
                                             \${cg.topics.length > 0 ? \`
-                                                <button class="toggle-topics-btn" 
+                                                <button class="toggle-topics-btn"
                                                         onclick="toggleTopicsTable('cg-\${idx}')"
                                                         aria-expanded="false"
                                                         aria-controls="cg-\${idx}">
@@ -979,7 +979,7 @@ export class ClusterDashboardWebview {
             const topicsDetail = document.getElementById(id);
             const button = event.target;
             const topicCount = topicsDetail.querySelectorAll('li').length;
-            
+
             if (topicsDetail.style.display === 'none') {
                 topicsDetail.style.display = 'block';
                 button.textContent = 'Hide Topics (' + topicCount + ')';
