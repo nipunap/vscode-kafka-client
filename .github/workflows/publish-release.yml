@@ -141,6 +141,8 @@ jobs:
           prerelease: false
           make_latest: true
           fail_on_unmatched_files: true
+          # If release exists, this will update it (append assets)
+          # If release doesn't exist, this will create it with assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
