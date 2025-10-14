@@ -212,7 +212,7 @@ suite('ClusterDashboardWebview Test Suite', () => {
 
             // Should only return group2 (group1 filtered out due to no topics)
             assert.strictEqual(result.length, 1);
-            
+
             const group2Result = result.find((g: any) => g.groupId === 'group2');
             assert.ok(group2Result);
             assert.strictEqual(group2Result.topics.length, 1);
