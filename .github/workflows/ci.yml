@@ -7,9 +7,18 @@ on:
     branches: [main, develop]
   workflow_dispatch:
 
-# Security: Explicitly define minimal permissions
+# Security: Explicitly define minimal permissions at workflow level
 permissions:
-  contents: read
+  actions: none        # Prevent workflow manipulation
+  checks: none        # Prevent check manipulation
+  contents: read      # Needed for checkout
+  deployments: none   # Prevent deployment manipulation
+  issues: write       # Needed for creating issues
+  packages: none      # Prevent package manipulation
+  pull-requests: write # Needed for PR comments
+  repository-projects: none
+  security-events: none
+  statuses: none
 
 jobs:
   build-and-test:

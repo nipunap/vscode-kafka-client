@@ -13,8 +13,16 @@ concurrency:
 
 # Security: Explicitly define minimal permissions at workflow level
 permissions:
-  contents: write  # Needed for creating releases
-  pull-requests: read  # Needed for waiting on checks
+  actions: none      # Prevent workflow manipulation
+  checks: none       # Prevent check manipulation
+  contents: write    # Needed for creating releases
+  deployments: none  # Prevent deployment manipulation
+  issues: write      # Needed for creating issues on publish failure
+  packages: none     # Prevent package manipulation
+  pull-requests: read # Needed for waiting on checks
+  repository-projects: none
+  security-events: none
+  statuses: none
 
 jobs:
   wait-for-ci:
