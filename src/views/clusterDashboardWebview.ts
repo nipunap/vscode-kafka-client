@@ -389,9 +389,9 @@ export class ClusterDashboardWebview {
             })
         );
 
-        // Filter groups with topics and sort by member count (descending), then by topic count
+        // Filter groups with topics and non-Empty state, then sort by member count (descending), then by topic count
         return groupsWithDetails
-            .filter(g => g.topics.length > 0)
+            .filter(g => g.topics.length > 0 && g.state.toLowerCase() !== 'empty')
             .sort((a, b) => {
                 // Primary sort: by member count
                 const memberDiff = b.memberCount - a.memberCount;
@@ -753,109 +753,40 @@ export class ClusterDashboardWebview {
                     tr:last-child td { border-bottom: none; }
                     tr:hover { background-color: var(--vscode-list-hoverBackground); }
                     .timestamp { font-size: 12px; color: var(--vscode-descriptionForeground); margin-top: 20px; text-align: center; }
-                    .consumer-groups-grid {
-                        display: grid;
-                        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-                        gap: 15px;
-                        margin-bottom: 30px;
-                    }
-                    .consumer-group-card {
-                        background: var(--vscode-editor-background);
-                        border: 1px solid var(--vscode-panel-border);
-                        border-radius: 8px;
-                        padding: 15px;
-                        display: flex;
-                        flex-direction: column;
-                        min-height: 140px;
-                    }
-                    .cg-header {
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: flex-start;
-                        margin-bottom: 12px;
-                        gap: 8px;
-                    }
-                    .cg-header h3 {
-                        font-size: 13px;
-                        font-weight: 600;
-                        margin: 0;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                        word-break: break-word;
-                        line-height: 1.3;
-                        flex: 1;
-                        min-width: 0;
-                    }
-                    .state-badge {
-                        font-size: 9px;
-                        padding: 3px 6px;
-                        border-radius: 10px;
-                        text-transform: uppercase;
-                        font-weight: 500;
+                    .state-badge { 
+                        font-size: 10px; 
+                        padding: 3px 8px; 
+                        border-radius: 10px; 
+                        text-transform: uppercase; 
+                        font-weight: 500; 
                         white-space: nowrap;
-                        flex-shrink: 0;
+                        display: inline-block;
                     }
                     .state-stable { background: rgba(75, 192, 192, 0.2); color: #4bc0c0; }
                     .state-empty { background: rgba(255, 159, 64, 0.2); color: #ff9f40; }
                     .state-dead { background: rgba(255, 99, 132, 0.2); color: #ff6384; }
                     .state-unknown { background: rgba(153, 102, 255, 0.2); color: #9966ff; }
-                    .cg-stats {
-                        display: flex;
-                        gap: 20px;
-                        margin-bottom: 12px;
-                    }
-                    .stat {
-                        display: flex;
-                        flex-direction: column;
-                    }
-                    .stat-value {
-                        font-size: 24px;
-                        font-weight: 600;
-                        line-height: 1;
-                    }
-                    .stat-label {
+                    .toggle-topics-btn {
                         font-size: 11px;
-                        color: var(--vscode-descriptionForeground);
-                        text-transform: uppercase;
-                        margin-top: 4px;
-                    }
-                    .toggle-topics {
-                        width: 100%;
-                        margin-top: auto;
-                        font-size: 12px;
+                        padding: 4px 8px;
                         cursor: pointer;
+                        background-color: var(--vscode-button-secondaryBackground);
+                        color: var(--vscode-button-secondaryForeground);
+                        border: none;
+                        border-radius: 4px;
                     }
-                    .topics-list {
-                        margin-top: 10px;
-                        max-height: 200px;
-                        overflow-y: auto;
+                    .toggle-topics-btn:hover {
+                        background-color: var(--vscode-button-secondaryHoverBackground);
                     }
-                    .topic-item {
-                        display: flex;
-                        justify-content: space-between;
-                        padding: 6px 8px;
+                    .topics-detail {
+                        margin-top: 8px;
+                        padding: 8px;
                         background: var(--vscode-list-hoverBackground);
                         border-radius: 4px;
-                        margin-bottom: 4px;
-                        font-size: 12px;
                     }
-                    .topic-name {
-                        font-weight: 500;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                        white-space: nowrap;
-                        flex: 1;
-                        margin-right: 10px;
-                    }
-                    .topic-partitions {
-                        color: var(--vscode-descriptionForeground);
-                        white-space: nowrap;
-                    }
-                    .no-topics {
-                        font-size: 12px;
-                        color: var(--vscode-descriptionForeground);
-                        text-align: center;
-                        padding: 10px;
+                    .topics-detail ul li {
+                        margin: 4px 0;
+                        color: var(--vscode-foreground);
                     }
                 </style>
 
@@ -913,43 +844,42 @@ export class ClusterDashboardWebview {
                 </div>
 
                 <div class="details-section">
-                    <h2>👥 Top Consumer Groups</h2>
-                    <p style="color: var(--vscode-descriptionForeground); font-size: 12px; margin-bottom: 10px;">Sorted by member count, then by number of topics</p>
+                    <h2>👥 Top Consumer Groups by Members</h2>
                     \${stats.topConsumerGroups && stats.topConsumerGroups.length > 0 ? \`
-                        <div class="consumer-groups-grid">
-                            \${stats.topConsumerGroups.map(cg => \`
-                                <div class="consumer-group-card">
-                                    <div class="cg-header">
-                                        <h3>\${cg.groupId}</h3>
-                                        <span class="state-badge state-\${cg.state.toLowerCase()}">\${cg.state}</span>
-                                    </div>
-                                    <div class="cg-stats">
-                                        <div class="stat">
-                                            <span class="stat-value">\${cg.memberCount}</span>
-                                            <span class="stat-label">Members</span>
-                                        </div>
-                                        <div class="stat">
-                                            <span class="stat-value">\${cg.topics.length}</span>
-                                            <span class="stat-label">Topics</span>
-                                        </div>
-                                    </div>
-                                    \${cg.topics.length > 0 ? \`
-                                        <button class="toggle-topics" onclick="toggleTopics('\${cg.groupId}')">
-                                            📋 Show Topics (\${cg.topics.length})
-                                        </button>
-                                        <div id="topics-\${cg.groupId}" class="topics-list" style="display: none;">
-                                            \${cg.topics.map(t => \`
-                                                <div class="topic-item">
-                                                    <span class="topic-name">\${t.name}</span>
-                                                    <span class="topic-partitions">\${t.partitions} partitions</span>
+                        <table>
+                            <thead><tr>
+                                <th>Consumer Group</th>
+                                <th>Members</th>
+                                <th>Topics</th>
+                                <th>State</th>
+                                <th>Topic Details</th>
+                            </tr></thead>
+                            <tbody>
+                                \${stats.topConsumerGroups.map((cg, idx) => \`
+                                    <tr>
+                                        <td><strong>\${cg.groupId}</strong></td>
+                                        <td>\${cg.memberCount}</td>
+                                        <td>\${cg.topics.length}</td>
+                                        <td><span class="state-badge state-\${cg.state.toLowerCase()}">\${cg.state}</span></td>
+                                        <td>
+                                            \${cg.topics.length > 0 ? \`
+                                                <button class="toggle-topics-btn" onclick="toggleTopicsTable('cg-\${idx}')">
+                                                    Show Topics (\${cg.topics.length})
+                                                </button>
+                                                <div id="cg-\${idx}" class="topics-detail" style="display: none;">
+                                                    <ul style="margin: 8px 0 0 0; padding-left: 20px; font-size: 12px;">
+                                                        \${cg.topics.map(t => \`
+                                                            <li><strong>\${t.name}</strong> (\${t.partitions} partitions)</li>
+                                                        \`).join('')}
+                                                    </ul>
                                                 </div>
-                                            \`).join('')}
-                                        </div>
-                                    \` : '<p class="no-topics">No topics</p>'}
-                                </div>
-                            \`).join('')}
-                        </div>
-                    \` : '<p style="color: var(--vscode-descriptionForeground); font-size: 13px;">No consumer groups with topic assignments found.</p>'}
+                                            \` : '-'}
+                                        </td>
+                                    </tr>
+                                \`).join('')}
+                            </tbody>
+                        </table>
+                    \` : '<p style="color: var(--vscode-descriptionForeground); font-size: 13px;">No active consumer groups found.</p>'}
                 </div>
 
                 <div class="timestamp">Last updated: \${new Date(stats.timestamp).toLocaleString()}</div>
@@ -1015,15 +945,17 @@ export class ClusterDashboardWebview {
             });
         }
 
-        function toggleTopics(groupId) {
-            const topicsList = document.getElementById('topics-' + groupId);
+        function toggleTopicsTable(id) {
+            const topicsDetail = document.getElementById(id);
             const button = event.target;
-            if (topicsList.style.display === 'none') {
-                topicsList.style.display = 'block';
-                button.textContent = '📋 Hide Topics (' + topicsList.children.length + ')';
+            if (topicsDetail.style.display === 'none') {
+                topicsDetail.style.display = 'block';
+                const topicCount = topicsDetail.querySelectorAll('li').length;
+                button.textContent = 'Hide Topics (' + topicCount + ')';
             } else {
-                topicsList.style.display = 'none';
-                button.textContent = '📋 Show Topics (' + topicsList.children.length + ')';
+                topicsDetail.style.display = 'none';
+                const topicCount = topicsDetail.querySelectorAll('li').length;
+                button.textContent = 'Show Topics (' + topicCount + ')';
             }
         }
 

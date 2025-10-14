@@ -32,7 +32,7 @@ suite('ClusterDashboardWebview Test Suite', () => {
             assert.strictEqual(typeof privateWebview.getTopConsumerGroupsParallel, 'function');
         });
 
-        test('getTopConsumerGroupsParallel should include all groups with topic offsets', async () => {
+        test('getTopConsumerGroupsParallel should filter out Empty state groups', async () => {
             const mockConsumerGroups = [
                 { groupId: 'group1', members: [], state: 'Empty' },
                 { groupId: 'group2', members: [{ memberId: 'm1' }], state: 'Stable' },
@@ -55,8 +55,10 @@ suite('ClusterDashboardWebview Test Suite', () => {
             // Restore original method
             clientManager.getConsumerGroupDetails = originalMethod;
 
-            // Should return all groups that have topics (regardless of member count)
-            assert.strictEqual(result.length, 3);
+            // Should return only non-Empty groups (group2 and group3)
+            assert.strictEqual(result.length, 2);
+            assert.ok(result.find((g: any) => g.groupId === 'group2'));
+            assert.ok(result.find((g: any) => g.groupId === 'group3'));
         });
 
         test('getTopConsumerGroupsParallel should sort by member count then topic count', async () => {
@@ -218,7 +220,7 @@ suite('ClusterDashboardWebview Test Suite', () => {
             assert.strictEqual(group2Result.topics.length, 1);
         });
 
-        test('getTopConsumerGroupsParallel should preserve state information', async () => {
+        test('getTopConsumerGroupsParallel should preserve state information and filter Empty', async () => {
             const mockConsumerGroups = [
                 { groupId: 'group1', members: [{ memberId: 'm1' }], state: 'Stable' },
                 { groupId: 'group2', members: [{ memberId: 'm1' }], state: 'Empty' },
@@ -241,10 +243,10 @@ suite('ClusterDashboardWebview Test Suite', () => {
             // Restore original method
             clientManager.getConsumerGroupDetails = originalMethod;
 
-            // Should preserve all states
+            // Should preserve states and filter out Empty (only Stable and Dead)
+            assert.strictEqual(result.length, 2);
             assert.strictEqual(result[0].state, 'Stable');
-            assert.strictEqual(result[1].state, 'Empty');
-            assert.strictEqual(result[2].state, 'Dead');
+            assert.strictEqual(result[1].state, 'Dead');
         });
 
         test('getTopConsumerGroupsParallel should filter groups with undefined offsets', async () => {
