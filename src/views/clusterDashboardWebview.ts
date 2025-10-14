@@ -753,25 +753,110 @@ export class ClusterDashboardWebview {
                     tr:last-child td { border-bottom: none; }
                     tr:hover { background-color: var(--vscode-list-hoverBackground); }
                     .timestamp { font-size: 12px; color: var(--vscode-descriptionForeground); margin-top: 20px; text-align: center; }
-                    .consumer-groups-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; margin-bottom: 30px; }
-                    .consumer-group-card { background: var(--vscode-editor-background); border: 1px solid var(--vscode-panel-border); border-radius: 8px; padding: 15px; }
-                    .cg-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-                    .cg-header h3 { font-size: 14px; font-weight: 600; margin: 0; }
-                    .state-badge { font-size: 10px; padding: 3px 8px; border-radius: 10px; text-transform: uppercase; font-weight: 500; }
+                    .consumer-groups-grid { 
+                        display: grid; 
+                        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); 
+                        gap: 15px; 
+                        margin-bottom: 30px; 
+                    }
+                    .consumer-group-card { 
+                        background: var(--vscode-editor-background); 
+                        border: 1px solid var(--vscode-panel-border); 
+                        border-radius: 8px; 
+                        padding: 15px; 
+                        display: flex;
+                        flex-direction: column;
+                        min-height: 140px;
+                    }
+                    .cg-header { 
+                        display: flex; 
+                        justify-content: space-between; 
+                        align-items: flex-start; 
+                        margin-bottom: 12px; 
+                        gap: 8px;
+                    }
+                    .cg-header h3 { 
+                        font-size: 13px; 
+                        font-weight: 600; 
+                        margin: 0; 
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        word-break: break-word;
+                        line-height: 1.3;
+                        flex: 1;
+                        min-width: 0;
+                    }
+                    .state-badge { 
+                        font-size: 9px; 
+                        padding: 3px 6px; 
+                        border-radius: 10px; 
+                        text-transform: uppercase; 
+                        font-weight: 500; 
+                        white-space: nowrap;
+                        flex-shrink: 0;
+                    }
                     .state-stable { background: rgba(75, 192, 192, 0.2); color: #4bc0c0; }
                     .state-empty { background: rgba(255, 159, 64, 0.2); color: #ff9f40; }
                     .state-dead { background: rgba(255, 99, 132, 0.2); color: #ff6384; }
                     .state-unknown { background: rgba(153, 102, 255, 0.2); color: #9966ff; }
-                    .cg-stats { display: flex; gap: 20px; margin-bottom: 12px; }
-                    .stat { display: flex; flex-direction: column; }
-                    .stat-value { font-size: 24px; font-weight: 600; }
-                    .stat-label { font-size: 11px; color: var(--vscode-descriptionForeground); text-transform: uppercase; }
-                    .toggle-topics { width: 100%; margin-top: 8px; font-size: 12px; }
-                    .topics-list { margin-top: 10px; max-height: 200px; overflow-y: auto; }
-                    .topic-item { display: flex; justify-content: space-between; padding: 6px 8px; background: var(--vscode-list-hoverBackground); border-radius: 4px; margin-bottom: 4px; font-size: 12px; }
-                    .topic-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; margin-right: 10px; }
-                    .topic-partitions { color: var(--vscode-descriptionForeground); white-space: nowrap; }
-                    .no-topics { font-size: 12px; color: var(--vscode-descriptionForeground); text-align: center; padding: 10px; }
+                    .cg-stats { 
+                        display: flex; 
+                        gap: 20px; 
+                        margin-bottom: 12px; 
+                    }
+                    .stat { 
+                        display: flex; 
+                        flex-direction: column; 
+                    }
+                    .stat-value { 
+                        font-size: 24px; 
+                        font-weight: 600; 
+                        line-height: 1;
+                    }
+                    .stat-label { 
+                        font-size: 11px; 
+                        color: var(--vscode-descriptionForeground); 
+                        text-transform: uppercase; 
+                        margin-top: 4px;
+                    }
+                    .toggle-topics { 
+                        width: 100%; 
+                        margin-top: auto;
+                        font-size: 12px; 
+                        cursor: pointer;
+                    }
+                    .topics-list { 
+                        margin-top: 10px; 
+                        max-height: 200px; 
+                        overflow-y: auto; 
+                    }
+                    .topic-item { 
+                        display: flex; 
+                        justify-content: space-between; 
+                        padding: 6px 8px; 
+                        background: var(--vscode-list-hoverBackground); 
+                        border-radius: 4px; 
+                        margin-bottom: 4px; 
+                        font-size: 12px; 
+                    }
+                    .topic-name { 
+                        font-weight: 500; 
+                        overflow: hidden; 
+                        text-overflow: ellipsis; 
+                        white-space: nowrap; 
+                        flex: 1; 
+                        margin-right: 10px; 
+                    }
+                    .topic-partitions { 
+                        color: var(--vscode-descriptionForeground); 
+                        white-space: nowrap; 
+                    }
+                    .no-topics { 
+                        font-size: 12px; 
+                        color: var(--vscode-descriptionForeground); 
+                        text-align: center; 
+                        padding: 10px; 
+                    }
                 </style>
 
                 <div class="header">
