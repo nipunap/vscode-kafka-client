@@ -146,7 +146,7 @@ suite('ClusterDashboardWebview Test Suite', () => {
 
             // Should have 3 unique topics
             assert.strictEqual(result[0].topics.length, 3);
-            
+
             // Check topic1 has 2 partitions
             const topic1 = result[0].topics.find((t: any) => t.name === 'topic1');
             assert.ok(topic1);
@@ -215,7 +215,7 @@ suite('ClusterDashboardWebview Test Suite', () => {
 
             // Should return both groups, but group1 with empty topics
             assert.strictEqual(result.length, 2);
-            
+
             const group1Result = result.find((g: any) => g.groupId === 'group1');
             assert.ok(group1Result);
             assert.strictEqual(group1Result.topics.length, 0);
@@ -366,7 +366,7 @@ suite('ClusterDashboardWebview Test Suite', () => {
 
             // All calls should happen in parallel (within a small time window)
             assert.strictEqual(callCount, 3);
-            
+
             // Check that calls started nearly simultaneously (within 5ms of each other)
             const timeDiff = callTimestamps[callTimestamps.length - 1] - callTimestamps[0];
             assert.ok(timeDiff < 20, `Calls should be parallel, but took ${timeDiff}ms between first and last`);
@@ -402,17 +402,17 @@ suite('ClusterDashboardWebview Test Suite', () => {
             // Verify structure
             assert.strictEqual(result.length, 1);
             const group = result[0];
-            
+
             assert.ok(group.hasOwnProperty('groupId'));
             assert.ok(group.hasOwnProperty('memberCount'));
             assert.ok(group.hasOwnProperty('state'));
             assert.ok(group.hasOwnProperty('topics'));
-            
+
             assert.strictEqual(typeof group.groupId, 'string');
             assert.strictEqual(typeof group.memberCount, 'number');
             assert.strictEqual(typeof group.state, 'string');
             assert.ok(Array.isArray(group.topics));
-            
+
             // Verify topic structure
             const topic = group.topics[0];
             assert.ok(topic.hasOwnProperty('name'));
@@ -457,4 +457,3 @@ suite('ClusterDashboardWebview Test Suite', () => {
         });
     });
 });
-
