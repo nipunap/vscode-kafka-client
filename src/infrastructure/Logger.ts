@@ -7,12 +7,31 @@ export enum LogLevel {
     ERROR = 3
 }
 
+// Logger cache for singleton pattern
+const loggerCache = new Map<string, Logger>();
+
+// Check if running in test environment
+const isTestEnvironment = (): boolean => {
+    return process.env.NODE_ENV === 'test' ||
+           process.env.VSCODE_TEST === '1' ||
+           typeof (global as any).it === 'function'; // Mocha/test framework detection
+};
+
 export class Logger {
     private static globalLevel: LogLevel = LogLevel.INFO;
-    private channel: vscode.OutputChannel;
+    private channel: vscode.OutputChannel | null;
+    private isNoOp: boolean;
 
-    constructor(private name: string) {
-        this.channel = vscode.window.createOutputChannel(`Kafka: ${name}`);
+    private constructor(private name: string) {
+        // In test environment, use no-op logger to prevent file handle exhaustion
+        this.isNoOp = isTestEnvironment();
+
+        if (this.isNoOp) {
+            // Create a minimal no-op channel
+            this.channel = null;
+        } else {
+            this.channel = vscode.window.createOutputChannel(`Kafka: ${name}`);
+        }
     }
 
     /**
@@ -23,10 +42,26 @@ export class Logger {
     }
 
     /**
-     * Get logger instance for a specific component
+     * Get logger instance for a specific component (singleton pattern)
      */
     static getLogger(name: string): Logger {
-        return new Logger(name);
+        // Return cached logger if exists
+        if (loggerCache.has(name)) {
+            return loggerCache.get(name)!;
+        }
+
+        // Create new logger and cache it
+        const logger = new Logger(name);
+        loggerCache.set(name, logger);
+        return logger;
+    }
+
+    /**
+     * Clear all cached loggers (useful for testing)
+     */
+    static clearLoggers(): void {
+        loggerCache.forEach(logger => logger.dispose());
+        loggerCache.clear();
     }
 
     debug(message: string, ...data: any[]): void {
@@ -50,8 +85,10 @@ export class Logger {
     error(message: string, error?: any): void {
         if (Logger.globalLevel <= LogLevel.ERROR) {
             this.log('ERROR', message, error ? [error] : []);
-            // Auto-show output channel on errors
-            this.channel.show(true);
+            // Auto-show output channel on errors (only if not in no-op mode)
+            if (this.channel) {
+                this.channel.show(true);
+            }
         }
     }
 
@@ -59,26 +96,31 @@ export class Logger {
      * Log with custom level and optional data
      */
     private log(level: string, message: string, data: any[]): void {
+        // Skip logging in no-op mode
+        if (this.isNoOp || !this.channel) {
+            return;
+        }
+
         const timestamp = new Date().toISOString();
         const prefix = `[${timestamp}] [${level}] [${this.name}]`;
-        
+
         this.channel.appendLine(`${prefix} ${message}`);
-        
+
         if (data.length > 0) {
             data.forEach(item => {
                 if (item instanceof Error) {
-                    this.channel.appendLine(`  Error: ${item.message}`);
+                    this.channel!.appendLine(`  Error: ${item.message}`);
                     if (item.stack) {
-                        this.channel.appendLine(`  Stack: ${item.stack}`);
+                        this.channel!.appendLine(`  Stack: ${item.stack}`);
                     }
                 } else if (typeof item === 'object') {
                 try {
-                    this.channel.appendLine(`  Data: ${JSON.stringify(item, null, 2)}`);
+                    this.channel!.appendLine(`  Data: ${JSON.stringify(item, null, 2)}`);
                 } catch (_e) {
-                    this.channel.appendLine(`  Data: [Unable to stringify]`);
+                    this.channel!.appendLine(`  Data: [Unable to stringify]`);
                 }
                 } else {
-                    this.channel.appendLine(`  ${item}`);
+                    this.channel!.appendLine(`  ${item}`);
                 }
             });
         }
@@ -88,14 +130,17 @@ export class Logger {
      * Show the output channel
      */
     show(): void {
-        this.channel.show();
+        if (this.channel) {
+            this.channel.show();
+        }
     }
 
     /**
      * Dispose of the output channel
      */
     dispose(): void {
-        this.channel.dispose();
+        if (this.channel) {
+            this.channel.dispose();
+        }
     }
 }
-

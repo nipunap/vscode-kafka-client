@@ -4,6 +4,34 @@ All notable changes to the "Kafka Client" extension will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/) and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.1](https://github.com/nipunap/vscode-kafka-client/compare/v0.7.1...v0.8.1) (2025-10-14)
+
+
+### ✨ Features
+
+* add Open VSX Registry publishing support ([9abcf08](https://github.com/nipunap/vscode-kafka-client/commit/9abcf08f8794890d914fc0fcd62af3b95c8302a0))
+* add top consumer groups section to cluster dashboard ([ceebe09](https://github.com/nipunap/vscode-kafka-client/commit/ceebe09847a0c5a01f84d01d28a344c83cd01002))
+
+
+### 🐛 Bug Fixes
+
+* add all test cases ([f11d561](https://github.com/nipunap/vscode-kafka-client/commit/f11d5610a7c5877ec5f0d1de622b7abe76b87b82))
+* attach VSIX file to GitHub releases and improve package verification ([90e2704](https://github.com/nipunap/vscode-kafka-client/commit/90e2704826f1982c85280cf246b42a06e172dd26))
+* correct consumer groups sorting order ([5ed1670](https://github.com/nipunap/vscode-kafka-client/commit/5ed1670cb80752b8ffdd0f71f9795a232b895784))
+* ensure webview scripts are included in VSIX package ([2d872fa](https://github.com/nipunap/vscode-kafka-client/commit/2d872fa731c12ff4ed48e0ddbe1e144a70493426))
+* improve broker table styling and layout ([4f6304c](https://github.com/nipunap/vscode-kafka-client/commit/4f6304c5044336769e9cd20c92692a2f1428ec3f))
+* improve consumer groups dashboard UI stability and responsiveness ([ad7d7be](https://github.com/nipunap/vscode-kafka-client/commit/ad7d7be686681a54d21dfcf8e265259a201af58d))
+* increase parallel processing test timeout to 600ms for Windows CI ([58b3886](https://github.com/nipunap/vscode-kafka-client/commit/58b3886bcdd00e9d3bfba84b71cbbc8c933ef599))
+* increase timing thresholds in parallel processing test for CI compatibility ([85c78c9](https://github.com/nipunap/vscode-kafka-client/commit/85c78c9e7a2a385894ea12187da92633d80f2fe3))
+* prevent file handle exhaustion in Windows CI tests ([2d33965](https://github.com/nipunap/vscode-kafka-client/commit/2d33965960edcb46b32ae8ecf3bb9f3086dc7ac8))
+* senior engineering review improvements ([299c775](https://github.com/nipunap/vscode-kafka-client/commit/299c7755617958a86c945c402f4719e55573ea81))
+* show consumer groups with topic assignments regardless of member count ([b4819b2](https://github.com/nipunap/vscode-kafka-client/commit/b4819b2e30aa09ce31c05ba3ff496f69e9e6f533))
+
+
+### ♻️ Code Refactoring
+
+* change consumer groups to table format and filter Empty state ([c22ffb9](https://github.com/nipunap/vscode-kafka-client/commit/c22ffb9fa57cd5afcbecc68818a48762e9dc7d42))
+
 ## [0.8.0](https://github.com/nipunap/vscode-kafka-client/compare/v0.7.1...v0.8.0) (2025-10-14)
 
 
