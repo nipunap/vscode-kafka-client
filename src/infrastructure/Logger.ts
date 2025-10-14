@@ -12,7 +12,7 @@ const loggerCache = new Map<string, Logger>();
 
 // Check if running in test environment
 const isTestEnvironment = (): boolean => {
-    return process.env.NODE_ENV === 'test' || 
+    return process.env.NODE_ENV === 'test' ||
            process.env.VSCODE_TEST === '1' ||
            typeof (global as any).it === 'function'; // Mocha/test framework detection
 };
@@ -25,7 +25,7 @@ export class Logger {
     private constructor(private name: string) {
         // In test environment, use no-op logger to prevent file handle exhaustion
         this.isNoOp = isTestEnvironment();
-        
+
         if (this.isNoOp) {
             // Create a minimal no-op channel
             this.channel = null;
@@ -49,7 +49,7 @@ export class Logger {
         if (loggerCache.has(name)) {
             return loggerCache.get(name)!;
         }
-        
+
         // Create new logger and cache it
         const logger = new Logger(name);
         loggerCache.set(name, logger);
@@ -103,9 +103,9 @@ export class Logger {
 
         const timestamp = new Date().toISOString();
         const prefix = `[${timestamp}] [${level}] [${this.name}]`;
-        
+
         this.channel.appendLine(`${prefix} ${message}`);
-        
+
         if (data.length > 0) {
             data.forEach(item => {
                 if (item instanceof Error) {
@@ -144,4 +144,3 @@ export class Logger {
         }
     }
 }
-
