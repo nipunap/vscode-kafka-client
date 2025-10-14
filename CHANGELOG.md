@@ -4,6 +4,13 @@ All notable changes to the "Kafka Client" extension will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/) and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.2](https://github.com/nipunap/vscode-kafka-client/compare/v0.8.1...v0.8.2) (2025-10-14)
+
+
+### 🐛 Bug Fixes
+
+* resolve immutable release error with atomic release creation ([d8a8530](https://github.com/nipunap/vscode-kafka-client/commit/d8a85307f1e9b3b02e5bd6f4ae363e4c66a3d5f4))
+
 ## [0.8.1](https://github.com/nipunap/vscode-kafka-client/compare/v0.7.1...v0.8.1) (2025-10-14)
 
 
