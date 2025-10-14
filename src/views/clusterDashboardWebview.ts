@@ -750,16 +750,35 @@ export class ClusterDashboardWebview {
                     .chart-container { position: relative; height: 250px; }
                     .details-section { margin-bottom: 30px; }
                     .details-section h2 { font-size: 18px; margin-bottom: 15px; font-weight: 600; }
-                    table { width: 100%; border-collapse: collapse; background-color: var(--vscode-editor-background); border: 1px solid var(--vscode-panel-border); border-radius: 8px; overflow: hidden; table-layout: fixed; }
+                    table { width: 100%; border-collapse: collapse; background-color: var(--vscode-editor-background); border: 1px solid var(--vscode-panel-border); border-radius: 8px; overflow: hidden; }
                     th { background-color: var(--vscode-list-hoverBackground); padding: 12px; text-align: left; font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--vscode-panel-border); }
-                    td { padding: 12px; font-size: 13px; border-bottom: 1px solid var(--vscode-panel-border); overflow: hidden; text-overflow: ellipsis; }
-                    td:first-child { max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-                    td:first-child strong { cursor: default; }
-                    th:nth-child(2), td:nth-child(2) { width: 100px; text-align: center; }
-                    th:nth-child(3), td:nth-child(3) { width: 100px; text-align: center; }
-                    th:nth-child(4), td:nth-child(4) { width: 120px; text-align: center; }
+                    td { padding: 12px; font-size: 13px; border-bottom: 1px solid var(--vscode-panel-border); }
                     tr:last-child td { border-bottom: none; }
                     tr:hover { background-color: var(--vscode-list-hoverBackground); }
+                    
+                    /* Broker table specific styles */
+                    .broker-table td:nth-child(1) { width: 80px; text-align: center; }
+                    .broker-table td:nth-child(2) { max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+                    .broker-table td:nth-child(3) { width: 80px; text-align: center; }
+                    .broker-table td:nth-child(4) { width: 100px; text-align: center; }
+                    .broker-table td:nth-child(5) { width: 100px; text-align: center; font-weight: 600; }
+                    .broker-table td:nth-child(6) { width: 100px; text-align: center; }
+                    .broker-table td:nth-child(7) { width: 80px; text-align: center; }
+                    .broker-table th:nth-child(1) { width: 80px; text-align: center; }
+                    .broker-table th:nth-child(3) { width: 80px; text-align: center; }
+                    .broker-table th:nth-child(4) { width: 100px; text-align: center; }
+                    .broker-table th:nth-child(5) { width: 100px; text-align: center; }
+                    .broker-table th:nth-child(6) { width: 100px; text-align: center; }
+                    .broker-table th:nth-child(7) { width: 80px; text-align: center; }
+                    
+                    /* Consumer groups table specific styles */
+                    .consumer-groups-table { table-layout: fixed; }
+                    .consumer-groups-table td:first-child { max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                    .consumer-groups-table td:first-child strong { cursor: default; }
+                    .consumer-groups-table th:nth-child(2), .consumer-groups-table td:nth-child(2) { width: 100px; text-align: center; }
+                    .consumer-groups-table th:nth-child(3), .consumer-groups-table td:nth-child(3) { width: 100px; text-align: center; }
+                    .consumer-groups-table th:nth-child(4), .consumer-groups-table td:nth-child(4) { width: 120px; text-align: center; }
+                    
                     .timestamp { font-size: 12px; color: var(--vscode-descriptionForeground); margin-top: 20px; text-align: center; }
                     .state-badge { 
                         font-size: 10px; 
@@ -824,7 +843,7 @@ export class ClusterDashboardWebview {
 
                 <div class="details-section">
                     <h2>📊 Broker Details</h2>
-                    <table>
+                    <table class="broker-table">
                         <thead><tr>
                             <th title="Unique identifier for each broker in the cluster" style="cursor: help;">Broker ID</th>
                             <th title="Hostname or IP address of the broker" style="cursor: help;">Host</th>
@@ -834,7 +853,7 @@ export class ClusterDashboardWebview {
                             <th title="Total number of partition replicas on this broker" style="cursor: help;">Replicas</th>
                             <th title="Number of in-sync replicas on this broker" style="cursor: help;">ISR</th>
                         </tr></thead>
-                        <tbody>\${stats.brokers.sort((a, b) => a.id - b.id).map(b => \`<tr><td><strong>\${b.id}</strong></td><td>\${b.host}</td><td>\${b.port}</td><td>\${b.rack}</td><td><strong>\${b.leaderCount || b.partitionCount}</strong></td><td>\${b.replicaCount || 0}</td><td>\${b.isrCount || 0}</td></tr>\`).join('')}</tbody>
+                        <tbody>\${stats.brokers.sort((a, b) => a.id - b.id).map(b => \`<tr><td><strong>\${b.id}</strong></td><td title="\${b.host}">\${b.host}</td><td>\${b.port}</td><td>\${b.rack}</td><td><strong>\${b.leaderCount || b.partitionCount}</strong></td><td>\${b.replicaCount || 0}</td><td>\${b.isrCount || 0}</td></tr>\`).join('')}</tbody>
                     </table>
                 </div>
 
@@ -854,7 +873,7 @@ export class ClusterDashboardWebview {
                 <div class="details-section">
                     <h2>👥 Top Consumer Groups by Members</h2>
                     \${stats.topConsumerGroups && stats.topConsumerGroups.length > 0 ? \`
-                        <table>
+                        <table class="consumer-groups-table">
                             <thead><tr>
                                 <th>Consumer Group</th>
                                 <th>Members</th>
