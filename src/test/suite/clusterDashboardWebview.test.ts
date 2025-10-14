@@ -59,38 +59,21 @@ suite('ClusterDashboardWebview Test Suite', () => {
             assert.strictEqual(result.length, 3);
         });
 
-        test('getTopConsumerGroupsParallel should sort by topic count descending', async () => {
+        test('getTopConsumerGroupsParallel should sort by member count then topic count', async () => {
             const mockConsumerGroups = [
                 { groupId: 'group1', members: [{ memberId: 'm1' }], state: 'Stable' },
                 { groupId: 'group2', members: [{ memberId: 'm1' }, { memberId: 'm2' }, { memberId: 'm3' }], state: 'Stable' },
                 { groupId: 'group3', members: [{ memberId: 'm1' }, { memberId: 'm2' }], state: 'Stable' }
             ];
 
-            // Mock getConsumerGroupDetails with different topic counts
+            // Mock getConsumerGroupDetails - all have 1 topic to test member count sorting
             const originalMethod = clientManager.getConsumerGroupDetails;
-            clientManager.getConsumerGroupDetails = async (_clusterName: string, groupId: string) => {
-                if (groupId === 'group1') {
-                    return {
-                        offsets: [
-                            { topic: 'topic1', partition: 0, offset: '100' },
-                            { topic: 'topic2', partition: 0, offset: '100' },
-                            { topic: 'topic3', partition: 0, offset: '100' }
-                        ]
-                    };
-                } else if (groupId === 'group2') {
-                    return {
-                        offsets: [
-                            { topic: 'topic1', partition: 0, offset: '100' }
-                        ]
-                    };
-                } else {
-                    return {
-                        offsets: [
-                            { topic: 'topic1', partition: 0, offset: '100' },
-                            { topic: 'topic2', partition: 0, offset: '100' }
-                        ]
-                    };
-                }
+            clientManager.getConsumerGroupDetails = async (_clusterName: string, _groupId: string) => {
+                return {
+                    offsets: [
+                        { topic: 'topic1', partition: 0, offset: '100' }
+                    ]
+                };
             };
 
             const privateWebview = dashboardWebview as any;
@@ -99,14 +82,14 @@ suite('ClusterDashboardWebview Test Suite', () => {
             // Restore original method
             clientManager.getConsumerGroupDetails = originalMethod;
 
-            // Should be sorted by topic count (highest first)
+            // Should be sorted by member count (highest first)
             assert.strictEqual(result.length, 3);
-            assert.strictEqual(result[0].groupId, 'group1'); // 3 topics
-            assert.strictEqual(result[0].topics.length, 3);
-            assert.strictEqual(result[1].groupId, 'group3'); // 2 topics
-            assert.strictEqual(result[1].topics.length, 2);
-            assert.strictEqual(result[2].groupId, 'group2'); // 1 topic
-            assert.strictEqual(result[2].topics.length, 1);
+            assert.strictEqual(result[0].groupId, 'group2'); // 3 members
+            assert.strictEqual(result[0].memberCount, 3);
+            assert.strictEqual(result[1].groupId, 'group3'); // 2 members
+            assert.strictEqual(result[1].memberCount, 2);
+            assert.strictEqual(result[2].groupId, 'group1'); // 1 member
+            assert.strictEqual(result[2].memberCount, 1);
         });
 
         test('getTopConsumerGroupsParallel should limit to top 10 groups', async () => {

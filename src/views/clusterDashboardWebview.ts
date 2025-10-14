@@ -340,7 +340,7 @@ export class ClusterDashboardWebview {
     /**
      * Get top consumer groups with their topic details
      * Shows groups that have topics assigned (via offsets)
-     * Sorts by number of topics consumed
+     * Sorts by member count (primary), then by number of topics (secondary)
      */
     private async getTopConsumerGroupsParallel(
         clusterName: string,
@@ -357,7 +357,7 @@ export class ClusterDashboardWebview {
                         clusterName,
                         group.groupId
                     );
-                    
+
                     // Extract unique topics from offsets
                     const topicsMap = new Map<string, number>();
                     if (details.offsets && Array.isArray(details.offsets)) {
@@ -389,17 +389,17 @@ export class ClusterDashboardWebview {
             })
         );
 
-        // Filter groups with topics and sort by topic count (descending), then by member count
+        // Filter groups with topics and sort by member count (descending), then by topic count
         return groupsWithDetails
             .filter(g => g.topics.length > 0)
             .sort((a, b) => {
-                // Primary sort: by number of topics
-                const topicDiff = b.topics.length - a.topics.length;
-                if (topicDiff !== 0) {
-                    return topicDiff;
+                // Primary sort: by member count
+                const memberDiff = b.memberCount - a.memberCount;
+                if (memberDiff !== 0) {
+                    return memberDiff;
                 }
-                // Secondary sort: by member count
-                return b.memberCount - a.memberCount;
+                // Secondary sort: by number of topics
+                return b.topics.length - a.topics.length;
             })
             .slice(0, 10); // Take top 10
     }
@@ -753,32 +753,32 @@ export class ClusterDashboardWebview {
                     tr:last-child td { border-bottom: none; }
                     tr:hover { background-color: var(--vscode-list-hoverBackground); }
                     .timestamp { font-size: 12px; color: var(--vscode-descriptionForeground); margin-top: 20px; text-align: center; }
-                    .consumer-groups-grid { 
-                        display: grid; 
-                        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); 
-                        gap: 15px; 
-                        margin-bottom: 30px; 
+                    .consumer-groups-grid {
+                        display: grid;
+                        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+                        gap: 15px;
+                        margin-bottom: 30px;
                     }
-                    .consumer-group-card { 
-                        background: var(--vscode-editor-background); 
-                        border: 1px solid var(--vscode-panel-border); 
-                        border-radius: 8px; 
-                        padding: 15px; 
+                    .consumer-group-card {
+                        background: var(--vscode-editor-background);
+                        border: 1px solid var(--vscode-panel-border);
+                        border-radius: 8px;
+                        padding: 15px;
                         display: flex;
                         flex-direction: column;
                         min-height: 140px;
                     }
-                    .cg-header { 
-                        display: flex; 
-                        justify-content: space-between; 
-                        align-items: flex-start; 
-                        margin-bottom: 12px; 
+                    .cg-header {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: flex-start;
+                        margin-bottom: 12px;
                         gap: 8px;
                     }
-                    .cg-header h3 { 
-                        font-size: 13px; 
-                        font-weight: 600; 
-                        margin: 0; 
+                    .cg-header h3 {
+                        font-size: 13px;
+                        font-weight: 600;
+                        margin: 0;
                         overflow: hidden;
                         text-overflow: ellipsis;
                         word-break: break-word;
@@ -786,12 +786,12 @@ export class ClusterDashboardWebview {
                         flex: 1;
                         min-width: 0;
                     }
-                    .state-badge { 
-                        font-size: 9px; 
-                        padding: 3px 6px; 
-                        border-radius: 10px; 
-                        text-transform: uppercase; 
-                        font-weight: 500; 
+                    .state-badge {
+                        font-size: 9px;
+                        padding: 3px 6px;
+                        border-radius: 10px;
+                        text-transform: uppercase;
+                        font-weight: 500;
                         white-space: nowrap;
                         flex-shrink: 0;
                     }
@@ -799,63 +799,63 @@ export class ClusterDashboardWebview {
                     .state-empty { background: rgba(255, 159, 64, 0.2); color: #ff9f40; }
                     .state-dead { background: rgba(255, 99, 132, 0.2); color: #ff6384; }
                     .state-unknown { background: rgba(153, 102, 255, 0.2); color: #9966ff; }
-                    .cg-stats { 
-                        display: flex; 
-                        gap: 20px; 
-                        margin-bottom: 12px; 
+                    .cg-stats {
+                        display: flex;
+                        gap: 20px;
+                        margin-bottom: 12px;
                     }
-                    .stat { 
-                        display: flex; 
-                        flex-direction: column; 
+                    .stat {
+                        display: flex;
+                        flex-direction: column;
                     }
-                    .stat-value { 
-                        font-size: 24px; 
-                        font-weight: 600; 
+                    .stat-value {
+                        font-size: 24px;
+                        font-weight: 600;
                         line-height: 1;
                     }
-                    .stat-label { 
-                        font-size: 11px; 
-                        color: var(--vscode-descriptionForeground); 
-                        text-transform: uppercase; 
+                    .stat-label {
+                        font-size: 11px;
+                        color: var(--vscode-descriptionForeground);
+                        text-transform: uppercase;
                         margin-top: 4px;
                     }
-                    .toggle-topics { 
-                        width: 100%; 
+                    .toggle-topics {
+                        width: 100%;
                         margin-top: auto;
-                        font-size: 12px; 
+                        font-size: 12px;
                         cursor: pointer;
                     }
-                    .topics-list { 
-                        margin-top: 10px; 
-                        max-height: 200px; 
-                        overflow-y: auto; 
+                    .topics-list {
+                        margin-top: 10px;
+                        max-height: 200px;
+                        overflow-y: auto;
                     }
-                    .topic-item { 
-                        display: flex; 
-                        justify-content: space-between; 
-                        padding: 6px 8px; 
-                        background: var(--vscode-list-hoverBackground); 
-                        border-radius: 4px; 
-                        margin-bottom: 4px; 
-                        font-size: 12px; 
+                    .topic-item {
+                        display: flex;
+                        justify-content: space-between;
+                        padding: 6px 8px;
+                        background: var(--vscode-list-hoverBackground);
+                        border-radius: 4px;
+                        margin-bottom: 4px;
+                        font-size: 12px;
                     }
-                    .topic-name { 
-                        font-weight: 500; 
-                        overflow: hidden; 
-                        text-overflow: ellipsis; 
-                        white-space: nowrap; 
-                        flex: 1; 
-                        margin-right: 10px; 
+                    .topic-name {
+                        font-weight: 500;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                        flex: 1;
+                        margin-right: 10px;
                     }
-                    .topic-partitions { 
-                        color: var(--vscode-descriptionForeground); 
-                        white-space: nowrap; 
+                    .topic-partitions {
+                        color: var(--vscode-descriptionForeground);
+                        white-space: nowrap;
                     }
-                    .no-topics { 
-                        font-size: 12px; 
-                        color: var(--vscode-descriptionForeground); 
-                        text-align: center; 
-                        padding: 10px; 
+                    .no-topics {
+                        font-size: 12px;
+                        color: var(--vscode-descriptionForeground);
+                        text-align: center;
+                        padding: 10px;
                     }
                 </style>
 
@@ -914,7 +914,7 @@ export class ClusterDashboardWebview {
 
                 <div class="details-section">
                     <h2>👥 Top Consumer Groups</h2>
-                    <p style="color: var(--vscode-descriptionForeground); font-size: 12px; margin-bottom: 10px;">Sorted by number of topics consumed</p>
+                    <p style="color: var(--vscode-descriptionForeground); font-size: 12px; margin-bottom: 10px;">Sorted by member count, then by number of topics</p>
                     \${stats.topConsumerGroups && stats.topConsumerGroups.length > 0 ? \`
                         <div class="consumer-groups-grid">
                             \${stats.topConsumerGroups.map(cg => \`
