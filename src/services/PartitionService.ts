@@ -1,6 +1,10 @@
 import { Admin } from 'kafkajs';
 import { Logger } from '../infrastructure/Logger';
 
+// Constants for partition operations
+export const MAX_RECOMMENDED_PARTITIONS = 10000;  // Maximum recommended partition count per topic
+const PARTITION_CREATE_TIMEOUT_MS = 5000;  // Timeout for partition creation operation
+
 /**
  * Service for partition-related operations
  */
@@ -27,7 +31,7 @@ export class PartitionService {
                     count: newPartitionCount
                 }],
                 validateOnly: false,
-                timeout: 5000
+                timeout: PARTITION_CREATE_TIMEOUT_MS
             });
 
             this.logger.info(`Successfully added partitions to topic: ${topic}`);

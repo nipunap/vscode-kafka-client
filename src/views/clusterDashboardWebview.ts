@@ -1,10 +1,14 @@
 import * as vscode from 'vscode';
 import { KafkaClientManager } from '../kafka/kafkaClientManager';
 
+// Constants for cluster dashboard operations
+const TOPIC_BATCH_SIZE = 20;  // Number of topics to process in parallel per batch
+const CLUSTER_CACHE_TTL_MS = 5 * 60 * 1000;  // 5 minutes cache validity
+
 export class ClusterDashboardWebview {
     private panel: vscode.WebviewPanel | undefined;
     private cache: Map<string, { data: any; timestamp: number }> = new Map();
-    private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache validity
+    private readonly CACHE_TTL_MS = CLUSTER_CACHE_TTL_MS;
 
     constructor(
         private clientManager: KafkaClientManager
@@ -218,8 +222,8 @@ export class ClusterDashboardWebview {
         const partitionDistribution = new Map<number, { leader: number; replica: number; isr: number }>();
         brokers.forEach(broker => partitionDistribution.set(broker.nodeId, { leader: 0, replica: 0, isr: 0 }));
 
-        // Process topics in parallel batches of 20 for optimal performance
-        const batchSize = 20;
+        // Process topics in parallel batches for optimal performance
+        const batchSize = TOPIC_BATCH_SIZE;
         const batches: string[][] = [];
         for (let i = 0; i < topics.length; i += batchSize) {
             batches.push(topics.slice(i, i + batchSize));

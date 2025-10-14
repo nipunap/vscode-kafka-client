@@ -14,6 +14,7 @@ import { AIAdvisor } from '../services/AIAdvisor';
 import { ConfigSourceMapper } from '../utils/configSourceMapper';
 import { PartitionService } from '../services/PartitionService';
 import { ConfigurationEditorService } from '../services/ConfigurationEditorService';
+import { AuditLog, AuditOperation } from '../infrastructure/AuditLog';
 
 export async function createTopic(
     clientManager: KafkaClientManager,
@@ -97,7 +98,7 @@ export async function addPartitions(
     await ErrorHandler.wrap(
         async () => {
             // Get current partition count
-            const admin = await clientManager['getAdmin'](node.clusterName);
+            const admin = await clientManager.getAdminClient(node.clusterName);
             const currentCount = await partitionService.getCurrentPartitionCount(admin, node.topicName);
 
             // Prompt for new partition count
@@ -153,6 +154,14 @@ export async function addPartitions(
                 }
             );
 
+            // Audit log
+            AuditLog.success(
+                AuditOperation.TOPIC_PARTITIONS_ADDED,
+                node.clusterName,
+                node.topicName,
+                { previousCount: currentCount, newCount, addedCount: newCount - currentCount }
+            );
+
             provider.refresh();
             vscode.window.showInformationMessage(
                 `✓ Successfully added ${newCount - currentCount} partition(s) to topic "${node.topicName}"`
@@ -171,7 +180,7 @@ export async function editTopicConfig(
 
     await ErrorHandler.wrap(
         async () => {
-            const admin = await clientManager['getAdmin'](node.clusterName);
+            const admin = await clientManager.getAdminClient(node.clusterName);
 
             // Get current configuration
             const currentConfigs = await configService.getTopicConfig(admin, node.topicName);
@@ -251,6 +260,14 @@ export async function editTopicConfig(
                         { name: selectedConfig.label, value: newValue }
                     ]);
                 }
+            );
+
+            // Audit log
+            AuditLog.success(
+                AuditOperation.TOPIC_CONFIG_UPDATED,
+                node.clusterName,
+                node.topicName,
+                { configName: selectedConfig.label, oldValue: selectedConfig.config.configValue, newValue }
             );
 
             provider.refresh();

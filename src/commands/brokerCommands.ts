@@ -9,6 +9,7 @@ import { ErrorHandler } from '../infrastructure/ErrorHandler';
 import { AIAdvisor } from '../services/AIAdvisor';
 import { ConfigSourceMapper } from '../utils/configSourceMapper';
 import { ConfigurationEditorService } from '../services/ConfigurationEditorService';
+import { AuditLog, AuditOperation } from '../infrastructure/AuditLog';
 
 export async function showBrokerDetails(clientManager: KafkaClientManager, node: any, context?: vscode.ExtensionContext) {
     await ErrorHandler.wrap(async () => {
@@ -197,7 +198,7 @@ export async function editBrokerConfig(
 
     await ErrorHandler.wrap(
         async () => {
-            const admin = await clientManager['getAdmin'](node.clusterName);
+            const admin = await clientManager.getAdminClient(node.clusterName);
             const brokerId = String(node.brokerId);
 
             // Get current configuration
@@ -288,6 +289,19 @@ export async function editBrokerConfig(
                     await configService.alterBrokerConfig(admin, brokerId, [
                         { name: selectedConfig.label, value: newValue }
                     ]);
+                }
+            );
+
+            // Audit log
+            AuditLog.success(
+                AuditOperation.BROKER_CONFIG_UPDATED,
+                node.clusterName,
+                `broker-${brokerId}`,
+                { 
+                    configName: selectedConfig.label, 
+                    oldValue: selectedConfig.config.configValue, 
+                    newValue,
+                    requiresRestart: configService.requiresBrokerRestart(selectedConfig.label)
                 }
             );
 

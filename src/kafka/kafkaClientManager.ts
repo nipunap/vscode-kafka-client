@@ -1102,6 +1102,16 @@ export class KafkaClientManager {
         }
     }
 
+    /**
+     * Get an admin client for a cluster (public API)
+     * This is the public interface for accessing admin clients
+     * @param clusterName The name of the cluster
+     * @returns Admin client instance
+     */
+    public async getAdminClient(clusterName: string): Promise<Admin> {
+        return this.getAdmin(clusterName);
+    }
+
     private async getProducer(clusterName: string): Promise<Producer> {
         const connection = this.clusters.get(clusterName);
         if (!connection) {

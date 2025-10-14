@@ -14,6 +14,22 @@ export interface ConfigEntry {
 }
 
 /**
+ * Type guard to validate ConfigEntry structure
+ */
+function isValidConfigEntry(obj: any): obj is ConfigEntry {
+    return (
+        obj !== null &&
+        typeof obj === 'object' &&
+        typeof obj.configName === 'string' &&
+        typeof obj.configValue === 'string' &&
+        (obj.isDefault === undefined || typeof obj.isDefault === 'boolean') &&
+        (obj.isReadOnly === undefined || typeof obj.isReadOnly === 'boolean') &&
+        (obj.isSensitive === undefined || typeof obj.isSensitive === 'boolean') &&
+        (obj.configSource === undefined || typeof obj.configSource === 'number')
+    );
+}
+
+/**
  * Service for configuration editing operations
  */
 export class ConfigurationEditorService {
@@ -98,11 +114,26 @@ export class ConfigurationEditorService {
                 }]
             });
 
-            if (result.resources.length === 0) {
+            if (!result || !result.resources || result.resources.length === 0) {
                 throw new Error(`Topic not found: ${topicName}`);
             }
 
-            return result.resources[0].configEntries as ConfigEntry[];
+            const configEntries = result.resources[0].configEntries;
+            if (!Array.isArray(configEntries)) {
+                throw new Error(`Invalid config structure returned for topic: ${topicName}`);
+            }
+
+            // Validate each config entry
+            const validatedEntries: ConfigEntry[] = [];
+            for (const entry of configEntries) {
+                if (isValidConfigEntry(entry)) {
+                    validatedEntries.push(entry);
+                } else {
+                    this.logger.warn(`Skipping invalid config entry for topic ${topicName}:`, entry);
+                }
+            }
+
+            return validatedEntries;
         } catch (error) {
             this.logger.error(`Failed to get config for topic: ${topicName}`, error);
             throw error;
@@ -128,15 +159,41 @@ export class ConfigurationEditorService {
                 }]
             });
 
-            if (result.resources.length === 0) {
+            if (!result || !result.resources || result.resources.length === 0) {
                 throw new Error(`Broker not found: ${brokerId}`);
             }
 
-            return result.resources[0].configEntries as ConfigEntry[];
+            const configEntries = result.resources[0].configEntries;
+            if (!Array.isArray(configEntries)) {
+                throw new Error(`Invalid config structure returned for broker: ${brokerId}`);
+            }
+
+            // Validate each config entry
+            const validatedEntries: ConfigEntry[] = [];
+            for (const entry of configEntries) {
+                if (isValidConfigEntry(entry)) {
+                    validatedEntries.push(entry);
+                } else {
+                    this.logger.warn(`Skipping invalid config entry for broker ${brokerId}:`, entry);
+                }
+            }
+
+            return validatedEntries;
         } catch (error) {
             this.logger.error(`Failed to get config for broker: ${brokerId}`, error);
             throw error;
         }
+    }
+
+    /**
+     * Sanitize input to prevent injection attacks
+     * @param value Input value to sanitize
+     * @returns Sanitized value
+     */
+    private sanitizeInput(value: string): string {
+        // Remove potentially dangerous characters that could be used in injection attacks
+        // Keep alphanumeric, dots, dashes, underscores, commas, and equals (for valid config values)
+        return value.replace(/[;&|`$()<>{}[\]\\'"]/g, '').trim();
     }
 
     /**
@@ -146,6 +203,11 @@ export class ConfigurationEditorService {
      * @throws Error if validation fails
      */
     validateConfigValue(configName: string, value: string): void {
+        // Sanitize input first
+        const sanitized = this.sanitizeInput(value);
+        if (sanitized !== value) {
+            throw new Error(`Invalid characters detected in value. Sanitized value would be: ${sanitized}`);
+        }
         // Validate common Kafka configurations
         switch (configName) {
             case 'retention.ms':

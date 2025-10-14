@@ -2,11 +2,14 @@ import * as vscode from 'vscode';
 import { KafkaClientManager } from '../kafka/kafkaClientManager';
 import { Logger } from '../infrastructure/Logger';
 
+// Constants for topic dashboard
+const TOPIC_CACHE_TTL_MS = 5 * 60 * 1000;  // 5 minutes cache validity for topic data
+
 export class TopicDashboardWebview {
     private panel: vscode.WebviewPanel | undefined;
     private logger = Logger.getLogger('TopicDashboardWebview');
     private cache: Map<string, { data: any; timestamp: number }> = new Map();
-    private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache validity
+    private readonly CACHE_TTL_MS = TOPIC_CACHE_TTL_MS;
 
     constructor(
         private context: vscode.ExtensionContext,
