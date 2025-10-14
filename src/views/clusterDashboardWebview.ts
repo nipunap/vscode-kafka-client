@@ -346,8 +346,11 @@ export class ClusterDashboardWebview {
         clusterName: string,
         consumerGroups: any[]
     ): Promise<any[]> {
-        // Take top 10 groups (will filter those without topics after fetching details)
-        const topGroups = consumerGroups.slice(0, 20); // Fetch 20 to ensure we get 10 with topics
+        // Sort by member count first, then take top 20 for details fetching
+        // This ensures we fetch details for the most active groups
+        const topGroups = consumerGroups
+            .sort((a, b) => (b.members?.length || 0) - (a.members?.length || 0))
+            .slice(0, 20); // Fetch 20 to ensure we get 10 with topics after filtering
 
         // Fetch details in parallel
         const groupsWithDetails = await Promise.all(
@@ -391,7 +394,7 @@ export class ClusterDashboardWebview {
 
         // Filter groups with topics and non-Empty state, then sort by member count (descending), then by topic count
         return groupsWithDetails
-            .filter(g => g.topics.length > 0 && g.state.toLowerCase() !== 'empty')
+            .filter(g => g.topics.length > 0 && g.state?.trim().toLowerCase() !== 'empty')
             .sort((a, b) => {
                 // Primary sort: by member count
                 const memberDiff = b.memberCount - a.memberCount;
@@ -747,9 +750,14 @@ export class ClusterDashboardWebview {
                     .chart-container { position: relative; height: 250px; }
                     .details-section { margin-bottom: 30px; }
                     .details-section h2 { font-size: 18px; margin-bottom: 15px; font-weight: 600; }
-                    table { width: 100%; border-collapse: collapse; background-color: var(--vscode-editor-background); border: 1px solid var(--vscode-panel-border); border-radius: 8px; overflow: hidden; }
+                    table { width: 100%; border-collapse: collapse; background-color: var(--vscode-editor-background); border: 1px solid var(--vscode-panel-border); border-radius: 8px; overflow: hidden; table-layout: fixed; }
                     th { background-color: var(--vscode-list-hoverBackground); padding: 12px; text-align: left; font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--vscode-panel-border); }
-                    td { padding: 12px; font-size: 13px; border-bottom: 1px solid var(--vscode-panel-border); }
+                    td { padding: 12px; font-size: 13px; border-bottom: 1px solid var(--vscode-panel-border); overflow: hidden; text-overflow: ellipsis; }
+                    td:first-child { max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                    td:first-child strong { cursor: default; }
+                    th:nth-child(2), td:nth-child(2) { width: 100px; text-align: center; }
+                    th:nth-child(3), td:nth-child(3) { width: 100px; text-align: center; }
+                    th:nth-child(4), td:nth-child(4) { width: 120px; text-align: center; }
                     tr:last-child td { border-bottom: none; }
                     tr:hover { background-color: var(--vscode-list-hoverBackground); }
                     .timestamp { font-size: 12px; color: var(--vscode-descriptionForeground); margin-top: 20px; text-align: center; }
@@ -857,19 +865,22 @@ export class ClusterDashboardWebview {
                             <tbody>
                                 \${stats.topConsumerGroups.map((cg, idx) => \`
                                     <tr>
-                                        <td><strong>\${cg.groupId}</strong></td>
+                                        <td title="\${cg.groupId}"><strong>\${cg.groupId}</strong></td>
                                         <td>\${cg.memberCount}</td>
                                         <td>\${cg.topics.length}</td>
                                         <td><span class="state-badge state-\${cg.state.toLowerCase()}">\${cg.state}</span></td>
                                         <td>
                                             \${cg.topics.length > 0 ? \`
-                                                <button class="toggle-topics-btn" onclick="toggleTopicsTable('cg-\${idx}')">
+                                                <button class="toggle-topics-btn" 
+                                                        onclick="toggleTopicsTable('cg-\${idx}')"
+                                                        aria-expanded="false"
+                                                        aria-controls="cg-\${idx}">
                                                     Show Topics (\${cg.topics.length})
                                                 </button>
-                                                <div id="cg-\${idx}" class="topics-detail" style="display: none;">
+                                                <div id="cg-\${idx}" class="topics-detail" style="display: none;" role="region">
                                                     <ul style="margin: 8px 0 0 0; padding-left: 20px; font-size: 12px;">
                                                         \${cg.topics.map(t => \`
-                                                            <li><strong>\${t.name}</strong> (\${t.partitions} partitions)</li>
+                                                            <li title="\${t.name}"><strong>\${t.name}</strong> (\${t.partitions} partitions)</li>
                                                         \`).join('')}
                                                     </ul>
                                                 </div>
@@ -948,14 +959,16 @@ export class ClusterDashboardWebview {
         function toggleTopicsTable(id) {
             const topicsDetail = document.getElementById(id);
             const button = event.target;
+            const topicCount = topicsDetail.querySelectorAll('li').length;
+            
             if (topicsDetail.style.display === 'none') {
                 topicsDetail.style.display = 'block';
-                const topicCount = topicsDetail.querySelectorAll('li').length;
                 button.textContent = 'Hide Topics (' + topicCount + ')';
+                button.setAttribute('aria-expanded', 'true');
             } else {
                 topicsDetail.style.display = 'none';
-                const topicCount = topicsDetail.querySelectorAll('li').length;
                 button.textContent = 'Show Topics (' + topicCount + ')';
+                button.setAttribute('aria-expanded', 'false');
             }
         }
 
