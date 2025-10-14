@@ -171,4 +171,3 @@ suite('ConfigurationEditorService Integration Tests', () => {
         });
     });
 });
-
