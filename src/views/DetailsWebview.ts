@@ -1037,7 +1037,6 @@ export class DetailsWebview extends BaseWebviewWithAI {
                         ${data.showAIAdvisor ? '<button class="btn btn-ai" onclick="getAIAdvice()" id="aiButton">🤖 AI Advisor</button>' : ''}
                         ${data.showCopyButton ? '<button class="btn btn-secondary" onclick="copyAsJson()">📋 Copy as JSON</button>' : ''}
                         ${data.showRefreshButton ? '<button class="btn" onclick="refresh()">🔄 Refresh</button>' : ''}
-                        <button class="btn btn-secondary" disabled title="Edit mode coming soon">✏️ Edit</button>
                     </div>
                 </div>
 

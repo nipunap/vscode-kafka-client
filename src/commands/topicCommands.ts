@@ -12,6 +12,8 @@ import { TopicNode, ClusterNode } from '../types/nodes';
 import { ACL } from '../types/acl';
 import { AIAdvisor } from '../services/AIAdvisor';
 import { ConfigSourceMapper } from '../utils/configSourceMapper';
+import { PartitionService } from '../services/PartitionService';
+import { ConfigurationEditorService } from '../services/ConfigurationEditorService';
 
 export async function createTopic(
     clientManager: KafkaClientManager,
@@ -85,6 +87,181 @@ export async function deleteTopic(
     }
 }
 
+export async function addPartitions(
+    clientManager: KafkaClientManager,
+    provider: KafkaExplorerProvider,
+    node: TopicNode
+) {
+    const partitionService = new PartitionService();
+
+    await ErrorHandler.wrap(
+        async () => {
+            // Get current partition count
+            const admin = await clientManager['getAdmin'](node.clusterName);
+            const currentCount = await partitionService.getCurrentPartitionCount(admin, node.topicName);
+
+            // Prompt for new partition count
+            const newCountStr = await vscode.window.showInputBox({
+                prompt: `Current partition count: ${currentCount}. Enter new partition count`,
+                placeHolder: `Greater than ${currentCount}`,
+                validateInput: (value) => {
+                    const num = Number(value);
+                    if (isNaN(num)) {
+                        return 'Must be a number';
+                    }
+                    if (num <= currentCount) {
+                        return `Must be greater than current count (${currentCount})`;
+                    }
+                    if (num > 10000) {
+                        return 'Partition count should not exceed 10000';
+                    }
+                    return undefined;
+                }
+            });
+
+            if (!newCountStr) {
+                return;
+            }
+
+            const newCount = Number(newCountStr);
+
+            // Validate
+            partitionService.validatePartitionCount(currentCount, newCount);
+
+            // Confirm action
+            const confirm = await vscode.window.showWarningMessage(
+                `Add ${newCount - currentCount} new partition(s) to topic "${node.topicName}"?\n\n` +
+                `Current: ${currentCount} → New: ${newCount}\n\n` +
+                `⚠️ Warning: This will trigger consumer group rebalancing and cannot be undone.`,
+                'Add Partitions',
+                'Cancel'
+            );
+
+            if (confirm !== 'Add Partitions') {
+                return;
+            }
+
+            // Add partitions
+            await vscode.window.withProgress(
+                {
+                    location: vscode.ProgressLocation.Notification,
+                    title: `Adding partitions to topic "${node.topicName}"`,
+                    cancellable: false
+                },
+                async () => {
+                    await partitionService.addPartitions(admin, node.topicName, newCount);
+                }
+            );
+
+            provider.refresh();
+            vscode.window.showInformationMessage(
+                `✓ Successfully added ${newCount - currentCount} partition(s) to topic "${node.topicName}"`
+            );
+        },
+        `Adding partitions to topic "${node.topicName}"`
+    );
+}
+
+export async function editTopicConfig(
+    clientManager: KafkaClientManager,
+    provider: KafkaExplorerProvider,
+    node: TopicNode
+) {
+    const configService = new ConfigurationEditorService();
+
+    await ErrorHandler.wrap(
+        async () => {
+            const admin = await clientManager['getAdmin'](node.clusterName);
+
+            // Get current configuration
+            const currentConfigs = await configService.getTopicConfig(admin, node.topicName);
+
+            // Filter to only editable configs
+            const editableConfigs = currentConfigs.filter(c => !configService.isReadOnlyConfig(c));
+
+            if (editableConfigs.length === 0) {
+                vscode.window.showWarningMessage('No editable configurations found for this topic');
+                return;
+            }
+
+            // Show quick pick with config names
+            const selectedConfig = await vscode.window.showQuickPick(
+                editableConfigs.map(c => ({
+                    label: c.configName,
+                    description: c.configValue || '(not set)',
+                    detail: c.isDefault ? 'Default value' : 'Custom value',
+                    config: c
+                })),
+                {
+                    placeHolder: 'Select configuration to edit',
+                    matchOnDescription: true,
+                    matchOnDetail: true
+                }
+            );
+
+            if (!selectedConfig) {
+                return;
+            }
+
+            // Prompt for new value
+            const newValue = await vscode.window.showInputBox({
+                prompt: `Edit configuration: ${selectedConfig.label}`,
+                value: selectedConfig.config.configValue || '',
+                placeHolder: 'Enter new value',
+                validateInput: (value) => {
+                    try {
+                        if (!value.trim()) {
+                            return 'Value cannot be empty';
+                        }
+                        configService.validateConfigValue(selectedConfig.label, value);
+                        return undefined;
+                    } catch (error: unknown) {
+                        return (error as Error).message;
+                    }
+                }
+            });
+
+            if (!newValue) {
+                return;
+            }
+
+            // Confirm change
+            const confirm = await vscode.window.showWarningMessage(
+                `Update configuration for topic "${node.topicName}"?\n\n` +
+                `Config: ${selectedConfig.label}\n` +
+                `Current: ${selectedConfig.config.configValue || '(not set)'}\n` +
+                `New: ${newValue}`,
+                'Update Config',
+                'Cancel'
+            );
+
+            if (confirm !== 'Update Config') {
+                return;
+            }
+
+            // Apply configuration
+            await vscode.window.withProgress(
+                {
+                    location: vscode.ProgressLocation.Notification,
+                    title: `Updating configuration for topic "${node.topicName}"`,
+                    cancellable: false
+                },
+                async () => {
+                    await configService.alterTopicConfig(admin, node.topicName, [
+                        { name: selectedConfig.label, value: newValue }
+                    ]);
+                }
+            );
+
+            provider.refresh();
+            vscode.window.showInformationMessage(
+                `✓ Configuration "${selectedConfig.label}" updated successfully for topic "${node.topicName}"`
+            );
+        },
+        `Editing configuration for topic "${node.topicName}"`
+    );
+}
+
 export async function showTopicDetails(clientManager: KafkaClientManager, node: TopicNode, context?: vscode.ExtensionContext) {
     await ErrorHandler.wrap(
         async () => {
@@ -135,12 +312,10 @@ export async function showTopicDetails(clientManager: KafkaClientManager, node: 
                 showCopyButton: true,
                 showRefreshButton: false,
                 showAIAdvisor: aiAvailable,
-                notice: {
-                    type: 'info',
-                    text: aiAvailable
-                        ? '🤖 Try the AI Advisor for intelligent configuration recommendations! ✏️ Edit mode coming soon.'
-                        : '✏️ Edit mode coming soon! You\'ll be able to modify topic configurations directly from this view.'
-                },
+                    notice: aiAvailable ? {
+                        type: 'info',
+                        text: '🤖 Try the AI Advisor for intelligent configuration recommendations!'
+                    } : undefined,
                 sections: [
                     {
                         title: 'Overview',
@@ -435,10 +610,7 @@ export async function showTopicACLDetails(clientManager: KafkaClientManager, nod
             title: `${aclDetails.principal} → ${aclDetails.operation}`,
             showCopyButton: true,
             showRefreshButton: false,
-            notice: {
-                type: 'info',
-                text: '✏️ Edit mode coming soon! You\'ll be able to modify ACL configurations directly from this view.'
-            },
+            notice: undefined,
             sections: [
                 {
                     title: 'ACL Information',

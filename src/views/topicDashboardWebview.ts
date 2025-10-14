@@ -185,12 +185,12 @@ export class TopicDashboardWebview {
 
         if (!topicMetadata) {
             this.logger.warn('No topic metadata provided');
-            return { partitions: [] };
+            return { partitions: [], brokerDistribution: [] };
         }
 
         if (!topicMetadata.partitions) {
             this.logger.warn('No partitions found in topic metadata');
-            return { partitions: [] };
+            return { partitions: [], brokerDistribution: [] };
         }
 
         const partitions = topicMetadata.partitions;
@@ -198,8 +198,52 @@ export class TopicDashboardWebview {
         // Ensure partitions is an array
         if (!Array.isArray(partitions)) {
             this.logger.error(`Partitions in metadata is not an array: ${typeof partitions}`, partitions);
-            return { partitions: [] };
+            return { partitions: [], brokerDistribution: [] };
         }
+
+        // Calculate broker distribution
+        const brokerStats = new Map<number, { leader: number; replica: number; isr: number }>();
+
+        partitions.forEach((p: any) => {
+            // Count leader partitions
+            const leaderId = p.leader;
+            if (leaderId !== undefined && leaderId !== -1) {
+                if (!brokerStats.has(leaderId)) {
+                    brokerStats.set(leaderId, { leader: 0, replica: 0, isr: 0 });
+                }
+                brokerStats.get(leaderId)!.leader++;
+            }
+
+            // Count replica partitions
+            if (p.replicas) {
+                for (const brokerId of p.replicas) {
+                    if (!brokerStats.has(brokerId)) {
+                        brokerStats.set(brokerId, { leader: 0, replica: 0, isr: 0 });
+                    }
+                    brokerStats.get(brokerId)!.replica++;
+                }
+            }
+
+            // Count ISR partitions
+            if (p.isr) {
+                for (const brokerId of p.isr) {
+                    if (!brokerStats.has(brokerId)) {
+                        brokerStats.set(brokerId, { leader: 0, replica: 0, isr: 0 });
+                    }
+                    brokerStats.get(brokerId)!.isr++;
+                }
+            }
+        });
+
+        // Convert broker stats to array and sort by broker ID
+        const brokerDistribution = Array.from(brokerStats.entries())
+            .map(([brokerId, stats]) => ({
+                brokerId,
+                leaderCount: stats.leader,
+                replicaCount: stats.replica,
+                isrCount: stats.isr
+            }))
+            .sort((a, b) => a.brokerId - b.brokerId);
 
         return {
             partitions: partitions.map((p: any) => ({
@@ -207,7 +251,8 @@ export class TopicDashboardWebview {
                 leader: p.leader,
                 replicas: p.replicas || [],
                 isr: p.isr || []
-            }))
+            })),
+            brokerDistribution
         };
     }
 
@@ -564,8 +609,8 @@ export class TopicDashboardWebview {
                     </div>
 
                     <div class="chart-container">
-                        <div class="chart-title" title="Shows how replicas are distributed across brokers for fault tolerance" style="cursor: help;">🔄 Replica Distribution</div>
-                        <canvas id="replicaChart" width="400" height="200"></canvas>
+                        <div class="chart-title" title="Partition distribution: Leaders (blue), Replicas (green), ISR (orange) across brokers" style="cursor: help;">🔄 Broker Partition Distribution</div>
+                        <canvas id="brokerDistributionChart" width="400" height="200"></canvas>
                     </div>
                 </div>
 
@@ -664,52 +709,46 @@ export class TopicDashboardWebview {
                         }
                     });
 
-                    // Initialize replica distribution pie chart
-                    const replicaCtx = document.getElementById('replicaChart').getContext('2d');
-                    const replicaData = ${JSON.stringify(metrics.partitions.map((p: any) => ({
-                        partition: p.id,
-                        leader: p.leader,
-                        replicas: p.replicas
-                    })))};
+                    // Initialize broker distribution chart with leaders, replicas, and ISR
+                    const brokerDistCtx = document.getElementById('brokerDistributionChart').getContext('2d');
+                    const brokerDistribution = ${JSON.stringify(_partitionInfo.brokerDistribution || [])};
 
-                    // Count replicas per broker
-                    const brokerCounts = {};
-                    replicaData.forEach(partition => {
-                        partition.replicas.forEach(brokerId => {
-                            brokerCounts[brokerId] = (brokerCounts[brokerId] || 0) + 1;
-                        });
-                    });
-
-                    const brokerLabels = Object.keys(brokerCounts).sort((a, b) => parseInt(a) - parseInt(b));
-                    const brokerData = brokerLabels.map(brokerId => brokerCounts[brokerId]);
-                    const colors = [
-                        'rgba(255, 99, 132, 0.8)',   // Red
-                        'rgba(54, 162, 235, 0.8)',   // Blue
-                        'rgba(255, 205, 86, 0.8)',   // Yellow
-                        'rgba(75, 192, 192, 0.8)',   // Teal
-                        'rgba(153, 102, 255, 0.8)',  // Purple
-                        'rgba(255, 159, 64, 0.8)',   // Orange
-                        'rgba(199, 199, 199, 0.8)',  // Grey
-                        'rgba(83, 102, 255, 0.8)'    // Indigo
-                    ];
-
-                    new Chart(replicaCtx, {
+                    new Chart(brokerDistCtx, {
                         type: 'bar',
                         data: {
-                            labels: brokerLabels.map(id => \`Broker \${id}\`),
-                            datasets: [{
-                                label: 'Replicas',
-                                data: brokerData,
-                                backgroundColor: colors.slice(0, brokerLabels.length),
-                                borderColor: colors.slice(0, brokerLabels.length).map(color => color.replace('0.8', '1')),
-                                borderWidth: 1
-                            }]
+                            labels: brokerDistribution.map(b => \`Broker \${b.brokerId}\`),
+                            datasets: [
+                                {
+                                    label: 'Leaders',
+                                    data: brokerDistribution.map(b => b.leaderCount),
+                                    backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                                    borderWidth: 0
+                                },
+                                {
+                                    label: 'Replicas',
+                                    data: brokerDistribution.map(b => b.replicaCount),
+                                    backgroundColor: 'rgba(75, 192, 192, 0.8)',
+                                    borderWidth: 0
+                                },
+                                {
+                                    label: 'ISR',
+                                    data: brokerDistribution.map(b => b.isrCount),
+                                    backgroundColor: 'rgba(255, 159, 64, 0.8)',
+                                    borderWidth: 0
+                                }
+                            ]
                         },
                         options: {
                             responsive: true,
                             plugins: {
                                 legend: {
-                                    display: false
+                                    display: true,
+                                    position: 'top'
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y
+                                    }
                                 }
                             },
                             scales: {

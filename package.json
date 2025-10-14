@@ -242,6 +242,21 @@
         "command": "kafka.showTopicACLDetails",
         "title": "Show Topic ACL Details",
         "icon": "$(info)"
+      },
+      {
+        "command": "kafka.addPartitions",
+        "title": "Add Partitions",
+        "icon": "$(add)"
+      },
+      {
+        "command": "kafka.editTopicConfig",
+        "title": "Edit Topic Configuration",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "kafka.editBrokerConfig",
+        "title": "Edit Broker Configuration",
+        "icon": "$(settings-gear)"
       }
     ],
     "menus": {
@@ -354,6 +369,16 @@
           "group": "0_info@1"
         },
         {
+          "command": "kafka.addPartitions",
+          "when": "view == kafkaExplorer && viewItem == topic",
+          "group": "1_modification@1"
+        },
+        {
+          "command": "kafka.editTopicConfig",
+          "when": "view == kafkaExplorer && viewItem == topic",
+          "group": "1_modification@2"
+        },
+        {
           "command": "kafka.deleteTopic",
           "when": "view == kafkaExplorer && viewItem == topic",
           "group": "9_danger@1"
@@ -407,6 +432,11 @@
           "command": "kafka.consumeMessages",
           "when": "view == kafkaTables && viewItem == ktable",
           "group": "2_actions@2"
+        },
+        {
+          "command": "kafka.editBrokerConfig",
+          "when": "view == kafkaBrokers && viewItem == broker",
+          "group": "1_modification@1"
         }
       ]
     },

@@ -166,13 +166,19 @@ export class ClusterDashboardWebview {
             });
 
             // Compile broker stats with partition counts
-            const brokerStats = brokers.map(broker => ({
-                id: broker.nodeId,
-                host: broker.host,
-                port: broker.port,
-                rack: broker.rack || 'N/A',
-                partitionCount: partitionDistribution.get(broker.nodeId) || 0
-            }));
+            const brokerStats = brokers.map(broker => {
+                const stats = partitionDistribution.get(broker.nodeId) || { leader: 0, replica: 0, isr: 0 };
+                return {
+                    id: broker.nodeId,
+                    host: broker.host,
+                    port: broker.port,
+                    rack: broker.rack || 'N/A',
+                    partitionCount: stats.leader, // Legacy field for leader count
+                    leaderCount: stats.leader,
+                    replicaCount: stats.replica,
+                    isrCount: stats.isr
+                };
+            });
 
             // Consumer group states
             const consumerGroupStates = consumerGroups.reduce((acc: any, group: any) => {
@@ -202,14 +208,15 @@ export class ClusterDashboardWebview {
     /**
      * Calculate partition distribution across ALL topics using parallel batch processing
      * Processes topics in concurrent batches for optimal performance
+     * Returns leader, replica, and ISR counts per broker
      */
     private async calculatePartitionDistribution(
         clusterName: string,
         topics: string[],
         brokers: any[]
-    ): Promise<Map<number, number>> {
-        const partitionDistribution: Map<number, number> = new Map();
-        brokers.forEach(broker => partitionDistribution.set(broker.nodeId, 0));
+    ): Promise<Map<number, { leader: number; replica: number; isr: number }>> {
+        const partitionDistribution = new Map<number, { leader: number; replica: number; isr: number }>();
+        brokers.forEach(broker => partitionDistribution.set(broker.nodeId, { leader: 0, replica: 0, isr: 0 }));
 
         // Process topics in parallel batches of 20 for optimal performance
         const batchSize = 20;
@@ -226,10 +233,33 @@ export class ClusterDashboardWebview {
                     try {
                         const metadata = await this.clientManager.getTopicMetadata(clusterName, topic);
                         for (const partition of metadata.partitions) {
+                            // Count leader partitions
                             const leaderId = partition.leader;
                             if (leaderId !== undefined && leaderId !== -1) {
-                                const count = partitionDistribution.get(leaderId) || 0;
-                                partitionDistribution.set(leaderId, count + 1);
+                                const stats = partitionDistribution.get(leaderId);
+                                if (stats) {
+                                    stats.leader++;
+                                }
+                            }
+
+                            // Count replica partitions
+                            if (partition.replicas) {
+                                for (const brokerId of partition.replicas) {
+                                    const stats = partitionDistribution.get(brokerId);
+                                    if (stats) {
+                                        stats.replica++;
+                                    }
+                                }
+                            }
+
+                            // Count in-sync replica partitions
+                            if (partition.isr) {
+                                for (const brokerId of partition.isr) {
+                                    const stats = partitionDistribution.get(brokerId);
+                                    if (stats) {
+                                        stats.isr++;
+                                    }
+                                }
                             }
                         }
                     } catch (_error) {
@@ -306,18 +336,41 @@ export class ClusterDashboardWebview {
             ]);
 
             // Calculate partition distribution per broker
-            const partitionDistribution: Map<number, number> = new Map();
-            brokers.forEach(broker => partitionDistribution.set(broker.nodeId, 0));
+            const partitionDistribution = new Map<number, { leader: number; replica: number; isr: number }>();
+            brokers.forEach(broker => partitionDistribution.set(broker.nodeId, { leader: 0, replica: 0, isr: 0 }));
 
             // Count partitions per broker by examining topic metadata
             for (const topic of topics.slice(0, 100)) { // Limit for performance
                 try {
                     const metadata = await this.clientManager.getTopicMetadata(clusterName, topic);
                     for (const partition of metadata.partitions) {
+                        // Count leader partitions
                         const leaderId = partition.leader;
                         if (leaderId !== undefined && leaderId !== -1) {
-                            const count = partitionDistribution.get(leaderId) || 0;
-                            partitionDistribution.set(leaderId, count + 1);
+                            const stats = partitionDistribution.get(leaderId);
+                            if (stats) {
+                                stats.leader++;
+                            }
+                        }
+
+                        // Count replica partitions
+                        if (partition.replicas) {
+                            for (const brokerId of partition.replicas) {
+                                const stats = partitionDistribution.get(brokerId);
+                                if (stats) {
+                                    stats.replica++;
+                                }
+                            }
+                        }
+
+                        // Count in-sync replica partitions
+                        if (partition.isr) {
+                            for (const brokerId of partition.isr) {
+                                const stats = partitionDistribution.get(brokerId);
+                                if (stats) {
+                                    stats.isr++;
+                                }
+                            }
                         }
                     }
                 } catch (_error) {
@@ -327,13 +380,19 @@ export class ClusterDashboardWebview {
             }
 
             // Get detailed broker stats with partition counts
-            const brokerStats = brokers.map(broker => ({
-                id: broker.nodeId,
-                host: broker.host,
-                port: broker.port,
-                rack: broker.rack || 'N/A',
-                partitionCount: partitionDistribution.get(broker.nodeId) || 0
-            }));
+            const brokerStats = brokers.map(broker => {
+                const stats = partitionDistribution.get(broker.nodeId) || { leader: 0, replica: 0, isr: 0 };
+                return {
+                    id: broker.nodeId,
+                    host: broker.host,
+                    port: broker.port,
+                    rack: broker.rack || 'N/A',
+                    partitionCount: stats.leader, // Legacy field for leader count
+                    leaderCount: stats.leader,
+                    replicaCount: stats.replica,
+                    isrCount: stats.isr
+                };
+            });
 
             // Get topic partition distribution
             // For performance, limit to first 100 topics if there are many
@@ -633,7 +692,7 @@ export class ClusterDashboardWebview {
 
                 <div class="charts-grid">
                     <div class="chart-card"><h3 title="Distribution of consumer groups by state (Stable, Empty, Dead, etc.)" style="cursor: help;">Consumer Group States</h3><div class="chart-container"><canvas id="consumerGroupChart"></canvas></div></div>
-                    <div class="chart-card"><h3 title="Number of partition leaders on each broker (should be balanced)" style="cursor: help;">Partition Distribution Across Brokers</h3><div class="chart-container"><canvas id="brokerChart"></canvas></div></div>
+                    <div class="chart-card"><h3 title="Partition distribution: Leaders (blue), Replicas (green), ISR (orange) across brokers" style="cursor: help;">Partition Distribution Across Brokers</h3><div class="chart-container"><canvas id="brokerChart"></canvas></div></div>
                     <div class="chart-card"><h3 title="Number of topics with each replication factor (RF=3 recommended for production)" style="cursor: help;">Replication Factor Distribution</h3><div class="chart-container"><canvas id="replicationChart"></canvas></div></div>
                 </div>
 
@@ -645,9 +704,11 @@ export class ClusterDashboardWebview {
                             <th title="Hostname or IP address of the broker" style="cursor: help;">Host</th>
                             <th title="Port number the broker listens on" style="cursor: help;">Port</th>
                             <th title="Rack identifier for rack-aware partition placement" style="cursor: help;">Rack</th>
-                            <th title="Number of partitions where this broker is the leader" style="cursor: help;">Partition Leaders</th>
+                            <th title="Number of partitions where this broker is the leader" style="cursor: help;">Leaders</th>
+                            <th title="Total number of partition replicas on this broker" style="cursor: help;">Replicas</th>
+                            <th title="Number of in-sync replicas on this broker" style="cursor: help;">ISR</th>
                         </tr></thead>
-                        <tbody>\${stats.brokers.sort((a, b) => a.id - b.id).map(b => \`<tr><td><strong>\${b.id}</strong></td><td>\${b.host}</td><td>\${b.port}</td><td>\${b.rack}</td><td><strong>\${b.partitionCount}</strong> partitions</td></tr>\`).join('')}</tbody>
+                        <tbody>\${stats.brokers.sort((a, b) => a.id - b.id).map(b => \`<tr><td><strong>\${b.id}</strong></td><td>\${b.host}</td><td>\${b.port}</td><td>\${b.rack}</td><td><strong>\${b.leaderCount || b.partitionCount}</strong></td><td>\${b.replicaCount || 0}</td><td>\${b.isrCount || 0}</td></tr>\`).join('')}</tbody>
                     </table>
                 </div>
 
@@ -681,8 +742,42 @@ export class ClusterDashboardWebview {
             const sortedBrokers = stats.brokers.sort((a, b) => a.id - b.id);
             new Chart(document.getElementById('brokerChart'), {
                 type: 'bar',
-                data: { labels: sortedBrokers.map(b => 'Broker ' + b.id), datasets: [{ label: 'Partition Leaders', data: sortedBrokers.map(b => b.partitionCount), backgroundColor: 'rgba(54, 162, 235, 0.8)', borderWidth: 0 }] },
-                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => 'Partitions: ' + ctx.parsed.y } } } }
+                data: {
+                    labels: sortedBrokers.map(b => 'Broker ' + b.id),
+                    datasets: [
+                        {
+                            label: 'Leaders',
+                            data: sortedBrokers.map(b => b.leaderCount || b.partitionCount || 0),
+                            backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                            borderWidth: 0
+                        },
+                        {
+                            label: 'Replicas',
+                            data: sortedBrokers.map(b => b.replicaCount || 0),
+                            backgroundColor: 'rgba(75, 192, 192, 0.8)',
+                            borderWidth: 0
+                        },
+                        {
+                            label: 'ISR',
+                            data: sortedBrokers.map(b => b.isrCount || 0),
+                            backgroundColor: 'rgba(255, 159, 64, 0.8)',
+                            borderWidth: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+                    plugins: {
+                        legend: { display: true, position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y
+                            }
+                        }
+                    }
+                }
             });
 
             const replicationFactors = stats.topicSample.reduce((acc, t) => { acc[t.replicas] = (acc[t.replicas] || 0) + 1; return acc; }, {});
