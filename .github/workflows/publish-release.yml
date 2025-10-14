@@ -169,10 +169,27 @@ jobs:
         id: marketplace_publish
         if: steps.version_check.outputs.changed == 'true' && steps.check_token.outputs.has_token == 'true'
         run: |
-          # Find the VSIX file created by npm run package
-          VSIX_FILE=$(ls *.vsix)
-          echo "Publishing $VSIX_FILE to marketplace..."
-          vsce publish --packagePath "$VSIX_FILE" --pat $VSCE_PAT
+          # Use the specific VSIX file for this version
+          EXPECTED_VSIX="vscode-kafka-client-${{ steps.version_check.outputs.version }}.vsix"
+          if [ ! -f "$EXPECTED_VSIX" ]; then
+            echo "::error::Expected VSIX file $EXPECTED_VSIX not found"
+            exit 1
+          fi
+
+          # Verify package
+          echo "Verifying package $EXPECTED_VSIX..."
+          if ! npx vsce ls --packagePath "$EXPECTED_VSIX" > /dev/null 2>&1; then
+            echo "::error::Invalid VSIX package"
+            exit 1
+          fi
+
+          echo "Publishing $EXPECTED_VSIX to marketplace..."
+          if vsce publish --packagePath "$EXPECTED_VSIX" --pat $VSCE_PAT; then
+            echo "marketplace_publish_status=success" >> $GITHUB_OUTPUT
+          else
+            echo "marketplace_publish_status=failure" >> $GITHUB_OUTPUT
+            exit 1
+          fi
         env:
           VSCE_PAT: ${{ secrets.AZURE_TOKEN }}
         continue-on-error: true
@@ -206,6 +223,76 @@ jobs:
               labels: ['release', 'automation', 'bug']
             });
 
+      - name: Check Open VSX token availability
+        id: check_ovsx_token
+        if: steps.version_check.outputs.changed == 'true'
+        env:
+          OVSX_TOKEN: ${{ secrets.OPEN_VSX_ACCESS_TOKEN }}
+        run: |
+          if [ -n "$OVSX_TOKEN" ]; then
+            echo "has_token=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_token=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Publish to Open VSX Registry
+        id: ovsx_publish
+        if: steps.version_check.outputs.changed == 'true' && steps.check_ovsx_token.outputs.has_token == 'true'
+        run: |
+          # Find the specific VSIX file for this version
+          EXPECTED_VSIX="vscode-kafka-client-${{ steps.version_check.outputs.version }}.vsix"
+          if [ ! -f "$EXPECTED_VSIX" ]; then
+            echo "::error::Expected VSIX file $EXPECTED_VSIX not found"
+            exit 1
+          fi
+
+          # Verify package
+          echo "Verifying package $EXPECTED_VSIX..."
+          if ! npx vsce ls --packagePath "$EXPECTED_VSIX" > /dev/null 2>&1; then
+            echo "::error::Invalid VSIX package"
+            exit 1
+          fi
+
+          echo "Publishing $EXPECTED_VSIX to Open VSX Registry..."
+          if npx ovsx publish --packagePath "$EXPECTED_VSIX" -p $OVSX_PAT; then
+            echo "ovsx_publish_status=success" >> $GITHUB_OUTPUT
+          else
+            echo "ovsx_publish_status=failure" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+        env:
+          OVSX_PAT: ${{ secrets.OPEN_VSX_ACCESS_TOKEN }}
+        continue-on-error: true
+
+      - name: Report Open VSX publish failure
+        if: steps.version_check.outputs.changed == 'true' && steps.ovsx_publish.outcome == 'failure'
+        uses: actions/github-script@v7
+        continue-on-error: true
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 Failed to publish v${{ steps.version_check.outputs.version }} to Open VSX Registry',
+              body: [
+                '## Open VSX Publish Failed',
+                '',
+                '**Version:** v${{ steps.version_check.outputs.version }}',
+                '**Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}',
+                '',
+                'The automated Open VSX publish step failed. This may require manual intervention.',
+                '',
+                '### Next Steps:',
+                '1. Check the [workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details',
+                '2. Verify OPEN_VSX_ACCESS_TOKEN secret is valid and has proper permissions',
+                '3. If needed, publish manually using: `npx ovsx publish`',
+                '4. Close this issue once resolved',
+                '',
+                '**Note:** The GitHub Release and git tag were created successfully.'
+              ].join('\n'),
+              labels: ['release', 'automation', 'bug']
+            });
+
       - name: Summary
         if: steps.version_check.outputs.changed == 'true'
         run: |
@@ -216,13 +303,23 @@ jobs:
           echo "- 📦 GitHub Release created" >> $GITHUB_STEP_SUMMARY
 
           if [ "${{ steps.check_token.outputs.has_token }}" == "true" ]; then
-            if [ "${{ steps.marketplace_publish.outcome }}" == "success" ]; then
+            if [ "${{ steps.marketplace_publish.outputs.marketplace_publish_status }}" == "success" ]; then
               echo "- ✅ Published to VS Code Marketplace" >> $GITHUB_STEP_SUMMARY
             else
               echo "- ❌ Marketplace publish failed (issue created automatically)" >> $GITHUB_STEP_SUMMARY
             fi
           else
             echo "- ⚠️ Marketplace publish skipped (AZURE_TOKEN not configured)" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ steps.check_ovsx_token.outputs.has_token }}" == "true" ]; then
+            if [ "${{ steps.ovsx_publish.outputs.ovsx_publish_status }}" == "success" ]; then
+              echo "- ✅ Published to Open VSX Registry" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- ❌ Open VSX publish failed (issue created automatically)" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "- ⚠️ Open VSX publish skipped (OPEN_VSX_ACCESS_TOKEN not configured)" >> $GITHUB_STEP_SUMMARY
           fi
 
       - name: No release

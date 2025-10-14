@@ -45,6 +45,9 @@ Explore topic details with message distribution, replica distribution, and parti
 ### From Marketplace
 Search for "Kafka Client" in VSCode Extensions
 
+### From Open VSX Registry
+Search for "Kafka Client" in [Open VSX Registry](https://open-vsx.org) or install directly in VSCodium, Gitpod, or other Open VSX compatible editors.
+
 ### From VSIX
 1. Download `.vsix` from [releases](https://github.com/nipunap/vscode-kafka-client/releases)
 2. VSCode: `Extensions` → `⋯` → `Install from VSIX...`
@@ -534,7 +537,7 @@ On merge to `main`:
 - 📝 Auto-generate CHANGELOG
 - 🏷️ Create git tag
 - 📦 Publish GitHub Release
-- 🚀 (Optional) Publish to marketplace
+- 🚀 Publish to VS Code Marketplace and Open VSX Registry
 
 ## 📄 License
 

@@ -511,6 +511,7 @@
     "release:patch": "commit-and-tag-version --release-as patch"
   },
   "devDependencies": {
+    "ovsx": "^0.8.3",
     "@types/ini": "^4.1.1",
     "@types/mocha": "^10.0.10",
     "@types/node": "^20.0.0",
