@@ -42,6 +42,31 @@ function copyWebviewScripts() {
 }
 
 /**
+ * Copy data files from src to dist
+ */
+function copyDataFiles() {
+    const dataSource = 'src/data';
+    const dataDest = 'dist/data';
+
+    try {
+        // Create destination directory
+        fs.mkdirSync(dataDest, { recursive: true });
+
+        // Copy all .json files
+        const files = fs.readdirSync(dataSource).filter(file => file.endsWith('.json'));
+        files.forEach(file => {
+            fs.copyFileSync(
+                path.join(dataSource, file),
+                path.join(dataDest, file)
+            );
+        });
+        console.log(`[data] Copied ${files.length} data files to dist/`);
+    } catch (error) {
+        console.error('[data] Failed to copy data files:', error.message);
+    }
+}
+
+/**
  * @type {import('esbuild').Plugin}
  */
 const esbuildProblemMatcherPlugin = {
@@ -57,8 +82,9 @@ const esbuildProblemMatcherPlugin = {
             });
             console.log('[watch] build finished');
 
-            // Copy webview scripts after each build
+            // Copy webview scripts and data files after each build
             copyWebviewScripts();
+            copyDataFiles();
         });
     },
 };
@@ -106,6 +132,7 @@ async function main() {
         await ctx.rebuild();
         await ctx.dispose();
         copyWebviewScripts(); // Copy scripts for non-watch builds
+        copyDataFiles(); // Copy data files for non-watch builds
         console.log('[build] complete');
     }
 }

@@ -143,6 +143,18 @@ export async function activate(context: vscode.ExtensionContext) {
     );
 
     context.subscriptions.push(
+        vscode.commands.registerCommand('kafka.addPartitions', async (node) => {
+            await topicCommands.addPartitions(clientManager, kafkaExplorerProvider, node);
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('kafka.editTopicConfig', async (node) => {
+            await topicCommands.editTopicConfig(clientManager, kafkaExplorerProvider, node);
+        })
+    );
+
+    context.subscriptions.push(
         vscode.commands.registerCommand('kafka.produceMessage', async (node) => {
             // Validate input
             if (!node || !node.clusterName || !node.topicName) {
@@ -248,6 +260,12 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.findBroker', async () => {
             await brokerCommands.findBroker(clientManager);
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('kafka.editBrokerConfig', async (node) => {
+            await brokerCommands.editBrokerConfig(clientManager, node);
         })
     );
 

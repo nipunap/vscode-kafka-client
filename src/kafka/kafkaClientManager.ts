@@ -418,8 +418,14 @@ export class KafkaClientManager {
                 const partitionId = partition.partitionId;
 
                 // Get beginning and end offsets using fetchOffsets
-                const beginOffset = await admin.fetchTopicOffsets(topicName);
-                const partitionOffset = beginOffset.find((p: any) => p.partition === partitionId);
+                let beginOffset: { partition: number; low: string; high: string; }[] = [];
+                try {
+                    beginOffset = await admin.fetchTopicOffsets(topicName);
+                } catch (error) {
+                    this.logger.warn(`Failed to fetch offsets for partition ${partitionId}, using 0`, error);
+                }
+
+                const partitionOffset = beginOffset.find((p) => p.partition === partitionId);
 
                 // Convert Long objects to strings (kafkajs uses 'long' library for 64-bit integers)
                 const lowOffset = partitionOffset?.low ? String(partitionOffset.low) : '0';
@@ -676,29 +682,65 @@ export class KafkaClientManager {
 
                 // Fetch topic offsets to get high water marks
                 try {
-                    const topicHighWaterMarks = await admin.fetchTopicOffsets(topic);
+                    // Skip if no partitions to process
+                    if (!topicOffsets.partitions || !Array.isArray(topicOffsets.partitions)) {
+                        this.logger.warn(`No partitions found for topic ${topic}, skipping lag calculation`);
+                        continue;
+                    }
 
+                    // Fetch high water marks for the topic
+                    let topicHighWaterMarks: { partition: number; low: string; high: string; }[] = [];
+                    try {
+                        topicHighWaterMarks = await admin.fetchTopicOffsets(topic);
+                        if (!topicHighWaterMarks || !Array.isArray(topicHighWaterMarks)) {
+                            this.logger.warn(`No high water marks found for topic ${topic}, using 0 for lag calculation`);
+                            topicHighWaterMarks = [];
+                        }
+                    } catch (fetchError) {
+                        this.logger.error(`Failed to fetch high water marks for topic ${topic}`, fetchError);
+                        // Continue with empty array to show lag as 0
+                        topicHighWaterMarks = [];
+                    }
+
+                    // Process each partition
                     for (const partitionOffset of topicOffsets.partitions) {
-                        const partition = partitionOffset.partition;
-                        const currentOffset = partitionOffset.offset;
+                        try {
+                            const partition = partitionOffset.partition;
+                            const currentOffset = partitionOffset.offset;
 
-                        // Find the high water mark for this partition
-                        const hwm = topicHighWaterMarks.find((p: any) => p.partition === partition);
-                        const highWaterMark = hwm ? BigInt(hwm.high) : BigInt(0);
-                        const current = BigInt(currentOffset);
-                        const lag = Number(highWaterMark - current);
+                            // Find the high water mark for this partition
+                            const hwm = topicHighWaterMarks.find((p: any) => p.partition === partition);
+                            const highWaterMark = hwm && typeof hwm.high === 'string' ? BigInt(hwm.high) : BigInt(0);
+                            const current = BigInt(currentOffset);
+                            const lag = Number(highWaterMark - current);
 
-                        lagInfo.push({
-                            topic,
-                            partition,
-                            currentOffset: currentOffset.toString(),
-                            highWaterMark: highWaterMark.toString(),
-                            lag: Math.max(0, lag),
-                            metadata: partitionOffset.metadata
-                        });
+                            lagInfo.push({
+                                topic,
+                                partition,
+                                currentOffset: currentOffset.toString(),
+                                highWaterMark: highWaterMark.toString(),
+                                lag: Math.max(0, lag),
+                                metadata: partitionOffset.metadata || null
+                            });
+                        } catch (partitionError) {
+                            this.logger.error(
+                                `Failed to calculate lag for topic ${topic} partition ${partitionOffset.partition}`,
+                                partitionError
+                            );
+                            // Add entry with 0 lag to maintain partition visibility
+                            lagInfo.push({
+                                topic,
+                                partition: partitionOffset.partition,
+                                currentOffset: '0',
+                                highWaterMark: '0',
+                                lag: 0,
+                                metadata: null,
+                                error: 'Failed to calculate lag'
+                            });
+                        }
                     }
                 } catch (error) {
-                    console.error(`Failed to get lag for ${topic}`, error);
+                    this.logger.error(`Failed to process lag for topic ${topic}`, error);
                 }
             }
 
@@ -1100,6 +1142,16 @@ export class KafkaClientManager {
             this.admins.delete(clusterName);
             this.adminHealthTimestamps.delete(clusterName);
         }
+    }
+
+    /**
+     * Get an admin client for a cluster (public API)
+     * This is the public interface for accessing admin clients
+     * @param clusterName The name of the cluster
+     * @returns Admin client instance
+     */
+    public async getAdminClient(clusterName: string): Promise<Admin> {
+        return this.getAdmin(clusterName);
     }
 
     private async getProducer(clusterName: string): Promise<Producer> {

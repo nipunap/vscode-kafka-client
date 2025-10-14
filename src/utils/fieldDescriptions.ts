@@ -28,7 +28,24 @@ export class FieldDescriptions {
         }
 
         try {
-            const jsonPath = path.join(extensionPath, 'src', 'data', 'fieldDescriptions.json');
+            // Try bundled path first (production), then development path
+            const possiblePaths = [
+                path.join(extensionPath, 'dist', 'data', 'fieldDescriptions.json'),
+                path.join(extensionPath, 'src', 'data', 'fieldDescriptions.json')
+            ];
+
+            let jsonPath: string | null = null;
+            for (const p of possiblePaths) {
+                if (fs.existsSync(p)) {
+                    jsonPath = p;
+                    break;
+                }
+            }
+
+            if (!jsonPath) {
+                throw new Error('fieldDescriptions.json not found in any expected location');
+            }
+
             const jsonContent = fs.readFileSync(jsonPath, 'utf-8');
             const data = JSON.parse(jsonContent) as Record<string, Record<string, string>>;
 

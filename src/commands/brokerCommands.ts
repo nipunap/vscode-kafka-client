@@ -8,6 +8,8 @@ import { DetailsWebview, DetailsData } from '../views/DetailsWebview';
 import { ErrorHandler } from '../infrastructure/ErrorHandler';
 import { AIAdvisor } from '../services/AIAdvisor';
 import { ConfigSourceMapper } from '../utils/configSourceMapper';
+import { ConfigurationEditorService } from '../services/ConfigurationEditorService';
+import { AuditLog, AuditOperation } from '../infrastructure/AuditLog';
 
 export async function showBrokerDetails(clientManager: KafkaClientManager, node: any, context?: vscode.ExtensionContext) {
     await ErrorHandler.wrap(async () => {
@@ -48,12 +50,10 @@ export async function showBrokerDetails(clientManager: KafkaClientManager, node:
             showCopyButton: true,
             showRefreshButton: false,
             showAIAdvisor: aiAvailable,
-            notice: {
+            notice: aiAvailable ? {
                 type: 'info',
-                text: aiAvailable
-                    ? '🤖 Try the AI Advisor for broker optimization recommendations! ✏️ Edit mode coming soon.'
-                    : '✏️ Edit mode coming soon! You\'ll be able to modify broker configurations directly from this view.'
-            },
+                text: '🤖 Try the AI Advisor for broker optimization recommendations!'
+            } : undefined,
             sections: [
                 {
                     title: 'Overview',
@@ -188,4 +188,130 @@ export async function findBroker(clientManager: KafkaClientManager) {
         const errorMsg = error?.message || error?.toString() || 'Unknown error';
         vscode.window.showErrorMessage(`Failed to search brokers: ${errorMsg}`);
     }
+}
+
+export async function editBrokerConfig(
+    clientManager: KafkaClientManager,
+    node: any
+) {
+    const configService = new ConfigurationEditorService();
+
+    await ErrorHandler.wrap(
+        async () => {
+            const admin = await clientManager.getAdminClient(node.clusterName);
+            const brokerId = String(node.brokerId);
+
+            // Get current configuration
+            const currentConfigs = await configService.getBrokerConfig(admin, brokerId);
+
+            // Filter to only editable configs
+            const editableConfigs = currentConfigs.filter(c => !configService.isReadOnlyConfig(c));
+
+            if (editableConfigs.length === 0) {
+                vscode.window.showWarningMessage('No editable configurations found for this broker');
+                return;
+            }
+
+            // Show quick pick with config names
+            const selectedConfig = await vscode.window.showQuickPick(
+                editableConfigs.map(c => ({
+                    label: c.configName,
+                    description: c.configValue || '(not set)',
+                    detail: configService.requiresBrokerRestart(c.configName)
+                        ? '⚠️ Requires broker restart'
+                        : c.isDefault
+                            ? 'Default value'
+                            : 'Custom value',
+                    config: c
+                })),
+                {
+                    placeHolder: 'Select configuration to edit',
+                    matchOnDescription: true,
+                    matchOnDetail: true
+                }
+            );
+
+            if (!selectedConfig) {
+                return;
+            }
+
+            // Prompt for new value
+            const newValue = await vscode.window.showInputBox({
+                prompt: `Edit configuration: ${selectedConfig.label}`,
+                value: selectedConfig.config.configValue || '',
+                placeHolder: 'Enter new value',
+                validateInput: (value) => {
+                    try {
+                        if (!value.trim()) {
+                            return 'Value cannot be empty';
+                        }
+                        configService.validateConfigValue(selectedConfig.label, value);
+                        return undefined;
+                    } catch (error: unknown) {
+                        return (error as Error).message;
+                    }
+                }
+            });
+
+            if (!newValue) {
+                return;
+            }
+
+            // Build confirmation message
+            let confirmMessage = `Update configuration for broker ${brokerId}?\n\n` +
+                `Config: ${selectedConfig.label}\n` +
+                `Current: ${selectedConfig.config.configValue || '(not set)'}\n` +
+                `New: ${newValue}`;
+
+            if (configService.requiresBrokerRestart(selectedConfig.label)) {
+                confirmMessage += '\n\n⚠️ WARNING: This configuration requires a broker restart to take effect!';
+            }
+
+            // Confirm change
+            const confirm = await vscode.window.showWarningMessage(
+                confirmMessage,
+                'Update Config',
+                'Cancel'
+            );
+
+            if (confirm !== 'Update Config') {
+                return;
+            }
+
+            // Apply configuration
+            await vscode.window.withProgress(
+                {
+                    location: vscode.ProgressLocation.Notification,
+                    title: `Updating configuration for broker ${brokerId}`,
+                    cancellable: false
+                },
+                async () => {
+                    await configService.alterBrokerConfig(admin, brokerId, [
+                        { name: selectedConfig.label, value: newValue }
+                    ]);
+                }
+            );
+
+            // Audit log
+            AuditLog.success(
+                AuditOperation.BROKER_CONFIG_UPDATED,
+                node.clusterName,
+                `broker-${brokerId}`,
+                { 
+                    configName: selectedConfig.label, 
+                    oldValue: selectedConfig.config.configValue, 
+                    newValue,
+                    requiresRestart: configService.requiresBrokerRestart(selectedConfig.label)
+                }
+            );
+
+            let successMessage = `✓ Configuration "${selectedConfig.label}" updated successfully for broker ${brokerId}`;
+            if (configService.requiresBrokerRestart(selectedConfig.label)) {
+                successMessage += '\n⚠️ Broker restart required for changes to take effect';
+            }
+
+            vscode.window.showInformationMessage(successMessage);
+        },
+        `Editing configuration for broker ${node.brokerId}`
+    );
 }
