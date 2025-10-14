@@ -128,39 +128,21 @@ jobs:
             git push origin "$VERSION"
           fi
 
-      - name: Check if release exists
+      - name: Create or update GitHub Release
         if: steps.version_check.outputs.changed == 'true'
-        id: check_release
-        run: |
-          VERSION="v${{ steps.version_check.outputs.version }}"
-          if gh release view "$VERSION" >/dev/null 2>&1; then
-            echo "Release $VERSION already exists"
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "Release $VERSION does not exist"
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create GitHub Release
-        if: steps.version_check.outputs.changed == 'true' && steps.check_release.outputs.exists == 'false'
-        uses: softprops/action-gh-release@v1
+        id: create_release
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version_check.outputs.version }}
           name: Release v${{ steps.version_check.outputs.version }}
           body_path: CHANGELOG.md
-          files: vscode-kafka-client-${{ steps.version_check.outputs.version }}.vsix
+          files: '*.vsix'
           draft: false
           prerelease: false
+          make_latest: true
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Skip release creation
-        if: steps.version_check.outputs.changed == 'true' && steps.check_release.outputs.exists == 'true'
-        run: |
-          echo "⚠️ Release v${{ steps.version_check.outputs.version }} already exists, skipping creation"
-          echo "The VSIX will still be published to the marketplace if configured"
 
       - name: Check Azure token availability
         id: check_token
