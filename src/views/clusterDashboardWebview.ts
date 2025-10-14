@@ -338,22 +338,20 @@ export class ClusterDashboardWebview {
     }
 
     /**
-     * Get top consumer groups by member count with their topic details
-     * Fetches details only for groups with active members
+     * Get top consumer groups with their topic details
+     * Shows groups that have topics assigned (via offsets)
+     * Sorts by number of topics consumed
      */
     private async getTopConsumerGroupsParallel(
         clusterName: string,
         consumerGroups: any[]
     ): Promise<any[]> {
-        // Filter groups with members > 0, sort by member count, take top 10
-        const groupsWithMembers = consumerGroups
-            .filter(g => (g.members?.length || 0) > 0)
-            .sort((a, b) => (b.members?.length || 0) - (a.members?.length || 0))
-            .slice(0, 10);
+        // Take top 10 groups (will filter those without topics after fetching details)
+        const topGroups = consumerGroups.slice(0, 20); // Fetch 20 to ensure we get 10 with topics
 
         // Fetch details in parallel
-        return await Promise.all(
-            groupsWithMembers.map(async group => {
+        const groupsWithDetails = await Promise.all(
+            topGroups.map(async group => {
                 try {
                     const details = await this.clientManager.getConsumerGroupDetails(
                         clusterName,
@@ -390,6 +388,20 @@ export class ClusterDashboardWebview {
                 }
             })
         );
+
+        // Filter groups with topics and sort by topic count (descending), then by member count
+        return groupsWithDetails
+            .filter(g => g.topics.length > 0)
+            .sort((a, b) => {
+                // Primary sort: by number of topics
+                const topicDiff = b.topics.length - a.topics.length;
+                if (topicDiff !== 0) {
+                    return topicDiff;
+                }
+                // Secondary sort: by member count
+                return b.memberCount - a.memberCount;
+            })
+            .slice(0, 10); // Take top 10
     }
 
     private async getClusterStatistics(clusterName: string): Promise<any> {
@@ -816,7 +828,8 @@ export class ClusterDashboardWebview {
                 </div>
 
                 <div class="details-section">
-                    <h2>👥 Top Consumer Groups by Members</h2>
+                    <h2>👥 Top Consumer Groups</h2>
+                    <p style="color: var(--vscode-descriptionForeground); font-size: 12px; margin-bottom: 10px;">Sorted by number of topics consumed</p>
                     \${stats.topConsumerGroups && stats.topConsumerGroups.length > 0 ? \`
                         <div class="consumer-groups-grid">
                             \${stats.topConsumerGroups.map(cg => \`
@@ -851,7 +864,7 @@ export class ClusterDashboardWebview {
                                 </div>
                             \`).join('')}
                         </div>
-                    \` : '<p style="color: var(--vscode-descriptionForeground); font-size: 13px;">No active consumer groups with members found.</p>'}
+                    \` : '<p style="color: var(--vscode-descriptionForeground); font-size: 13px;">No consumer groups with topic assignments found.</p>'}
                 </div>
 
                 <div class="timestamp">Last updated: \${new Date(stats.timestamp).toLocaleString()}</div>

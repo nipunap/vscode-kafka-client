@@ -32,7 +32,7 @@ suite('ClusterDashboardWebview Test Suite', () => {
             assert.strictEqual(typeof privateWebview.getTopConsumerGroupsParallel, 'function');
         });
 
-        test('getTopConsumerGroupsParallel should filter groups with no members', async () => {
+        test('getTopConsumerGroupsParallel should include all groups with topic offsets', async () => {
             const mockConsumerGroups = [
                 { groupId: 'group1', members: [], state: 'Empty' },
                 { groupId: 'group2', members: [{ memberId: 'm1' }], state: 'Stable' },
@@ -55,26 +55,42 @@ suite('ClusterDashboardWebview Test Suite', () => {
             // Restore original method
             clientManager.getConsumerGroupDetails = originalMethod;
 
-            // Should only return groups with members
-            assert.strictEqual(result.length, 1);
-            assert.strictEqual(result[0].groupId, 'group2');
+            // Should return all groups that have topics (regardless of member count)
+            assert.strictEqual(result.length, 3);
         });
 
-        test('getTopConsumerGroupsParallel should sort by member count descending', async () => {
+        test('getTopConsumerGroupsParallel should sort by topic count descending', async () => {
             const mockConsumerGroups = [
                 { groupId: 'group1', members: [{ memberId: 'm1' }], state: 'Stable' },
                 { groupId: 'group2', members: [{ memberId: 'm1' }, { memberId: 'm2' }, { memberId: 'm3' }], state: 'Stable' },
                 { groupId: 'group3', members: [{ memberId: 'm1' }, { memberId: 'm2' }], state: 'Stable' }
             ];
 
-            // Mock getConsumerGroupDetails
+            // Mock getConsumerGroupDetails with different topic counts
             const originalMethod = clientManager.getConsumerGroupDetails;
-            clientManager.getConsumerGroupDetails = async (_clusterName: string, _groupId: string) => {
-                return {
-                    offsets: [
-                        { topic: 'test-topic', partition: 0, offset: '100' }
-                    ]
-                };
+            clientManager.getConsumerGroupDetails = async (_clusterName: string, groupId: string) => {
+                if (groupId === 'group1') {
+                    return {
+                        offsets: [
+                            { topic: 'topic1', partition: 0, offset: '100' },
+                            { topic: 'topic2', partition: 0, offset: '100' },
+                            { topic: 'topic3', partition: 0, offset: '100' }
+                        ]
+                    };
+                } else if (groupId === 'group2') {
+                    return {
+                        offsets: [
+                            { topic: 'topic1', partition: 0, offset: '100' }
+                        ]
+                    };
+                } else {
+                    return {
+                        offsets: [
+                            { topic: 'topic1', partition: 0, offset: '100' },
+                            { topic: 'topic2', partition: 0, offset: '100' }
+                        ]
+                    };
+                }
             };
 
             const privateWebview = dashboardWebview as any;
@@ -83,14 +99,14 @@ suite('ClusterDashboardWebview Test Suite', () => {
             // Restore original method
             clientManager.getConsumerGroupDetails = originalMethod;
 
-            // Should be sorted by member count (highest first)
+            // Should be sorted by topic count (highest first)
             assert.strictEqual(result.length, 3);
-            assert.strictEqual(result[0].groupId, 'group2');
-            assert.strictEqual(result[0].memberCount, 3);
-            assert.strictEqual(result[1].groupId, 'group3');
-            assert.strictEqual(result[1].memberCount, 2);
-            assert.strictEqual(result[2].groupId, 'group1');
-            assert.strictEqual(result[2].memberCount, 1);
+            assert.strictEqual(result[0].groupId, 'group1'); // 3 topics
+            assert.strictEqual(result[0].topics.length, 3);
+            assert.strictEqual(result[1].groupId, 'group3'); // 2 topics
+            assert.strictEqual(result[1].topics.length, 2);
+            assert.strictEqual(result[2].groupId, 'group2'); // 1 topic
+            assert.strictEqual(result[2].topics.length, 1);
         });
 
         test('getTopConsumerGroupsParallel should limit to top 10 groups', async () => {
@@ -163,7 +179,7 @@ suite('ClusterDashboardWebview Test Suite', () => {
             assert.strictEqual(topic3.partitions, 1);
         });
 
-        test('getTopConsumerGroupsParallel should handle groups with no offsets', async () => {
+        test('getTopConsumerGroupsParallel should filter out groups with no offsets', async () => {
             const mockConsumerGroups = [
                 { groupId: 'group1', members: [{ memberId: 'm1' }], state: 'Stable' }
             ];
@@ -182,10 +198,8 @@ suite('ClusterDashboardWebview Test Suite', () => {
             // Restore original method
             clientManager.getConsumerGroupDetails = originalMethod;
 
-            // Should return group with empty topics array
-            assert.strictEqual(result.length, 1);
-            assert.strictEqual(result[0].groupId, 'group1');
-            assert.strictEqual(result[0].topics.length, 0);
+            // Should filter out groups without topics
+            assert.strictEqual(result.length, 0);
         });
 
         test('getTopConsumerGroupsParallel should handle errors gracefully', async () => {
@@ -213,13 +227,9 @@ suite('ClusterDashboardWebview Test Suite', () => {
             // Restore original method
             clientManager.getConsumerGroupDetails = originalMethod;
 
-            // Should return both groups, but group1 with empty topics
-            assert.strictEqual(result.length, 2);
-
-            const group1Result = result.find((g: any) => g.groupId === 'group1');
-            assert.ok(group1Result);
-            assert.strictEqual(group1Result.topics.length, 0);
-
+            // Should only return group2 (group1 filtered out due to no topics)
+            assert.strictEqual(result.length, 1);
+            
             const group2Result = result.find((g: any) => g.groupId === 'group2');
             assert.ok(group2Result);
             assert.strictEqual(group2Result.topics.length, 1);
@@ -254,7 +264,7 @@ suite('ClusterDashboardWebview Test Suite', () => {
             assert.strictEqual(result[2].state, 'Dead');
         });
 
-        test('getTopConsumerGroupsParallel should handle undefined offsets', async () => {
+        test('getTopConsumerGroupsParallel should filter groups with undefined offsets', async () => {
             const mockConsumerGroups = [
                 { groupId: 'group1', members: [{ memberId: 'm1' }], state: 'Stable' }
             ];
@@ -273,9 +283,8 @@ suite('ClusterDashboardWebview Test Suite', () => {
             // Restore original method
             clientManager.getConsumerGroupDetails = originalMethod;
 
-            // Should handle undefined gracefully
-            assert.strictEqual(result.length, 1);
-            assert.strictEqual(result[0].topics.length, 0);
+            // Should filter out groups with undefined offsets
+            assert.strictEqual(result.length, 0);
         });
 
         test('getTopConsumerGroupsParallel should handle offsets without topic field', async () => {
