@@ -148,40 +148,9 @@ jobs:
           sha256sum "$VSIX_FILE" > "${VSIX_FILE}.sha256"
           echo "✅ Package integrity verified with SHA256 checksum"
 
-      - name: Create git tag
-        if: steps.version_check.outputs.changed == 'true'
-        run: |
-          VERSION="v${{ steps.version_check.outputs.version }}"
-
-          # Check if tag already exists remotely
-          if git ls-remote --tags origin | grep -q "refs/tags/$VERSION$"; then
-            echo "⚠️ Tag $VERSION already exists, skipping tag creation"
-          else
-            echo "Creating tag $VERSION"
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git tag -a "$VERSION" -m "Release $VERSION"
-            git push origin "$VERSION"
-          fi
-
-      - name: Check if release exists
-        if: steps.version_check.outputs.changed == 'true'
-        id: check_release
-        run: |
-          VERSION="v${{ steps.version_check.outputs.version }}"
-          if gh release view "$VERSION" >/dev/null 2>&1; then
-            echo "Release $VERSION already exists"
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "Release $VERSION does not exist"
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Create GitHub Release with Assets
-        if: steps.version_check.outputs.changed == 'true' && steps.check_release.outputs.exists == 'false'
-        uses: softprops/action-gh-release@v1
+        if: steps.version_check.outputs.changed == 'true'
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version_check.outputs.version }}
           name: Release v${{ steps.version_check.outputs.version }}
@@ -192,26 +161,10 @@ jobs:
           draft: false
           prerelease: false
           fail_on_unmatched_files: false
+          make_latest: true
+          generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload assets to existing release
-        if: steps.version_check.outputs.changed == 'true' && steps.check_release.outputs.exists == 'true'
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: v${{ steps.version_check.outputs.version }}
-          files: |
-            *.vsix
-            *.vsix.sha256
-          fail_on_unmatched_files: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Skip release creation
-        if: steps.version_check.outputs.changed == 'true' && steps.check_release.outputs.exists == 'true'
-        run: |
-          echo "⚠️ Release v${{ steps.version_check.outputs.version }} already exists, skipping creation"
-          echo "The VSIX will still be published to the marketplace if configured"
 
       - name: Check Azure token availability
         id: check_token
