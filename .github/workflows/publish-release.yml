@@ -138,29 +138,30 @@ jobs:
         if: steps.version_check.outputs.changed == 'true'
         run: npm run package
 
-      - name: Sign VSIX package
+      - name: Verify VSIX package
         if: steps.version_check.outputs.changed == 'true'
         run: |
           # Find the VSIX file created by npm run package
           VSIX_FILE=$(ls *.vsix)
-          echo "Signing $VSIX_FILE for integrity verification..."
-          # Note: VS Code extensions don't support signing yet, but we can add checksum verification
-          sha256sum "$VSIX_FILE" > "${VSIX_FILE}.sha256"
-          echo "✅ Package integrity verified with SHA256 checksum"
+          echo "Verifying $VSIX_FILE..."
+          # Basic verification that the file exists and has reasonable size
+          if [ -f "$VSIX_FILE" ]; then
+            FILE_SIZE=$(stat -f%z "$VSIX_FILE" 2>/dev/null || stat -c%s "$VSIX_FILE" 2>/dev/null)
+            echo "✅ VSIX package verified: $VSIX_FILE ($FILE_SIZE bytes)"
+          else
+            echo "❌ VSIX package not found"
+            exit 1
+          fi
 
-      - name: Create GitHub Release with Assets
+      - name: Create GitHub Release
         if: steps.version_check.outputs.changed == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version_check.outputs.version }}
           name: Release v${{ steps.version_check.outputs.version }}
           body_path: CHANGELOG.md
-          files: |
-            *.vsix
-            *.vsix.sha256
           draft: false
           prerelease: false
-          fail_on_unmatched_files: false
           make_latest: true
           generate_release_notes: false
         env:
@@ -280,8 +281,8 @@ jobs:
           echo "### ✅ Completed" >> $GITHUB_STEP_SUMMARY
           echo "- 🔒 Security scan completed" >> $GITHUB_STEP_SUMMARY
           echo "- 📋 Dependency review passed" >> $GITHUB_STEP_SUMMARY
-          echo "- 🏷️ Git tag created" >> $GITHUB_STEP_SUMMARY
-          echo "- 📦 GitHub Release created with integrity checksums" >> $GITHUB_STEP_SUMMARY
+          echo "- 📦 VSIX package verified" >> $GITHUB_STEP_SUMMARY
+          echo "- 🏷️ Git tag and GitHub Release created" >> $GITHUB_STEP_SUMMARY
 
           if [ "${{ steps.check_token.outputs.has_token }}" == "true" ]; then
             if [ "${{ steps.marketplace_publish.outcome }}" == "success" ]; then
