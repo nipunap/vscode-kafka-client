@@ -179,7 +179,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create GitHub Release
+      - name: Create GitHub Release with Assets
         if: steps.version_check.outputs.changed == 'true' && steps.check_release.outputs.exists == 'false'
         uses: softprops/action-gh-release@v1
         with:
@@ -191,6 +191,19 @@ jobs:
             *.vsix.sha256
           draft: false
           prerelease: false
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload assets to existing release
+        if: steps.version_check.outputs.changed == 'true' && steps.check_release.outputs.exists == 'true'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version_check.outputs.version }}
+          files: |
+            *.vsix
+            *.vsix.sha256
+          fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
