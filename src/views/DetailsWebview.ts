@@ -451,8 +451,15 @@ export class DetailsWebview extends BaseWebviewWithAI {
                     }
 
                     .btn-secondary {
-                        background: var(--panel-background);
-                        border: 1px solid var(--border-color);
+                        background: var(--vscode-button-secondaryBackground);
+                        color: var(--vscode-button-secondaryForeground);
+                        border: 1px solid var(--vscode-button-secondaryForeground);
+                        opacity: 0.85;
+                    }
+
+                    .btn-secondary:hover {
+                        opacity: 1;
+                        background: var(--vscode-button-secondaryHoverBackground);
                     }
 
                     .section {

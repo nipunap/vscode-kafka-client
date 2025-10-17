@@ -473,6 +473,7 @@ export class TopicDashboardWebview {
                         font-size: 11px;
                         color: var(--vscode-descriptionForeground);
                         background: var(--vscode-badge-background);
+                        opacity: 0.6;
                         padding: 2px 8px;
                         border-radius: 10px;
                         display: inline-block;

@@ -11,11 +11,11 @@ export class BrokerProvider extends BaseProvider<BrokerTreeItem> {
         if (!element) {
             // Root level - show clusters
             const clusters = this.getClusters();
-            
+
             if (clusters.length === 0) {
                 return [this.createEmptyItem('No clusters configured.') as BrokerTreeItem];
             }
-            
+
             return clusters.map(
                 cluster =>
                     new BrokerTreeItem(
@@ -45,6 +45,9 @@ export class BrokerProvider extends BaseProvider<BrokerTreeItem> {
                         ];
                     }
 
+                    // Sort brokers by node ID
+                    brokers.sort((a, b) => (a.nodeId || 0) - (b.nodeId || 0));
+
                     return brokers.map(
                         broker =>
                             new BrokerTreeItem(
@@ -68,6 +71,18 @@ export class BrokerProvider extends BaseProvider<BrokerTreeItem> {
         }
 
         return [];
+    }
+
+    getParent(element: BrokerTreeItem): BrokerTreeItem | undefined {
+        if (element.contextValue === 'broker') {
+            return new BrokerTreeItem(
+                element.clusterName,
+                vscode.TreeItemCollapsibleState.Collapsed,
+                'cluster',
+                element.clusterName
+            );
+        }
+        return undefined;
     }
 }
 

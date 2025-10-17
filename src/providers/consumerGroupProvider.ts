@@ -11,11 +11,11 @@ export class ConsumerGroupProvider extends BaseProvider<ConsumerGroupTreeItem> {
         if (!element) {
             // Root level - show clusters
             const clusters = this.getClusters();
-            
+
             if (clusters.length === 0) {
                 return [this.createEmptyItem('No clusters configured.') as ConsumerGroupTreeItem];
             }
-            
+
             return clusters.map(
                 cluster =>
                     new ConsumerGroupTreeItem(
@@ -45,6 +45,9 @@ export class ConsumerGroupProvider extends BaseProvider<ConsumerGroupTreeItem> {
                         ];
                     }
 
+                    // Sort consumer groups alphabetically by groupId
+                    groups.sort((a, b) => a.groupId.localeCompare(b.groupId));
+
                     return groups.map(
                         group =>
                             new ConsumerGroupTreeItem(
@@ -69,6 +72,18 @@ export class ConsumerGroupProvider extends BaseProvider<ConsumerGroupTreeItem> {
         }
 
         return [];
+    }
+
+    getParent(element: ConsumerGroupTreeItem): ConsumerGroupTreeItem | undefined {
+        if (element.contextValue === 'consumerGroup') {
+            return new ConsumerGroupTreeItem(
+                element.clusterName,
+                vscode.TreeItemCollapsibleState.Collapsed,
+                'cluster',
+                element.clusterName
+            );
+        }
+        return undefined;
     }
 }
 

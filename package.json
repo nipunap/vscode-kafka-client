@@ -2,7 +2,7 @@
   "name": "vscode-kafka-client",
   "displayName": "Kafka Client",
   "description": "Full-featured Kafka client with AWS MSK support, IAM authentication, role assumption, and auto-discovery",
-  "version": "0.8.8",
+  "version": "0.9.0",
   "publisher": "NipunaPerera",
   "license": "GPL-3.0",
   "icon": "resources/kafka-icon.png",
@@ -264,57 +264,57 @@
         {
           "command": "kafka.addCluster",
           "when": "view == kafkaExplorer",
-          "group": "navigation"
-        },
-        {
-          "command": "kafka.refreshCluster",
-          "when": "view == kafkaExplorer",
-          "group": "navigation"
-        },
-        {
-          "command": "kafka.refreshCluster",
-          "when": "view == kafkaConsumerGroups",
-          "group": "navigation"
+          "group": "navigation@1"
         },
         {
           "command": "kafka.findTopic",
           "when": "view == kafkaExplorer",
-          "group": "navigation"
+          "group": "navigation@2"
+        },
+        {
+          "command": "kafka.refreshCluster",
+          "when": "view == kafkaExplorer",
+          "group": "navigation@3"
         },
         {
           "command": "kafka.findConsumerGroup",
           "when": "view == kafkaConsumerGroups",
-          "group": "navigation"
+          "group": "navigation@1"
         },
         {
           "command": "kafka.refreshCluster",
-          "when": "view == kafkaBrokers",
-          "group": "navigation"
+          "when": "view == kafkaConsumerGroups",
+          "group": "navigation@2"
         },
         {
           "command": "kafka.findBroker",
           "when": "view == kafkaBrokers",
-          "group": "navigation"
+          "group": "navigation@1"
         },
         {
           "command": "kafka.refreshCluster",
-          "when": "view == kafkaStreams",
-          "group": "navigation"
+          "when": "view == kafkaBrokers",
+          "group": "navigation@2"
         },
         {
           "command": "kafka.findKStream",
           "when": "view == kafkaStreams",
-          "group": "navigation"
+          "group": "navigation@1"
         },
         {
           "command": "kafka.refreshCluster",
-          "when": "view == kafkaTables",
-          "group": "navigation"
+          "when": "view == kafkaStreams",
+          "group": "navigation@2"
         },
         {
           "command": "kafka.findKTable",
           "when": "view == kafkaTables",
-          "group": "navigation"
+          "group": "navigation@1"
+        },
+        {
+          "command": "kafka.refreshCluster",
+          "when": "view == kafkaTables",
+          "group": "navigation@2"
         }
       ],
       "view/item/context": [
@@ -352,6 +352,11 @@
           "command": "kafka.createTopic",
           "when": "view == kafkaExplorer && viewItem == cluster",
           "group": "1_modification@1"
+        },
+        {
+          "command": "kafka.showTopicDashboard",
+          "when": "view == kafkaExplorer && viewItem == topic",
+          "group": "inline"
         },
         {
           "command": "kafka.produceMessage",
@@ -440,6 +445,38 @@
         }
       ]
     },
+    "keybindings": [
+      {
+        "command": "kafka.findTopic",
+        "key": "ctrl+shift+f",
+        "mac": "ctrl+shift+f",
+        "when": "view == kafkaExplorer && focusedView == kafkaExplorer"
+      },
+      {
+        "command": "kafka.findConsumerGroup",
+        "key": "ctrl+shift+f",
+        "mac": "ctrl+shift+f",
+        "when": "view == kafkaConsumerGroups && focusedView == kafkaConsumerGroups"
+      },
+      {
+        "command": "kafka.findBroker",
+        "key": "ctrl+shift+f",
+        "mac": "ctrl+shift+f",
+        "when": "view == kafkaBrokers && focusedView == kafkaBrokers"
+      },
+      {
+        "command": "kafka.findKStream",
+        "key": "ctrl+shift+f",
+        "mac": "ctrl+shift+f",
+        "when": "view == kafkaStreams && focusedView == kafkaStreams"
+      },
+      {
+        "command": "kafka.findKTable",
+        "key": "ctrl+shift+f",
+        "mac": "ctrl+shift+f",
+        "when": "view == kafkaTables && focusedView == kafkaTables"
+      }
+    ],
     "configuration": {
       "title": "Kafka",
       "properties": {

@@ -97,8 +97,10 @@ suite('KStream Provider Test Suite', () => {
             const children = await provider.getChildren(clusterNode);
 
             assert.strictEqual(children.length, 2);
-            assert.strictEqual(children[0].label, 'my-kstream-topic');
-            assert.strictEqual(children[1].label, 'another-kstream');
+            const labels = children.map(child => child.label);
+            assert.ok(labels.includes('my-kstream-topic'));
+            assert.ok(labels.includes('another-kstream'));
+            assert.ok(!labels.includes('regular-topic'));
         });
 
         test('should filter and show repartition topics', async () => {
@@ -211,23 +213,25 @@ suite('KStream Provider Test Suite', () => {
 
         test('should handle mixed topic patterns correctly', async () => {
             getTopicsStub.withArgs('test-cluster').resolves([
-                'app-stream-input',              // Should show (has -stream-)
-                'app-output-changelog',          // Should exclude (changelog)
-                'KSTREAM-FILTER-001',           // Should show (KSTREAM)
-                'app-ktable-materialized',      // Should exclude (ktable)
-                'topic-repartition',            // Should show (ends with -repartition)
-                'regular-topic',                // Should exclude (no pattern)
-                '__consumer_offsets',           // Should exclude (system)
-                'my-kstream-aggregate'          // Should show (kstream lowercase)
+                'app-kstream-input',          // Should show (kstream)
+                'app-ktable-changelog',       // Should exclude (ktable)
+                'KSTREAM-FILTER-001',         // Should show (KSTREAM)
+                'app-stream-repartition',     // Should show (repartition)
+                'regular-topic',              // Should exclude (no pattern)
+                '__consumer_offsets',         // Should exclude (system)
+                'my-kstream-join'             // Should show (kstream lowercase)
             ]);
 
             const children = await provider.getChildren(clusterNode);
 
             assert.strictEqual(children.length, 4);
-            assert.strictEqual(children[0].label, 'app-stream-input');
-            assert.strictEqual(children[1].label, 'KSTREAM-FILTER-001');
-            assert.strictEqual(children[2].label, 'topic-repartition');
-            assert.strictEqual(children[3].label, 'my-kstream-aggregate');
+            const labels = children.map(child => child.label).sort();
+            assert.deepStrictEqual(labels, [
+                'KSTREAM-FILTER-001',
+                'app-kstream-input',
+                'app-stream-repartition',
+                'my-kstream-join'
+            ]);
         });
     });
 

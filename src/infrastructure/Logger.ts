@@ -14,7 +14,8 @@ const loggerCache = new Map<string, Logger>();
 const isTestEnvironment = (): boolean => {
     return process.env.NODE_ENV === 'test' ||
            process.env.VSCODE_TEST === '1' ||
-           typeof (global as any).it === 'function'; // Mocha/test framework detection
+           typeof (global as any).it === 'function' ||
+           (global as any).IS_TEST === true; // Global test flag
 };
 
 export class Logger {
@@ -93,6 +94,47 @@ export class Logger {
     }
 
     /**
+     * Sanitize sensitive data before logging (Phase 0: SEC-LOG)
+     */
+    public sanitize(data: any, visited: WeakSet<object> = new WeakSet()): any {
+        // Check for circular reference
+        if (typeof data === 'object' && data !== null && visited.has(data)) {
+            return '[CIRCULAR REFERENCE]';
+        }
+
+        const SENSITIVE_KEYS = [
+            'saslPassword', 'sslPassword',
+            'awsSecretAccessKey', 'awsAccessKeyId', 'awsSessionToken',
+            'principal', 'schemaRegistryApiKey', 'schemaRegistryApiSecret',
+            'password', 'secret', 'token', 'apiKey', 'apiSecret'
+        ];
+
+        if (typeof data === 'object' && data !== null) {
+            // Add to visited set for cycle detection
+            visited.add(data);
+
+            const sanitized = Array.isArray(data) ? [...data] : { ...data };
+
+            for (const key of SENSITIVE_KEYS) {
+                if (key in sanitized) {
+                    sanitized[key] = '[REDACTED]';
+                }
+            }
+
+            // Recursively sanitize nested objects
+            for (const key in sanitized) {
+                if (typeof sanitized[key] === 'object' && sanitized[key] !== null) {
+                    sanitized[key] = this.sanitize(sanitized[key], visited);
+                }
+            }
+
+            return sanitized;
+        }
+
+        return data;
+    }
+
+    /**
      * Log with custom level and optional data
      */
     private log(level: string, message: string, data: any[]): void {
@@ -104,25 +146,38 @@ export class Logger {
         const timestamp = new Date().toISOString();
         const prefix = `[${timestamp}] [${level}] [${this.name}]`;
 
-        this.channel.appendLine(`${prefix} ${message}`);
+        try {
+            this.channel.appendLine(`${prefix} ${message}`);
 
-        if (data.length > 0) {
-            data.forEach(item => {
-                if (item instanceof Error) {
-                    this.channel!.appendLine(`  Error: ${item.message}`);
-                    if (item.stack) {
-                        this.channel!.appendLine(`  Stack: ${item.stack}`);
+            if (data.length > 0) {
+                data.forEach(item => {
+                    if (item instanceof Error) {
+                        this.channel!.appendLine(`  Error: ${item.message}`);
+                        if (item.stack) {
+                            // Sanitize stack trace that might contain credentials
+                            const sanitizedStack = this.sanitize(item.stack);
+                            this.channel!.appendLine(`  Stack: ${sanitizedStack}`);
+                        }
+                    } else if (typeof item === 'object') {
+                        try {
+                            // Sanitize object before logging
+                            const sanitizedItem = this.sanitize(item);
+                            this.channel!.appendLine(`  Data: ${JSON.stringify(sanitizedItem, null, 2)}`);
+                        } catch (_e) {
+                            this.channel!.appendLine(`  Data: [Unable to stringify]`);
+                        }
+                    } else {
+                        this.channel!.appendLine(`  ${item}`);
                     }
-                } else if (typeof item === 'object') {
-                try {
-                    this.channel!.appendLine(`  Data: ${JSON.stringify(item, null, 2)}`);
-                } catch (_e) {
-                    this.channel!.appendLine(`  Data: [Unable to stringify]`);
-                }
-                } else {
-                    this.channel!.appendLine(`  ${item}`);
-                }
-            });
+                });
+            }
+        } catch (error) {
+            // Channel may be closed during test cleanup or extension deactivation
+            // Silently ignore to prevent cascading errors
+            if (error instanceof Error && !error.message.includes('Channel has been closed')) {
+                // If it's a different error, at least try to log to console
+                console.error(`Logger error for ${this.name}:`, error.message);
+            }
         }
     }
 

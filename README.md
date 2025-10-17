@@ -25,9 +25,10 @@ A comprehensive Kafka management extension for Visual Studio Code with full AWS 
 - 📊 **Rich Detail Views** - Interactive HTML panels with search (Cmd+F), copy as JSON, and AI recommendations
 - ⚡ **Smart Caching** - 5-minute dashboard cache with instant reload (40-200x faster)
 - 🔐 **Security** - Multiple auth methods (SSL/TLS, SASL, AWS IAM), secure credential storage, **XSS prevention, CSP enforcement**
-- 🔍 **Smart Search** - Find resources across clusters with fuzzy matching
+- 🔍 **Smart Search** - Find resources across clusters with fuzzy matching and automatic focus
 - 🚀 **Performance** - Connection pooling, broker caching, optimized data fetching
-- 🛡️ **Enterprise-Grade Security** (v0.7.0) - XSS protection, Content Security Policy, race condition prevention, request lifecycle management
+- 🛡️ **Enterprise-Grade Security** (v0.7.0+) - XSS protection, Content Security Policy, race condition prevention, request lifecycle management
+- 🔒 **Logger Sanitization** (v0.8.9) - Automatic credential redaction in logs (13 sensitive key types protected)
 
 ## 📸 Screenshots
 
@@ -493,15 +494,16 @@ npm run publish         # Publish to marketplace
 ### Test Coverage
 
 **430 tests passing** across:
-- Infrastructure (Logger, ErrorHandler, CredentialManager, EventBus, ConnectionPool)
+- Infrastructure (Logger with sanitization, ErrorHandler, CredentialManager, EventBus, ConnectionPool)
 - Services (Topic, ConsumerGroup, Broker, Producer, Documentation, AI)
 - Providers (Topics, Consumer Groups, Brokers, ACLs, KStreams, KTables)
 - Commands (All operations including native ACL management)
 - Utilities (Formatters, Validators)
-- Security (Native ACL operations, input sanitization, credential management, **XSS prevention, CSP enforcement**)
+- Security (Native ACL operations, input sanitization, credential management, **XSS prevention, CSP enforcement, logger sanitization**)
 - AI Integration (Availability checks, error handling, **request validation, race condition prevention**)
 - Performance (Caching, connection pooling)
 - Webview Security (**27 new tests**: CSP, XSS prevention, request lifecycle management)
+- **Phase 0 (v0.8.9)**: Logger sanitization (389 lines), Search focus (450 lines), Topic sorting (382 lines)
 
 ### Key Dependencies
 

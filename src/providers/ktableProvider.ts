@@ -15,11 +15,11 @@ export class KTableProvider extends BaseProvider<KTableTreeItem> {
         if (!element) {
             // Root level - show clusters
             const clusters = this.getClusters();
-            
+
             if (clusters.length === 0) {
                 return [this.createEmptyItem('No clusters configured.') as KTableTreeItem];
             }
-            
+
             return clusters.map(
                 cluster =>
                     new KTableTreeItem(
@@ -45,7 +45,7 @@ export class KTableProvider extends BaseProvider<KTableTreeItem> {
                         if (topic.startsWith('__')) {
                             return false;
                         }
-                        
+
                         // Must explicitly match KTable patterns
                         return (
                             topic.endsWith('-changelog') ||
@@ -67,6 +67,9 @@ export class KTableProvider extends BaseProvider<KTableTreeItem> {
                             )
                         ];
                     }
+
+                    // Sort ktable topics alphabetically
+                    ktableTopics.sort((a, b) => a.localeCompare(b));
 
                     return ktableTopics.map(
                         topic =>
@@ -91,6 +94,18 @@ export class KTableProvider extends BaseProvider<KTableTreeItem> {
         }
 
         return [];
+    }
+
+    getParent(element: KTableTreeItem): KTableTreeItem | undefined {
+        if (element.contextValue === 'ktable') {
+            return new KTableTreeItem(
+                element.clusterName,
+                vscode.TreeItemCollapsibleState.Collapsed,
+                'cluster',
+                element.clusterName
+            );
+        }
+        return undefined;
     }
 }
 
@@ -146,4 +161,3 @@ export class KTableTreeItem extends vscode.TreeItem {
         return new vscode.ThemeIcon('circle-outline');
     }
 }
-
