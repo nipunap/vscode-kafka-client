@@ -15,11 +15,11 @@ export class KStreamProvider extends BaseProvider<KStreamTreeItem> {
         if (!element) {
             // Root level - show clusters
             const clusters = this.getClusters();
-            
+
             if (clusters.length === 0) {
                 return [this.createEmptyItem('No clusters configured.') as KStreamTreeItem];
             }
-            
+
             return clusters.map(
                 cluster =>
                     new KStreamTreeItem(
@@ -45,13 +45,13 @@ export class KStreamProvider extends BaseProvider<KStreamTreeItem> {
                         if (topic.startsWith('__')) {
                             return false;
                         }
-                        
+
                         // Must not be a KTable/changelog topic
-                        if (topic.endsWith('-changelog') || topic.includes('-ktable-') || 
+                        if (topic.endsWith('-changelog') || topic.includes('-ktable-') ||
                             topic.includes('-store-') || topic.includes('-state-')) {
                             return false;
                         }
-                        
+
                         // Must explicitly match stream patterns
                         return (
                             topic.includes('-stream-') ||
@@ -72,6 +72,9 @@ export class KStreamProvider extends BaseProvider<KStreamTreeItem> {
                             )
                         ];
                     }
+
+                    // Sort stream topics alphabetically
+                    streamTopics.sort((a, b) => a.localeCompare(b));
 
                     return streamTopics.map(
                         topic =>
@@ -96,6 +99,18 @@ export class KStreamProvider extends BaseProvider<KStreamTreeItem> {
         }
 
         return [];
+    }
+
+    getParent(element: KStreamTreeItem): KStreamTreeItem | undefined {
+        if (element.contextValue === 'kstream') {
+            return new KStreamTreeItem(
+                element.clusterName,
+                vscode.TreeItemCollapsibleState.Collapsed,
+                'cluster',
+                element.clusterName
+            );
+        }
+        return undefined;
     }
 }
 
@@ -151,4 +166,3 @@ export class KStreamTreeItem extends vscode.TreeItem {
         return new vscode.ThemeIcon('circle-outline');
     }
 }
-

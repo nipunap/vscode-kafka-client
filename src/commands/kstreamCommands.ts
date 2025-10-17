@@ -154,7 +154,12 @@ export async function showKStreamDetails(
 /**
  * Find/search for a KStream across all clusters
  */
-export async function findKStream(clientManager: KafkaClientManager, provider: any) {
+export async function findKStream(
+    clientManager: KafkaClientManager,
+    treeView: vscode.TreeView<any>,
+    provider: any,
+    context?: vscode.ExtensionContext
+) {
     try {
         const clusters = clientManager.getClusters();
 
@@ -227,23 +232,54 @@ export async function findKStream(clientManager: KafkaClientManager, provider: a
             return;
         }
 
+        // Sort topics alphabetically for search menu
+        topics.sort((a, b) => a.localeCompare(b));
+
         // Show searchable list
         const selectedTopic = await vscode.window.showQuickPick(
             topics.map(topic => ({
                 label: topic,
-                description: 'KStream Topic'
+                description: `Cluster: ${selectedCluster}`
             })),
             {
-                placeHolder: 'Search and select a KStream topic',
+                placeHolder: `Search KStreams in ${selectedCluster} (${topics.length} total)`,
                 matchOnDescription: true,
                 ignoreFocusOut: true
             }
         );
 
         if (selectedTopic) {
-            // Navigate to the topic in the tree
-            provider.refresh();
-            vscode.window.showInformationMessage(`Found KStream: ${selectedTopic.label}`);
+            // Reveal and focus the KStream in the tree view
+            try {
+                const children = await provider.getChildren();
+                const clusterNode = children.find((node: any) => node.label === selectedCluster);
+
+                if (clusterNode) {
+                    // First, reveal and expand the cluster to ensure streams are loaded
+                    await treeView.reveal(clusterNode, { select: false, focus: false, expand: 1 });
+
+                    // Wait for the tree to expand and load streams
+                    await new Promise(resolve => setTimeout(resolve, 300));
+
+                    const streamNodes = await provider.getChildren(clusterNode);
+                    const streamNode = streamNodes.find((node: any) => node.label === selectedTopic.label);
+
+                    if (streamNode) {
+                        await treeView.reveal(streamNode, { select: true, focus: true, expand: false });
+                    } else {
+                        console.warn(`KStream node not found for: ${selectedTopic.label}`);
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to reveal KStream in tree view:', error);
+            }
+
+            // Show KStream details
+            await showKStreamDetails(clientManager, {
+                clusterName: selectedCluster,
+                topicName: selectedTopic.label,
+                contextValue: 'kstream'
+            } as KStreamTreeItem, context);
         }
     } catch (error: any) {
         ErrorHandler.handle(error, 'Find KStream');

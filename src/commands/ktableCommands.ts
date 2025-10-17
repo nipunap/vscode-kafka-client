@@ -154,7 +154,12 @@ export async function showKTableDetails(
 /**
  * Find/search for a KTable across all clusters
  */
-export async function findKTable(clientManager: KafkaClientManager, provider: any) {
+export async function findKTable(
+    clientManager: KafkaClientManager,
+    treeView: vscode.TreeView<any>,
+    provider: any,
+    context?: vscode.ExtensionContext
+) {
     try {
         const clusters = clientManager.getClusters();
 
@@ -224,23 +229,54 @@ export async function findKTable(clientManager: KafkaClientManager, provider: an
             return;
         }
 
+        // Sort topics alphabetically for search menu
+        topics.sort((a, b) => a.localeCompare(b));
+
         // Show searchable list
         const selectedTopic = await vscode.window.showQuickPick(
             topics.map(topic => ({
                 label: topic,
-                description: 'KTable Topic (Changelog/State Store)'
+                description: `Cluster: ${selectedCluster}`
             })),
             {
-                placeHolder: 'Search and select a KTable topic',
+                placeHolder: `Search KTables in ${selectedCluster} (${topics.length} total)`,
                 matchOnDescription: true,
                 ignoreFocusOut: true
             }
         );
 
         if (selectedTopic) {
-            // Navigate to the topic in the tree
-            provider.refresh();
-            vscode.window.showInformationMessage(`Found KTable: ${selectedTopic.label}`);
+            // Reveal and focus the KTable in the tree view
+            try {
+                const children = await provider.getChildren();
+                const clusterNode = children.find((node: any) => node.label === selectedCluster);
+
+                if (clusterNode) {
+                    // First, reveal and expand the cluster to ensure tables are loaded
+                    await treeView.reveal(clusterNode, { select: false, focus: false, expand: 1 });
+
+                    // Wait for the tree to expand and load tables
+                    await new Promise(resolve => setTimeout(resolve, 300));
+
+                    const tableNodes = await provider.getChildren(clusterNode);
+                    const tableNode = tableNodes.find((node: any) => node.label === selectedTopic.label);
+
+                    if (tableNode) {
+                        await treeView.reveal(tableNode, { select: true, focus: true, expand: false });
+                    } else {
+                        console.warn(`KTable node not found for: ${selectedTopic.label}`);
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to reveal KTable in tree view:', error);
+            }
+
+            // Show KTable details
+            await showKTableDetails(clientManager, {
+                clusterName: selectedCluster,
+                topicName: selectedTopic.label,
+                contextValue: 'ktable'
+            } as KTableTreeItem, context);
         }
     } catch (error: any) {
         ErrorHandler.handle(error, 'Find KTable');

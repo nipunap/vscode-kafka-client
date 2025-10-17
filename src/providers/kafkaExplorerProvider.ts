@@ -4,10 +4,63 @@ import { BaseProvider } from './BaseProvider';
 import { ACL } from '../types/acl';
 
 export class KafkaExplorerProvider extends BaseProvider<KafkaTreeItem> {
+    // Cache for dynamically added topics (topics found via search but not in the limited view)
+    private dynamicTopics: Map<string, Set<string>> = new Map(); // clusterName -> Set of topic names
+
     constructor(clientManager: KafkaClientManager) {
         super(clientManager, 'KafkaExplorerProvider');
         // Load saved clusters on startup
         this.clientManager.loadConfiguration();
+    }
+
+    /**
+     * Add a topic to be displayed in the tree (for search results beyond the 100-topic limit)
+     */
+    addDynamicTopic(clusterName: string, topicName: string): void {
+        if (!this.dynamicTopics.has(clusterName)) {
+            this.dynamicTopics.set(clusterName, new Set());
+        }
+        this.dynamicTopics.get(clusterName)!.add(topicName);
+        this.refresh(); // Refresh the tree to show the new topic
+    }
+
+    /**
+     * Get parent of a tree item (required for TreeView.reveal())
+     */
+    getParent(element: KafkaTreeItem): KafkaTreeItem | undefined {
+        if (element.contextValue === 'topic') {
+            // Parent of a topic is the cluster
+            return new KafkaTreeItem(
+                element.clusterName,
+                vscode.TreeItemCollapsibleState.Collapsed,
+                'cluster',
+                element.clusterName
+            );
+        }
+        if (element.contextValue === 'topicDashboard' ||
+            element.contextValue === 'topicDetails' ||
+            element.contextValue === 'topicACLContainer') {
+            // Parent of topic sub-items is the topic
+            return new KafkaTreeItem(
+                element.topicName!,
+                vscode.TreeItemCollapsibleState.Collapsed,
+                'topic',
+                element.clusterName,
+                element.topicName
+            );
+        }
+        if (element.contextValue === 'topicACL') {
+            // Parent of ACL is the ACL container
+            return new KafkaTreeItem(
+                '🔒 ACLs',
+                vscode.TreeItemCollapsibleState.Collapsed,
+                'topicACLContainer',
+                element.clusterName,
+                element.topicName
+            );
+        }
+        // Root level items (clusters) have no parent
+        return undefined;
     }
 
     async getChildren(element?: KafkaTreeItem): Promise<KafkaTreeItem[]> {
@@ -48,20 +101,34 @@ export class KafkaExplorerProvider extends BaseProvider<KafkaTreeItem> {
                         ];
                     }
 
+                    // Sort topics alphabetically (Phase 0: 2.2)
+                    topics.sort((a, b) => a.localeCompare(b));
+
                     // Warn if too many topics
-                    const MAX_TOPICS_WITHOUT_WARNING = 100;
+                    const MAX_TOPICS_WITHOUT_WARNING = 1000;
                     if (topics.length > MAX_TOPICS_WITHOUT_WARNING) {
                         const warning = new KafkaTreeItem(
-                            `⚠️ ${topics.length} topics found. Use "Find Topic" (Cmd+Shift+P) to search`,
+                            `ℹ️ ${topics.length} topics found. Use "Find Topic" (🔍 icon) to search`,
                             vscode.TreeItemCollapsibleState.None,
                             'topicsWarning',
                             el!.clusterName,
                             undefined,
                             undefined,
-                            'Consider using the search function for better performance'
+                            'Click the search icon (🔍) in the toolbar or press Cmd+Shift+F / Ctrl+Shift+F'
                         );
-                        // Show warning at top, then limited topics
-                        const limitedTopics = topics.slice(0, 100).map(
+
+                        // Get dynamic topics for this cluster (from search results)
+                        const dynamicTopicsSet = this.dynamicTopics.get(el!.clusterName) || new Set();
+
+                        // Combine first MAX topics with any dynamic topics that aren't already in the list
+                        const topicsToShow = new Set<string>();
+                        topics.slice(0, MAX_TOPICS_WITHOUT_WARNING).forEach(t => topicsToShow.add(t));
+                        dynamicTopicsSet.forEach(t => topicsToShow.add(t));
+
+                        // Convert to sorted array
+                        const sortedTopics = Array.from(topicsToShow).sort((a, b) => a.localeCompare(b));
+
+                        const topicItems = sortedTopics.map(
                             topic =>
                                 new KafkaTreeItem(
                                     topic,
@@ -71,13 +138,17 @@ export class KafkaExplorerProvider extends BaseProvider<KafkaTreeItem> {
                                     topic
                                 )
                         );
+
+                        const dynamicCount = dynamicTopicsSet.size;
+                        const hiddenCount = topics.length - MAX_TOPICS_WITHOUT_WARNING - (dynamicCount > 0 ? Math.max(0, dynamicTopicsSet.size - (sortedTopics.length - MAX_TOPICS_WITHOUT_WARNING)) : 0);
+
                         const showMore = new KafkaTreeItem(
-                            `... and ${topics.length - 100} more. Use "Find Topic" to search`,
+                            `... and ${Math.max(0, hiddenCount)} more. Use 🔍 icon or Cmd+Shift+F`,
                             vscode.TreeItemCollapsibleState.None,
                             'topicsMore',
                             el!.clusterName
                         );
-                        return [warning, ...limitedTopics, showMore];
+                        return [warning, ...topicItems, showMore];
                     }
 
                     return topics.map(

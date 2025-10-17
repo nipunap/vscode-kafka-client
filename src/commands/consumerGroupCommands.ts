@@ -269,7 +269,12 @@ export async function resetConsumerGroupOffsets(clientManager: KafkaClientManage
 /**
  * Find/search for a consumer group across all clusters
  */
-export async function findConsumerGroup(clientManager: KafkaClientManager, context?: vscode.ExtensionContext) {
+export async function findConsumerGroup(
+    clientManager: KafkaClientManager,
+    treeView: vscode.TreeView<any>,
+    provider: any,
+    context?: vscode.ExtensionContext
+) {
     try {
         const clusters = clientManager.getClusters();
 
@@ -330,6 +335,9 @@ export async function findConsumerGroup(clientManager: KafkaClientManager, conte
             return;
         }
 
+        // Sort consumer groups alphabetically for search menu
+        groups.sort((a, b) => a.groupId.localeCompare(b.groupId));
+
         // Show searchable list with fuzzy matching
         const selectedGroup = await vscode.window.showQuickPick(
             groups.map(group => ({
@@ -347,6 +355,31 @@ export async function findConsumerGroup(clientManager: KafkaClientManager, conte
         );
 
         if (selectedGroup) {
+            // Reveal and focus the consumer group in the tree view
+            try {
+                const children = await provider.getChildren();
+                const clusterNode = children.find((node: any) => node.label === selectedCluster);
+
+                if (clusterNode) {
+                    // First, reveal and expand the cluster to ensure groups are loaded
+                    await treeView.reveal(clusterNode, { select: false, focus: false, expand: 1 });
+
+                    // Wait for the tree to expand and load groups
+                    await new Promise(resolve => setTimeout(resolve, 300));
+
+                    const groupNodes = await provider.getChildren(clusterNode);
+                    const groupNode = groupNodes.find((node: any) => node.label === selectedGroup.label);
+
+                    if (groupNode) {
+                        await treeView.reveal(groupNode, { select: true, focus: true, expand: false });
+                    } else {
+                        console.warn(`Consumer group node not found for: ${selectedGroup.label}`);
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to reveal consumer group in tree view:', error);
+            }
+
             // Show consumer group details with HTML webview
             await showConsumerGroupDetails(clientManager, {
                 clusterName: selectedCluster,

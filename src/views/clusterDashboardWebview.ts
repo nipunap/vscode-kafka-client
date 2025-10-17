@@ -735,7 +735,7 @@ export class ClusterDashboardWebview {
                     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid var(--vscode-panel-border); }
                     .header h1 { font-size: 24px; font-weight: 600; }
                     .header-info { display: flex; flex-direction: column; gap: 5px; }
-                    .cache-badge { font-size: 11px; color: var(--vscode-descriptionForeground); background: var(--vscode-badge-background); padding: 2px 8px; border-radius: 10px; display: inline-block; width: fit-content; }
+                    .cache-badge { font-size: 11px; color: var(--vscode-descriptionForeground); background: var(--vscode-badge-background); opacity: 0.6; padding: 2px 8px; border-radius: 10px; display: inline-block; width: fit-content; }
                     .header-actions { display: flex; gap: 10px; }
                     button { background-color: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; padding: 8px 16px; cursor: pointer; border-radius: 4px; font-size: 13px; }
                     button:hover { background-color: var(--vscode-button-hoverBackground); }

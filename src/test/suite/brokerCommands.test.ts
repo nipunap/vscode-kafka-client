@@ -101,7 +101,7 @@ suite('Broker Commands Test Suite', () => {
             sandbox.stub(clientManager, 'getClusters').returns([]);
             const showInfoStub = sandbox.stub(vscode.window, 'showInformationMessage').resolves(undefined);
 
-            await brokerCommands.findBroker(clientManager);
+            await brokerCommands.findBroker(clientManager, {} as any, {} as any);
 
             assert.ok(showInfoStub.calledOnce);
             assert.ok(showInfoStub.firstCall.args[0].includes('No clusters'));
@@ -135,7 +135,7 @@ suite('Broker Commands Test Suite', () => {
             sandbox.stub(vscode.workspace, 'openTextDocument').resolves({} as any);
             sandbox.stub(vscode.window, 'showTextDocument').resolves({} as any);
 
-            await brokerCommands.findBroker(clientManager);
+            await brokerCommands.findBroker(clientManager, {} as any, {} as any);
 
             // withProgress is called twice: once for finding brokers, once for showing details
             assert.ok(withProgressStub.called);
@@ -156,7 +156,7 @@ suite('Broker Commands Test Suite', () => {
 
             const getBrokerDetailsStub = sandbox.stub(clientManager, 'getBrokerDetails');
 
-            await brokerCommands.findBroker(clientManager);
+            await brokerCommands.findBroker(clientManager, {} as any, {} as any);
 
             assert.ok(!getBrokerDetailsStub.called);
         });
@@ -171,7 +171,7 @@ suite('Broker Commands Test Suite', () => {
 
             const showErrorStub = sandbox.stub(vscode.window, 'showErrorMessage').resolves(undefined);
 
-            await brokerCommands.findBroker(clientManager);
+            await brokerCommands.findBroker(clientManager, {} as any, {} as any);
 
             assert.ok(showErrorStub.calledOnce);
             assert.ok(showErrorStub.firstCall.args[0].includes('Failed to search brokers'));
@@ -187,7 +187,7 @@ suite('Broker Commands Test Suite', () => {
 
             const showInfoStub = sandbox.stub(vscode.window, 'showInformationMessage').resolves(undefined);
 
-            await brokerCommands.findBroker(clientManager);
+            await brokerCommands.findBroker(clientManager, {} as any, {} as any);
 
             assert.ok(showInfoStub.calledOnce);
             assert.ok(showInfoStub.firstCall.args[0].includes('No brokers found'));
@@ -207,7 +207,7 @@ suite('Broker Commands Test Suite', () => {
                 return await task({ report: () => {} }, { isCancellationRequested: false });
             });
 
-            await brokerCommands.findBroker(clientManager);
+            await brokerCommands.findBroker(clientManager, {} as any, {} as any);
 
             assert.strictEqual(quickPickStub.callCount, 2);
             const firstCallArgs = quickPickStub.firstCall.args[0];

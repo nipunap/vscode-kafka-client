@@ -412,7 +412,12 @@ export async function showTopicDetails(clientManager: KafkaClientManager, node: 
 /**
  * Find/search for a topic across all clusters
  */
-export async function findTopic(clientManager: KafkaClientManager, context?: vscode.ExtensionContext) {
+export async function findTopic(
+    clientManager: KafkaClientManager,
+    treeView: vscode.TreeView<any>,
+    provider: any,
+    context?: vscode.ExtensionContext
+) {
     await ErrorHandler.wrap(
         async () => {
             const clusters = clientManager.getClusters();
@@ -460,6 +465,9 @@ export async function findTopic(clientManager: KafkaClientManager, context?: vsc
                 return;
             }
 
+            // Sort topics alphabetically for search menu
+            topics.sort((a, b) => a.localeCompare(b));
+
             // Show searchable list with fuzzy matching
             const selectedTopic = await vscode.window.showQuickPick(
                 topics.map(topic => ({
@@ -475,6 +483,42 @@ export async function findTopic(clientManager: KafkaClientManager, context?: vsc
             );
 
             if (selectedTopic) {
+                // Phase 0: 2.3 - Reveal and focus the topic in the tree view
+                try {
+                    // Get the cluster node
+                    const children = await provider.getChildren();
+                    const clusterNode = children.find((node: any) => node.label === selectedCluster);
+
+                    if (clusterNode) {
+                        // First, add this topic to the dynamic list so it will be shown in the tree
+                        provider.addDynamicTopic(selectedCluster, selectedTopic.label);
+
+                        // Reveal and expand the cluster
+                        await treeView.reveal(clusterNode, { select: false, focus: false, expand: 1 });
+
+                        // Wait for the tree to refresh and expand
+                        await new Promise(resolve => setTimeout(resolve, 500));
+
+                        // Get topics from provider (now includes our dynamic topic)
+                        const topicNodes = await provider.getChildren(clusterNode);
+
+                        // Find the topic node - it should be there now
+                        const topicNode = topicNodes.find((node: any) =>
+                            node.contextValue === 'topic' && node.label === selectedTopic.label
+                        );
+
+                        if (topicNode) {
+                            // Reveal the topic in the tree view with focus
+                            await treeView.reveal(topicNode, { select: true, focus: true, expand: false });
+                        } else {
+                            console.warn(`Topic still not found after adding dynamically: ${selectedTopic.label}`);
+                        }
+                    }
+                } catch (error) {
+                    // If reveal fails, just log it and continue to show details
+                    console.log('Could not reveal topic in tree:', error);
+                }
+
                 // Show topic details with HTML webview
                 await showTopicDetails(clientManager, {
                     clusterName: selectedCluster,

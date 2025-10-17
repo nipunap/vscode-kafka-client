@@ -103,7 +103,12 @@ export async function showBrokerDetails(clientManager: KafkaClientManager, node:
 /**
  * Find/search for a broker across all clusters
  */
-export async function findBroker(clientManager: KafkaClientManager) {
+export async function findBroker(
+    clientManager: KafkaClientManager,
+    treeView: vscode.TreeView<any>,
+    provider: any,
+    context?: vscode.ExtensionContext
+) {
     try {
         const clusters = clientManager.getClusters();
 
@@ -162,6 +167,9 @@ export async function findBroker(clientManager: KafkaClientManager) {
             return;
         }
 
+        // Sort brokers by node ID
+        brokers.sort((a, b) => (a.nodeId || 0) - (b.nodeId || 0));
+
         // Show searchable list
         const selectedBroker = await vscode.window.showQuickPick(
             brokers.map(broker => ({
@@ -178,11 +186,36 @@ export async function findBroker(clientManager: KafkaClientManager) {
         );
 
         if (selectedBroker) {
+            // Reveal and focus the broker in the tree view
+            try {
+                const children = await provider.getChildren();
+                const clusterNode = children.find((node: any) => node.label === selectedCluster);
+
+                if (clusterNode) {
+                    // First, reveal and expand the cluster to ensure brokers are loaded
+                    await treeView.reveal(clusterNode, { select: false, focus: false, expand: 1 });
+
+                    // Wait for the tree to expand and load brokers
+                    await new Promise(resolve => setTimeout(resolve, 300));
+
+                    const brokerNodes = await provider.getChildren(clusterNode);
+                    const brokerNode = brokerNodes.find((node: any) => node.brokerId === selectedBroker.broker.nodeId);
+
+                    if (brokerNode) {
+                        await treeView.reveal(brokerNode, { select: true, focus: true, expand: false });
+                    } else {
+                        console.warn(`Broker node not found for ID: ${selectedBroker.broker.nodeId}`);
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to reveal broker in tree view:', error);
+            }
+
             // Show broker details
             await showBrokerDetails(clientManager, {
                 clusterName: selectedCluster,
                 brokerId: selectedBroker.broker.nodeId
-            });
+            }, context);
         }
     } catch (error: any) {
         const errorMsg = error?.message || error?.toString() || 'Unknown error';
@@ -297,9 +330,9 @@ export async function editBrokerConfig(
                 AuditOperation.BROKER_CONFIG_UPDATED,
                 node.clusterName,
                 `broker-${brokerId}`,
-                { 
-                    configName: selectedConfig.label, 
-                    oldValue: selectedConfig.config.configValue, 
+                {
+                    configName: selectedConfig.label,
+                    oldValue: selectedConfig.config.configValue,
                     newValue,
                     requiresRestart: configService.requiresBrokerRestart(selectedConfig.label)
                 }

@@ -52,11 +52,26 @@ export async function activate(context: vscode.ExtensionContext) {
     const kstreamProvider = new KStreamProvider(clientManager);
     const ktableProvider = new KTableProvider(clientManager);
 
-    vscode.window.registerTreeDataProvider('kafkaExplorer', kafkaExplorerProvider);
-    vscode.window.registerTreeDataProvider('kafkaConsumerGroups', consumerGroupProvider);
-    vscode.window.registerTreeDataProvider('kafkaBrokers', brokerProvider);
-    vscode.window.registerTreeDataProvider('kafkaStreams', kstreamProvider);
-    vscode.window.registerTreeDataProvider('kafkaTables', ktableProvider);
+    // Create TreeView instances to enable reveal() functionality (Phase 0: 2.3)
+    const kafkaExplorerTreeView = vscode.window.createTreeView('kafkaExplorer', {
+        treeDataProvider: kafkaExplorerProvider
+    });
+
+    const consumerGroupTreeView = vscode.window.createTreeView('kafkaConsumerGroups', {
+        treeDataProvider: consumerGroupProvider
+    });
+
+    const brokerTreeView = vscode.window.createTreeView('kafkaBrokers', {
+        treeDataProvider: brokerProvider
+    });
+
+    const kstreamTreeView = vscode.window.createTreeView('kafkaStreams', {
+        treeDataProvider: kstreamProvider
+    });
+
+    const ktableTreeView = vscode.window.createTreeView('kafkaTables', {
+        treeDataProvider: ktableProvider
+    });
 
     // Set up event listeners for auto-refresh
     eventBus.on(KafkaEvents.CLUSTER_ADDED, () => {
@@ -241,13 +256,13 @@ export async function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.findTopic', async () => {
-            await topicCommands.findTopic(clientManager, context);
+            await topicCommands.findTopic(clientManager, kafkaExplorerTreeView, kafkaExplorerProvider, context);
         })
     );
 
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.findConsumerGroup', async () => {
-            await consumerGroupCommands.findConsumerGroup(clientManager, context);
+            await consumerGroupCommands.findConsumerGroup(clientManager, consumerGroupTreeView, consumerGroupProvider, context);
         })
     );
 
@@ -259,7 +274,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.findBroker', async () => {
-            await brokerCommands.findBroker(clientManager);
+            await brokerCommands.findBroker(clientManager, brokerTreeView, brokerProvider, context);
         })
     );
 
@@ -278,7 +293,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.findKStream', async () => {
-            await kstreamCommands.findKStream(clientManager, kstreamProvider);
+            await kstreamCommands.findKStream(clientManager, kstreamTreeView, kstreamProvider, context);
         })
     );
 
@@ -291,7 +306,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.findKTable', async () => {
-            await ktableCommands.findKTable(clientManager, ktableProvider);
+            await ktableCommands.findKTable(clientManager, ktableTreeView, ktableProvider, context);
         })
     );
 

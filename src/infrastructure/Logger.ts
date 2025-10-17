@@ -93,6 +93,39 @@ export class Logger {
     }
 
     /**
+     * Sanitize sensitive data before logging (Phase 0: SEC-LOG)
+     */
+    private sanitize(data: any): any {
+        const SENSITIVE_KEYS = [
+            'saslPassword', 'sslPassword',
+            'awsSecretAccessKey', 'awsAccessKeyId', 'awsSessionToken',
+            'principal', 'schemaRegistryApiKey', 'schemaRegistryApiSecret',
+            'password', 'secret', 'token', 'apiKey', 'apiSecret'
+        ];
+
+        if (typeof data === 'object' && data !== null) {
+            const sanitized = Array.isArray(data) ? [...data] : { ...data };
+
+            for (const key of SENSITIVE_KEYS) {
+                if (key in sanitized) {
+                    sanitized[key] = '[REDACTED]';
+                }
+            }
+
+            // Recursively sanitize nested objects
+            for (const key in sanitized) {
+                if (typeof sanitized[key] === 'object' && sanitized[key] !== null) {
+                    sanitized[key] = this.sanitize(sanitized[key]);
+                }
+            }
+
+            return sanitized;
+        }
+
+        return data;
+    }
+
+    /**
      * Log with custom level and optional data
      */
     private log(level: string, message: string, data: any[]): void {
@@ -111,14 +144,18 @@ export class Logger {
                 if (item instanceof Error) {
                     this.channel!.appendLine(`  Error: ${item.message}`);
                     if (item.stack) {
-                        this.channel!.appendLine(`  Stack: ${item.stack}`);
+                        // Sanitize stack trace that might contain credentials
+                        const sanitizedStack = this.sanitize(item.stack);
+                        this.channel!.appendLine(`  Stack: ${sanitizedStack}`);
                     }
                 } else if (typeof item === 'object') {
-                try {
-                    this.channel!.appendLine(`  Data: ${JSON.stringify(item, null, 2)}`);
-                } catch (_e) {
-                    this.channel!.appendLine(`  Data: [Unable to stringify]`);
-                }
+                    try {
+                        // Sanitize object before logging
+                        const sanitizedItem = this.sanitize(item);
+                        this.channel!.appendLine(`  Data: ${JSON.stringify(sanitizedItem, null, 2)}`);
+                    } catch (_e) {
+                        this.channel!.appendLine(`  Data: [Unable to stringify]`);
+                    }
                 } else {
                     this.channel!.appendLine(`  ${item}`);
                 }
