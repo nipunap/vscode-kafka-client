@@ -78,24 +78,31 @@ suite('Provider Test Suite', () => {
         });
 
         test('should display consumer groups with state information', async () => {
-            const provider = new ConsumerGroupProvider(clientManager);
-            sandbox.stub(clientManager, 'getClusters').returns(['test-cluster']);
-            sandbox.stub(clientManager, 'getConsumerGroups').resolves([
-                { groupId: 'stable-group', state: 'Stable', protocolType: 'consumer' },
-                { groupId: 'empty-group', state: 'Empty', protocolType: 'consumer' },
-                { groupId: 'dead-group', state: 'Dead', protocolType: 'consumer' }
-            ]);
+            const mockCluster = 'test-cluster';
+            sandbox.stub(clientManager, 'getClusters').returns([mockCluster]);
 
-            // Get cluster node
-            const clusterItems = await provider.getChildren();
-            assert.strictEqual(clusterItems.length, 1);
+            // Mock getConsumerGroups to return groups with different states
+            const mockConsumerGroups = [
+                { groupId: 'stable-group', state: 'Stable', members: 2, protocol: 'range', topics: 3 },
+                { groupId: 'rebalancing-group', state: 'Rebalancing', members: 0, protocol: 'unknown', topics: 0 },
+                { groupId: 'empty-group', state: 'Empty', members: 0, protocol: 'none', topics: 0 },
+                { groupId: 'dead-group', state: 'Dead', members: 0, protocol: 'none', topics: 0 }
+            ];
+            sandbox.stub(clientManager, 'getConsumerGroups').withArgs(mockCluster).resolves(mockConsumerGroups);
 
-            // Get consumer groups
-            const groups = await provider.getChildren(clusterItems[0]);
-            assert.strictEqual(groups.length, 3);
-            assert.strictEqual(groups[0].label, 'stable-group');
-            assert.strictEqual(groups[1].label, 'empty-group');
-            assert.strictEqual(groups[2].label, 'dead-group');
+            const provider = new ConsumerGroupProvider(clientManager as any);
+            const clusterNode = new ConsumerGroupTreeItem(
+                mockCluster,
+                vscode.TreeItemCollapsibleState.Collapsed,
+                'cluster',
+                mockCluster
+            );
+
+            const children = await provider.getChildren(clusterNode);
+
+            assert.strictEqual(children.length, 4);
+            const groupIds = children.map((child: any) => child.label);
+            assert.deepStrictEqual(groupIds.sort(), ['dead-group', 'empty-group', 'rebalancing-group', 'stable-group']);
         });
     });
 

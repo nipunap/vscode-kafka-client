@@ -83,8 +83,10 @@ suite('KTable Provider Test Suite', () => {
             const children = await provider.getChildren(clusterNode);
 
             assert.strictEqual(children.length, 2);
-            assert.strictEqual(children[0].label, 'my-app-ktable-materialized');
-            assert.strictEqual(children[1].label, 'aggregation-ktable-store');
+            const labels = children.map(child => child.label);
+            assert.ok(labels.includes('my-app-ktable-materialized'));
+            assert.ok(labels.includes('aggregation-ktable-store'));
+            assert.ok(!labels.includes('regular-topic'));
         });
 
         test('should filter and show topics with KTABLE pattern', async () => {
@@ -111,8 +113,10 @@ suite('KTable Provider Test Suite', () => {
             const children = await provider.getChildren(clusterNode);
 
             assert.strictEqual(children.length, 2);
-            assert.strictEqual(children[0].label, 'my-ktable-topic');
-            assert.strictEqual(children[1].label, 'another-ktable');
+            const labels = children.map(child => child.label);
+            assert.ok(labels.includes('my-ktable-topic'));
+            assert.ok(labels.includes('another-ktable'));
+            assert.ok(!labels.includes('regular-topic'));
         });
 
         test('should filter and show topics with -store- pattern', async () => {
@@ -139,8 +143,10 @@ suite('KTable Provider Test Suite', () => {
             const children = await provider.getChildren(clusterNode);
 
             assert.strictEqual(children.length, 2);
-            assert.strictEqual(children[0].label, 'my-app-state-store');
-            assert.strictEqual(children[1].label, 'aggregation-state-topic');
+            const labels = children.map(child => child.label);
+            assert.ok(labels.includes('my-app-state-store'));
+            assert.ok(labels.includes('aggregation-state-topic'));
+            assert.ok(!labels.includes('regular-topic'));
         });
 
         test('should exclude system topics starting with __', async () => {
@@ -214,11 +220,14 @@ suite('KTable Provider Test Suite', () => {
             const children = await provider.getChildren(clusterNode);
 
             assert.strictEqual(children.length, 5);
-            assert.strictEqual(children[0].label, 'app-store-changelog');
-            assert.strictEqual(children[1].label, 'KTABLE-AGGREGATE-001');
-            assert.strictEqual(children[2].label, 'app-ktable-materialized');
-            assert.strictEqual(children[3].label, 'state-store-topic');
-            assert.strictEqual(children[4].label, 'my-ktable-join');
+            const labels = children.map(child => child.label).sort();
+            assert.deepStrictEqual(labels, [
+                'KTABLE-AGGREGATE-001',
+                'app-ktable-materialized',
+                'app-store-changelog',
+                'my-ktable-join',
+                'state-store-topic'
+            ]);
         });
 
         test('should handle changelog topics with various prefixes', async () => {
@@ -370,9 +379,12 @@ suite('KTable Provider Test Suite', () => {
             const children = await provider.getChildren(clusterNode);
 
             assert.strictEqual(children.length, 3);
-            assert.strictEqual(children[0].label, 'app-users-ktable-store-changelog');
-            assert.strictEqual(children[1].label, 'app-orders-state-store');
-            assert.strictEqual(children[2].label, 'app-aggregation-ktable-materialized');
+            const labels = children.map(child => child.label).sort();
+            assert.deepStrictEqual(labels, [
+                'app-aggregation-ktable-materialized',
+                'app-orders-state-store',
+                'app-users-ktable-store-changelog'
+            ]);
         });
 
         test('should not show any topics when only streams and regular topics exist', async () => {

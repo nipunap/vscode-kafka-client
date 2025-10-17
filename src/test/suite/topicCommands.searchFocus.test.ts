@@ -44,7 +44,7 @@ suite('Topic Search Focus Test Suite (Phase 0: 2.3)', () => {
     });
 
     suite('TreeView Reveal Functionality', () => {
-        test('should call reveal() with correct options when topic is found', async () => {
+        test('should call reveal() twice: once for cluster expand, once for topic focus when topic is found', async () => {
             const testCluster = 'test-cluster';
             const testTopic = 'test-topic';
 
@@ -76,21 +76,30 @@ suite('Topic Search Focus Test Suite (Phase 0: 2.3)', () => {
             );
 
             sandbox.stub(provider, 'getChildren')
-                .onFirstCall().resolves([clusterNode])
-                .onSecondCall().resolves([topicNode]);
+                .onFirstCall().resolves([clusterNode]) // Root level - clusters
+                .onSecondCall().resolves([topicNode]); // Cluster children - topics
+
+            // Mock addDynamicTopic to avoid actual state change
+            sandbox.stub(provider, 'addDynamicTopic').callsFake(() => {});
 
             // Execute findTopic
             await findTopic(clientManager, mockTreeView, provider);
 
-            // Verify reveal was called with correct options
+            // Verify reveal was called twice
             const revealStub = mockTreeView.reveal as sinon.SinonStub;
-            assert.ok(revealStub.calledOnce, 'reveal() should be called once');
+            assert.ok(revealStub.calledTwice, 'reveal() should be called twice');
 
-            const [node, options] = revealStub.firstCall.args;
-            assert.strictEqual(node.label, testTopic, 'Should reveal the correct topic node');
-            assert.strictEqual(options.select, true, 'select option should be true');
-            assert.strictEqual(options.focus, true, 'focus option should be true');
-            assert.strictEqual(options.expand, true, 'expand option should be true');
+            // First call: cluster expand
+            const [firstNode, firstOptions] = revealStub.firstCall.args;
+            assert.strictEqual(firstNode.label, testCluster, 'First reveal should be cluster node');
+            assert.strictEqual(firstOptions.expand, 1, 'Cluster should be expanded');
+
+            // Second call: topic focus
+            const [secondNode, secondOptions] = revealStub.secondCall.args;
+            assert.strictEqual(secondNode.label, testTopic, 'Second reveal should be topic node');
+            assert.strictEqual(secondOptions.select, true, 'Topic should be selected');
+            assert.strictEqual(secondOptions.focus, true, 'Topic should be focused');
+            assert.strictEqual(secondOptions.expand, false, 'Topic should not be expanded');
         });
 
         test('should handle reveal when cluster node is not found', async () => {
@@ -109,6 +118,9 @@ suite('Topic Search Focus Test Suite (Phase 0: 2.3)', () => {
 
             // Mock provider to return empty cluster list
             sandbox.stub(provider, 'getChildren').resolves([]);
+
+            // Mock addDynamicTopic
+            sandbox.stub(provider, 'addDynamicTopic').callsFake(() => {});
 
             // Should not throw even if reveal fails
             await assert.doesNotReject(async () => {
@@ -144,7 +156,10 @@ suite('Topic Search Focus Test Suite (Phase 0: 2.3)', () => {
             // Mock provider to return cluster but no topics
             sandbox.stub(provider, 'getChildren')
                 .onFirstCall().resolves([clusterNode])
-                .onSecondCall().resolves([]);
+                .onSecondCall().resolves([]); // No topics
+
+            // Mock addDynamicTopic
+            sandbox.stub(provider, 'addDynamicTopic').callsFake(() => {});
 
             // Should not throw even if topic not found
             await assert.doesNotReject(async () => {
@@ -152,7 +167,11 @@ suite('Topic Search Focus Test Suite (Phase 0: 2.3)', () => {
             });
 
             const revealStub = mockTreeView.reveal as sinon.SinonStub;
-            assert.ok(revealStub.notCalled, 'reveal() should not be called if topic not found');
+            assert.ok(revealStub.calledOnce, 'reveal() should be called once for cluster expand even if topic not found');
+
+            // Only cluster reveal should happen
+            const [node] = revealStub.firstCall.args;
+            assert.strictEqual(node.label, testCluster, 'Should only reveal cluster when topic not found');
         });
 
         test('should handle reveal errors gracefully', async () => {
@@ -187,14 +206,21 @@ suite('Topic Search Focus Test Suite (Phase 0: 2.3)', () => {
                 .onFirstCall().resolves([clusterNode])
                 .onSecondCall().resolves([topicNode]);
 
-            // Mock reveal to throw error
+            // Mock addDynamicTopic
+            sandbox.stub(provider, 'addDynamicTopic').callsFake(() => {});
+
+            // Mock reveal to throw error on second call
             const revealStub = mockTreeView.reveal as sinon.SinonStub;
-            revealStub.rejects(new Error('Reveal failed'));
+            revealStub.onFirstCall().resolves(); // Cluster reveal succeeds
+            revealStub.onSecondCall().rejects(new Error('Reveal failed')); // Topic reveal fails
 
             // Should not throw even if reveal fails
             await assert.doesNotReject(async () => {
                 await findTopic(clientManager, mockTreeView, provider);
             });
+
+            // First reveal should succeed, second should fail but not crash
+            assert.ok(revealStub.calledTwice, 'reveal() should be called twice even if second fails');
         });
     });
 
@@ -238,13 +264,17 @@ suite('Topic Search Focus Test Suite (Phase 0: 2.3)', () => {
                 ])
                 .onSecondCall().resolves([topicNode]);
 
+            // Mock addDynamicTopic
+            sandbox.stub(provider, 'addDynamicTopic').callsFake(() => {});
+
             await findTopic(clientManager, mockTreeView, provider);
 
             const revealStub = mockTreeView.reveal as sinon.SinonStub;
-            assert.ok(revealStub.calledOnce, 'reveal() should be called');
+            assert.ok(revealStub.calledTwice, 'reveal() should be called twice');
 
-            const [node] = revealStub.firstCall.args;
-            assert.strictEqual(node.clusterName, cluster2, 'Should reveal topic from correct cluster');
+            // Second call should be for the correct cluster
+            const [secondNode] = revealStub.secondCall.args;
+            assert.strictEqual(secondNode.clusterName, cluster2, 'Should reveal topic from correct cluster');
         });
 
         test('should skip cluster selection with single cluster', async () => {
@@ -281,10 +311,17 @@ suite('Topic Search Focus Test Suite (Phase 0: 2.3)', () => {
                 .onFirstCall().resolves([clusterNode])
                 .onSecondCall().resolves([topicNode]);
 
+            // Mock addDynamicTopic
+            sandbox.stub(provider, 'addDynamicTopic').callsFake(() => {});
+
             await findTopic(clientManager, mockTreeView, provider);
 
             // Should only call showQuickPick once (for topic, not cluster)
             assert.strictEqual(quickPickStub.callCount, 1, 'Should only show topic picker with single cluster');
+
+            // reveal should be called twice
+            const revealStub = mockTreeView.reveal as sinon.SinonStub;
+            assert.ok(revealStub.calledTwice, 'reveal() should be called twice with single cluster');
         });
     });
 
@@ -366,7 +403,7 @@ suite('Topic Search Focus Test Suite (Phase 0: 2.3)', () => {
     });
 
     suite('Reveal Options Verification', () => {
-        test('should use select: true in reveal options', async () => {
+        test('should use select: true in topic reveal options', async () => {
             const testCluster = 'test-cluster';
             const testTopic = 'test-topic';
 
@@ -387,14 +424,17 @@ suite('Topic Search Focus Test Suite (Phase 0: 2.3)', () => {
                 .onFirstCall().resolves([clusterNode])
                 .onSecondCall().resolves([topicNode]);
 
+            // Mock addDynamicTopic
+            sandbox.stub(provider, 'addDynamicTopic').callsFake(() => {});
+
             await findTopic(clientManager, mockTreeView, provider);
 
             const revealStub = mockTreeView.reveal as sinon.SinonStub;
-            const [, options] = revealStub.firstCall.args;
-            assert.strictEqual(options.select, true, 'Topic node should be selected');
+            const [, secondOptions] = revealStub.secondCall.args;
+            assert.strictEqual(secondOptions.select, true, 'Topic node should be selected');
         });
 
-        test('should use focus: true in reveal options', async () => {
+        test('should use focus: true in topic reveal options', async () => {
             const testCluster = 'test-cluster';
             const testTopic = 'test-topic';
 
@@ -415,14 +455,17 @@ suite('Topic Search Focus Test Suite (Phase 0: 2.3)', () => {
                 .onFirstCall().resolves([clusterNode])
                 .onSecondCall().resolves([topicNode]);
 
+            // Mock addDynamicTopic
+            sandbox.stub(provider, 'addDynamicTopic').callsFake(() => {});
+
             await findTopic(clientManager, mockTreeView, provider);
 
             const revealStub = mockTreeView.reveal as sinon.SinonStub;
-            const [, options] = revealStub.firstCall.args;
-            assert.strictEqual(options.focus, true, 'Tree view should focus on topic node');
+            const [, secondOptions] = revealStub.secondCall.args;
+            assert.strictEqual(secondOptions.focus, true, 'Tree view should focus on topic node');
         });
 
-        test('should use expand: true in reveal options', async () => {
+        test('should use expand: false in topic reveal options', async () => {
             const testCluster = 'test-cluster';
             const testTopic = 'test-topic';
 
@@ -443,11 +486,14 @@ suite('Topic Search Focus Test Suite (Phase 0: 2.3)', () => {
                 .onFirstCall().resolves([clusterNode])
                 .onSecondCall().resolves([topicNode]);
 
+            // Mock addDynamicTopic
+            sandbox.stub(provider, 'addDynamicTopic').callsFake(() => {});
+
             await findTopic(clientManager, mockTreeView, provider);
 
             const revealStub = mockTreeView.reveal as sinon.SinonStub;
-            const [, options] = revealStub.firstCall.args;
-            assert.strictEqual(options.expand, true, 'Topic node should be expanded');
+            const [, secondOptions] = revealStub.secondCall.args;
+            assert.strictEqual(secondOptions.expand, false, 'Topic node should not be expanded');
         });
     });
 });

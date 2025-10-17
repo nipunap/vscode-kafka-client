@@ -273,13 +273,18 @@ suite('Logger Sanitization Test Suite (Phase 0: SEC-LOG)', () => {
         });
 
         test('should handle circular reference gracefully', () => {
-            const data: any = { name: 'test' };
-            data.self = data; // Create circular reference
+            const obj: any = {};
+            obj.circular = obj; // Create circular reference
 
-            // Should not throw (may return original or handle gracefully)
             assert.doesNotThrow(() => {
-                (logger as any).sanitize(data);
-            });
+                const logger = Logger.getLogger('test');
+                logger.sanitize(obj);
+            }, 'Should not throw on circular reference');
+
+            // The result should be a sanitized version without stack overflow
+            const result = Logger.getLogger('test').sanitize(obj);
+            assert.ok(result !== undefined, 'Should return a result');
+            assert.strictEqual(result.circular, '[CIRCULAR REFERENCE]', 'Circular reference should be handled');
         });
     });
 

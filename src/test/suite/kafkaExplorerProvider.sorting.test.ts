@@ -173,21 +173,22 @@ suite('KafkaExplorerProvider Sorting Test Suite (Phase 0: 2.2)', () => {
 
         test('should sort topics when count > 1000 (with warning)', async () => {
             const unsortedTopics = Array.from({ length: 1100 }, (_, i) => `topic-${1100 - i}`);
+            const mockCluster = 'test-cluster';
+            sandbox.stub(clientManager, 'getClusters').returns([mockCluster]);
+            sandbox.stub(clientManager, 'getTopics').withArgs(mockCluster).resolves(unsortedTopics);
 
-            sandbox.stub(clientManager, 'getTopics').resolves(unsortedTopics);
-            sandbox.stub(clientManager, 'getClusters').returns(['test-cluster']);
-
+            const provider = new KafkaExplorerProvider(clientManager as any);
             const clusterNode = new KafkaTreeItem(
-                'test-cluster',
+                mockCluster,
                 vscode.TreeItemCollapsibleState.Collapsed,
                 'cluster',
-                'test-cluster'
+                mockCluster
             );
 
             const children = await provider.getChildren(clusterNode);
 
             // Should have: warning (1) + topics (1000) + showMore (1) = 1002 items
-            assert.ok(children.length > 1000, 'Should have warning and showMore items');
+            assert.strictEqual(children.length, 1002, 'Should have warning, 1000 topics, and showMore items');
 
             // Find warning and showMore items
             const warningItem = children.find(item => item.contextValue === 'topicsWarning');
@@ -198,9 +199,14 @@ suite('KafkaExplorerProvider Sorting Test Suite (Phase 0: 2.2)', () => {
             assert.ok(showMoreItem, 'Show more item should be present');
             assert.strictEqual(topicItems.length, 1000, 'Should show first 1000 topics');
 
-            // Verify topics are sorted
-            assert.strictEqual(topicItems[0].label, 'topic-1', 'First displayed topic should be topic-1');
-            assert.strictEqual(topicItems[999].label, 'topic-999', 'Last displayed topic should be topic-999');
+            // Verify topics are sorted alphabetically
+            const topicLabels = topicItems.map((child: any) => child.label);
+            const expectedSorted = unsortedTopics.slice(0, 1000).sort((a, b) => a.localeCompare(b));
+            assert.deepStrictEqual(topicLabels, expectedSorted, 'Topics should be sorted');
+
+            // First and last of the limited list
+            assert.strictEqual(topicItems[0].label, expectedSorted[0], 'First displayed topic should be the first in sorted order');
+            assert.strictEqual(topicItems[999].label, expectedSorted[999], 'Last displayed topic should be the 1000th in sorted order');
         });
 
         test('should handle exactly 1000 topics (boundary)', async () => {

@@ -1,6 +1,13 @@
 import * as path from 'path';
 import Mocha from 'mocha';
 import { glob } from 'glob';
+import { Logger } from '../../infrastructure/Logger';
+
+// Set test environment flag
+process.env.NODE_ENV = 'test';
+
+// Global test flag for Logger
+(global as any).IS_TEST = true;
 
 export function run(): Promise<void> {
     // Create the mocha test
@@ -20,6 +27,8 @@ export function run(): Promise<void> {
             try {
                 // Run the mocha test
                 mocha.run(failures => {
+                    // Global cleanup
+                    Logger.clearLoggers();
                     if (failures > 0) {
                         reject(new Error(`${failures} tests failed.`));
                     } else {
@@ -27,6 +36,8 @@ export function run(): Promise<void> {
                     }
                 });
             } catch (err) {
+                // Cleanup even on error
+                Logger.clearLoggers();
                 console.error(err);
                 reject(err);
             }
@@ -35,4 +46,3 @@ export function run(): Promise<void> {
         });
     });
 }
-
