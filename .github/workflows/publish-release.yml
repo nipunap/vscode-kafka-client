@@ -153,17 +153,43 @@ jobs:
             exit 1
           fi
 
+      - name: Extract version-specific changelog
+        if: steps.version_check.outputs.changed == 'true'
+        id: extract_changelog
+        run: |
+          VERSION="${{ steps.version_check.outputs.version }}"
+
+          # Extract only this version's section from CHANGELOG.md
+          if [ -f CHANGELOG.md ]; then
+            echo "Extracting changelog for version $VERSION..."
+
+            # Look for the version header and extract until the next version header
+            awk "/^## \[$VERSION\]/{flag=1; next} /^## \[/{flag=0} flag" CHANGELOG.md > version_changelog.md
+
+            if [ -s version_changelog.md ]; then
+              echo "✅ Found changelog section for v$VERSION"
+              echo "has_changelog=true" >> $GITHUB_OUTPUT
+            else
+              echo "⚠️ No changelog section found for v$VERSION"
+              echo "has_changelog=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "⚠️ CHANGELOG.md not found"
+            echo "has_changelog=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create GitHub Release
         if: steps.version_check.outputs.changed == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version_check.outputs.version }}
           name: Release v${{ steps.version_check.outputs.version }}
-          body_path: CHANGELOG.md
+          body_path: ${{ steps.extract_changelog.outputs.has_changelog == 'true' && 'version_changelog.md' || '' }}
           draft: false
           prerelease: false
           make_latest: true
-          generate_release_notes: false
+          generate_release_notes: true
+          files: '*.vsix'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
