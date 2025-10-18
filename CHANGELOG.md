@@ -4,6 +4,35 @@ All notable changes to the "Kafka Client" extension will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/) and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.11.0](https://github.com/nipunap/vscode-kafka-client/compare/v0.9.0...v0.11.0) (2025-10-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* None
+Refs: #release-automation
+* None
+Refs: Phase 1 completion
+
+### ✨ Features
+
+* **commands:** register partition commands and update package.json ([ce67673](https://github.com/nipunap/vscode-kafka-client/commit/ce676733fc6ae55416ee378e32cd2831a2c4ff77))
+* **consumer:** add message search and seek functionality ([0676caf](https://github.com/nipunap/vscode-kafka-client/commit/0676caff73538f404df2bd6093705871d687f29d))
+* **partitions:** add partition navigation and metadata display ([a605f07](https://github.com/nipunap/vscode-kafka-client/commit/a605f074acc9cbff13ed2c7c508bbc7816fb1cdd))
+* **producer:** add GZIP compression and Avro message template ([629e8b4](https://github.com/nipunap/vscode-kafka-client/commit/629e8b441be43e9b51ce2caf9b94c69132e38836))
+* **schema-registry:** add Schema Registry service with secure credential storage ([7acae68](https://github.com/nipunap/vscode-kafka-client/commit/7acae68e1ad667e496e835bb429f9857b7d254dc))
+
+
+### 📝 Documentation
+
+* add Phase 1 implementation summary ([fa03b0f](https://github.com/nipunap/vscode-kafka-client/commit/fa03b0f7a997301b1429eb419d3ffa4793236749))
+* update README, SECURITY, and roadmap for v0.10.0 ([b17e063](https://github.com/nipunap/vscode-kafka-client/commit/b17e063d4958a4832f94f3f7a9c132665fc22fdd))
+
+
+### 👷 CI/CD
+
+* extract version-specific changelog dynamically for releases ([8af8785](https://github.com/nipunap/vscode-kafka-client/commit/8af87857c4d18bda4b37f1ec9850a43630a92610))
+
 ## [0.9.0](https://github.com/nipunap/vscode-kafka-client/compare/v0.8.8...v0.9.0) (2025-10-17)
 
 
