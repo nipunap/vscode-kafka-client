@@ -546,6 +546,31 @@
           "type": "number",
           "default": 60000,
           "description": "Kafka request timeout in milliseconds"
+        },
+        "kafka.explorer.largeListThreshold": {
+          "type": "number",
+          "default": 150,
+          "description": "Number of topics above which to use paginated webview instead of tree view"
+        },
+        "kafka.lagAlerts.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable consumer group lag monitoring and alerts"
+        },
+        "kafka.lagAlerts.warningThreshold": {
+          "type": "number",
+          "default": 1000,
+          "description": "Lag threshold for warning alerts"
+        },
+        "kafka.lagAlerts.criticalThreshold": {
+          "type": "number",
+          "default": 10000,
+          "description": "Lag threshold for critical alerts"
+        },
+        "kafka.lagAlerts.pollIntervalSeconds": {
+          "type": "number",
+          "default": 30,
+          "description": "How often to check consumer group lag (in seconds)"
         }
       }
     }

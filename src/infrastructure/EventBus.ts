@@ -157,5 +157,12 @@ export const KafkaEvents = {
     // UI events
     REFRESH_REQUESTED: 'ui:refreshRequested',
     REFRESH_COMPLETED: 'ui:refreshCompleted',
+    
+    // Phase 1 telemetry events
+    SCHEMA_FETCHED: 'schema:fetched',
+    SCHEMA_VALIDATED: 'schema:validated',
+    MESSAGE_SEARCHED: 'message:searched',
+    SEEK_PERFORMED: 'message:seekPerformed',
+    LAG_ALERT_SENT: 'lag:alertSent',
 } as const;
 

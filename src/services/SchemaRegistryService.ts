@@ -1,6 +1,7 @@
 import { SchemaRegistry } from '@kafkajs/confluent-schema-registry';
 import { Logger } from '../infrastructure/Logger';
 import { CredentialManager } from '../infrastructure/CredentialManager';
+import { EventBus, KafkaEvents } from '../infrastructure/EventBus';
 
 export interface SchemaRegistryConfig {
     url: string;
@@ -25,15 +26,18 @@ export class SchemaRegistryService {
     private config: SchemaRegistryConfig;
     private credentialManager: CredentialManager;
     private clusterId: string;
+    private eventBus?: EventBus;
 
     constructor(
         config: SchemaRegistryConfig,
         credentialManager: CredentialManager,
-        clusterId: string
+        clusterId: string,
+        eventBus?: EventBus
     ) {
         this.config = config;
         this.credentialManager = credentialManager;
         this.clusterId = clusterId;
+        this.eventBus = eventBus;
     }
 
     /**
@@ -92,6 +96,15 @@ export class SchemaRegistryService {
 
             // SEC-3.1-5: Audit operation (no sensitive data)
             this.logger.info(`Schema fetched successfully for subject: ${subject}`);
+
+            // Emit telemetry event
+            if (this.eventBus) {
+                this.eventBus.emitSync(KafkaEvents.SCHEMA_FETCHED, {
+                    clusterId: this.clusterId,
+                    subject,
+                    schemaId
+                });
+            }
 
             return {
                 id: schemaId,
@@ -183,9 +196,29 @@ export class SchemaRegistryService {
 
             // SEC-3.1-5: Audit validation
             this.logger.info(`Message validated successfully for subject: ${subject}`);
+
+            // Emit telemetry event
+            if (this.eventBus) {
+                this.eventBus.emitSync(KafkaEvents.SCHEMA_VALIDATED, {
+                    clusterId: this.clusterId,
+                    subject,
+                    success: true
+                });
+            }
+
             return true;
         } catch (error) {
             this.logger.error(`Message validation failed for subject: ${subject}`, error);
+
+            // Emit telemetry event for failure
+            if (this.eventBus) {
+                this.eventBus.emitSync(KafkaEvents.SCHEMA_VALIDATED, {
+                    clusterId: this.clusterId,
+                    subject,
+                    success: false
+                });
+            }
+
             return false;
         }
     }

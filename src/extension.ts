@@ -22,11 +22,13 @@ import { FieldDescriptions } from './utils/fieldDescriptions';
 import { MessageConsumerWebview } from './views/MessageConsumerWebview';
 import { MessageProducerWebview } from './views/MessageProducerWebview';
 import { WebviewManager } from './views/WebviewManager';
+import { LagMonitor } from './services/LagMonitor';
 
 // Global instances for cleanup on deactivation
 let clientManager: KafkaClientManager;
 let eventBus: EventBus;
 let credentialManager: CredentialManager;
+let lagMonitor: LagMonitor;
 const logger = Logger.getLogger('Extension');
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -41,6 +43,10 @@ export async function activate(context: vscode.ExtensionContext) {
     eventBus = new EventBus();
     credentialManager = new CredentialManager(context.secrets);
     clientManager = new KafkaClientManager(credentialManager);
+
+    // Initialize lag monitoring
+    lagMonitor = new LagMonitor(clientManager, eventBus);
+    lagMonitor.start();
 
     // Load field descriptions database for webview info icons
     const fieldDescriptions = FieldDescriptions.getInstance();
@@ -214,7 +220,8 @@ export async function activate(context: vscode.ExtensionContext) {
             // Show the message consumer webview
             const messageConsumerWebview = MessageConsumerWebview.getInstance(
                 clientManager,
-                logger
+                logger,
+                eventBus
             );
 
             await messageConsumerWebview.show(
@@ -234,6 +241,14 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.showTopicDetails', async (node) => {
             await topicCommands.showTopicDetails(clientManager, node, context);
+        })
+    );
+
+    // Register view all topics command (for large lists)
+    context.subscriptions.push(
+        vscode.commands.registerCommand('kafka.viewAllTopics', async (clusterName: string, topics: string[]) => {
+            const { TopicsWebview } = await import('./views/TopicsWebview');
+            await TopicsWebview.getInstance().show(clusterName, topics);
         })
     );
 
@@ -401,6 +416,16 @@ export async function deactivate() {
         logger.info('Successfully cleaned up all webviews');
     } catch (error) {
         logger.error('Error during webview cleanup', error);
+    }
+
+    // Stop lag monitoring
+    if (lagMonitor) {
+        try {
+            lagMonitor.stop();
+            logger.info('Successfully stopped lag monitoring');
+        } catch (error) {
+            logger.error('Error during lag monitor cleanup', error);
+        }
     }
 
     // Clean up all Kafka connections

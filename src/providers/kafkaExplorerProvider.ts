@@ -115,25 +115,33 @@ export class KafkaExplorerProvider extends BaseProvider<KafkaTreeItem> {
                     // Sort topics alphabetically (Phase 0: 2.2)
                     topics.sort((a, b) => a.localeCompare(b));
 
-                    // Warn if too many topics
-                    const MAX_TOPICS_WITHOUT_WARNING = 1000;
-                    if (topics.length > MAX_TOPICS_WITHOUT_WARNING) {
-                        const warning = new KafkaTreeItem(
-                            `ℹ️ ${topics.length} topics found. Use "Find Topic" (🔍 icon) to search`,
+                    // Check if we should use webview for large lists
+                    const config = vscode.workspace.getConfiguration('kafka');
+                    const largeListThreshold = config.get<number>('explorer.largeListThreshold', 150);
+
+                    if (topics.length > largeListThreshold) {
+                        // Show a tree item that opens the webview
+                        const viewAllItem = new KafkaTreeItem(
+                            `📋 View All ${topics.length} Topics (Paginated)`,
                             vscode.TreeItemCollapsibleState.None,
-                            'topicsWarning',
+                            'viewAllTopics',
                             el!.clusterName,
                             undefined,
                             undefined,
-                            'Click the search icon (🔍) in the toolbar or press Cmd+Shift+F / Ctrl+Shift+F'
+                            'Click to open paginated view of all topics'
                         );
+                        viewAllItem.command = {
+                            command: 'kafka.viewAllTopics',
+                            title: 'View All Topics',
+                            arguments: [el!.clusterName, topics]
+                        };
 
                         // Get dynamic topics for this cluster (from search results)
                         const dynamicTopicsSet = this.dynamicTopics.get(el!.clusterName) || new Set();
 
-                        // Combine first MAX topics with any dynamic topics that aren't already in the list
+                        // Show first 50 topics + dynamic topics in tree view
                         const topicsToShow = new Set<string>();
-                        topics.slice(0, MAX_TOPICS_WITHOUT_WARNING).forEach(t => topicsToShow.add(t));
+                        topics.slice(0, 50).forEach(t => topicsToShow.add(t));
                         dynamicTopicsSet.forEach(t => topicsToShow.add(t));
 
                         // Convert to sorted array
@@ -150,16 +158,15 @@ export class KafkaExplorerProvider extends BaseProvider<KafkaTreeItem> {
                                 )
                         );
 
-                        const dynamicCount = dynamicTopicsSet.size;
-                        const hiddenCount = topics.length - MAX_TOPICS_WITHOUT_WARNING - (dynamicCount > 0 ? Math.max(0, dynamicTopicsSet.size - (sortedTopics.length - MAX_TOPICS_WITHOUT_WARNING)) : 0);
-
+                        const hiddenCount = topics.length - sortedTopics.length;
                         const showMore = new KafkaTreeItem(
-                            `... and ${Math.max(0, hiddenCount)} more. Use 🔍 icon or Cmd+Shift+F`,
+                            `... and ${hiddenCount} more topics. Click "View All" above.`,
                             vscode.TreeItemCollapsibleState.None,
                             'topicsMore',
                             el!.clusterName
                         );
-                        return [warning, ...topicItems, showMore];
+                        
+                        return [viewAllItem, ...topicItems, showMore];
                     }
 
                     return topics.map(

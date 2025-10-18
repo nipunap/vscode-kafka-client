@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { KafkaClientManager } from '../kafka/kafkaClientManager';
 import { Logger } from '../infrastructure/Logger';
+import { EventBus, KafkaEvents } from '../infrastructure/EventBus';
 
 interface ConsumedMessage {
     topic: string;
@@ -25,6 +26,7 @@ export class MessageConsumerWebview {
     private panel: vscode.WebviewPanel | undefined;
     private readonly clientManager: KafkaClientManager;
     private readonly logger: Logger;
+    private eventBus?: EventBus;
     private messages: ConsumedMessage[] = [];
     private consumerState: ConsumerState = {
         isRunning: false,
@@ -40,20 +42,24 @@ export class MessageConsumerWebview {
 
     private constructor(
         clientManager: KafkaClientManager,
-        logger: Logger
+        logger: Logger,
+        eventBus?: EventBus
     ) {
         this.clientManager = clientManager;
         this.logger = logger;
+        this.eventBus = eventBus;
     }
 
     public static getInstance(
         clientManager: KafkaClientManager,
-        logger: Logger
+        logger: Logger,
+        eventBus?: EventBus
     ): MessageConsumerWebview {
         if (!MessageConsumerWebview.instance) {
             MessageConsumerWebview.instance = new MessageConsumerWebview(
                 clientManager,
-                logger
+                logger,
+                eventBus
             );
         }
         return MessageConsumerWebview.instance;
@@ -133,6 +139,18 @@ export class MessageConsumerWebview {
                 break;
             case 'seekToTimestamp':
                 await this.seekToTimestamp(message.timestamp);
+                break;
+            case 'messageSearched':
+                // Emit telemetry event for message search
+                if (this.eventBus) {
+                    this.eventBus.emitSync(KafkaEvents.MESSAGE_SEARCHED, {
+                        clusterName: this.clusterName,
+                        topicName: this.topicName,
+                        searchType: message.searchType,
+                        hasKeyFilter: message.hasKeyFilter,
+                        hasOffsetFilter: message.hasOffsetFilter
+                    });
+                }
                 break;
         }
     }
@@ -378,6 +396,16 @@ export class MessageConsumerWebview {
 
             vscode.window.showInformationMessage(`Seeked to timestamp ${new Date(timestamp).toISOString()}`);
             this.logger.info('Seek by timestamp completed successfully');
+
+            // Emit telemetry event
+            if (this.eventBus) {
+                this.eventBus.emitSync(KafkaEvents.SEEK_PERFORMED, {
+                    clusterName: this.clusterName,
+                    topicName: this.topicName,
+                    seekType: 'timestamp',
+                    timestamp
+                });
+            }
         } catch (error: any) {
             this.logger.error('Failed to seek to timestamp', error);
             vscode.window.showErrorMessage(`Failed to seek: ${error.message}`);
@@ -834,10 +862,21 @@ export class MessageConsumerWebview {
 
         function filterMessages() {
             const searchKey = document.getElementById('searchKey').value.trim();
+            const searchOffset = document.getElementById('searchOffset').value.trim();
 
             // SEC-1.2-2: Check for PII patterns
             if (searchKey) {
                 checkPIIWarning(searchKey);
+            }
+
+            // Emit telemetry event when user performs a search
+            if (searchKey || searchOffset) {
+                vscode.postMessage({
+                    command: 'messageSearched',
+                    searchType: 'filter',
+                    hasKeyFilter: !!searchKey,
+                    hasOffsetFilter: !!searchOffset
+                });
             }
 
             // Re-render all messages with current filters
