@@ -8,6 +8,7 @@ interface ProducerMessage {
     headers?: Record<string, string>;
     partition?: number;
     timestamp?: string;
+    compression?: 'gzip' | 'none';
 }
 
 interface ProducerState {
@@ -113,7 +114,7 @@ export class MessageProducerWebview {
                 partition: data.partition !== undefined && data.partition >= 0 ? data.partition : undefined
             }];
 
-            await this.clientManager.produceAdvancedMessages(this.clusterName, this.topicName, messages);
+            await this.clientManager.produceAdvancedMessages(this.clusterName, this.topicName, messages, data.compression);
 
             this.producerState.messageCount++;
             this.producerState.lastMessageTime = Date.now();
@@ -148,7 +149,9 @@ export class MessageProducerWebview {
                 partition: msg.partition !== undefined && msg.partition >= 0 ? msg.partition : undefined
             }));
 
-            await this.clientManager.produceAdvancedMessages(this.clusterName, this.topicName, messages);
+            // Use compression from first message if specified
+            const compression = data.messages[0]?.compression;
+            await this.clientManager.produceAdvancedMessages(this.clusterName, this.topicName, messages, compression);
 
             this.producerState.messageCount += data.messages.length;
             this.producerState.lastMessageTime = Date.now();
@@ -229,6 +232,20 @@ export class MessageProducerWebview {
                 headers: {
                     'device-type': 'temperature-sensor',
                     'location': 'building-a'
+                }
+            },
+            'avro-user': {
+                key: "user-001",
+                value: JSON.stringify({
+                    id: 1,
+                    name: "John Doe",
+                    email: "john@example.com",
+                    age: 30,
+                    created_at: new Date().toISOString()
+                }, null, 2),
+                headers: {
+                    'content-type': 'application/avro',
+                    'schema-version': '1'
                 }
             }
         };
@@ -485,6 +502,7 @@ export class MessageProducerWebview {
             <button class="btn template-btn" onclick="loadTemplate('user-event')">User Event</button>
             <button class="btn template-btn" onclick="loadTemplate('order')">Order</button>
             <button class="btn template-btn" onclick="loadTemplate('iot-telemetry')">IoT Telemetry</button>
+            <button class="btn template-btn" onclick="loadTemplate('avro-user')">Avro User</button>
         </div>
     </div>
 
@@ -521,6 +539,17 @@ export class MessageProducerWebview {
         </div>
     </div>
 
+    <div class="form-section">
+        <div class="section-title">🗜️ Compression (Optional)</div>
+        <div class="form-group">
+            <select id="compression">
+                <option value="none">No Compression</option>
+                <option value="gzip">GZIP</option>
+            </select>
+            <div class="help-text">Compress messages before sending (GZIP reduces bandwidth)</div>
+        </div>
+    </div>
+
     <div class="btn-group">
         <button class="btn btn-primary" onclick="produceMessage()">📤 Send Message</button>
         <button class="btn" onclick="clearForm()">🗑️ Clear</button>
@@ -551,6 +580,7 @@ export class MessageProducerWebview {
             const key = document.getElementById('messageKey').value.trim();
             const value = document.getElementById('messageValue').value.trim();
             const partition = document.getElementById('partition').value;
+            const compression = document.getElementById('compression').value;
 
             if (!value) {
                 showAlert('error', 'Message value is required');
@@ -572,7 +602,8 @@ export class MessageProducerWebview {
                 key: key || undefined,
                 value,
                 headers: Object.keys(headers).length > 0 ? headers : undefined,
-                partition: partition ? parseInt(partition) : undefined
+                partition: partition ? parseInt(partition) : undefined,
+                compression: compression !== 'none' ? compression : undefined
             };
 
             vscode.postMessage({ command: 'produce', data });
@@ -620,6 +651,7 @@ export class MessageProducerWebview {
             document.getElementById('messageKey').value = '';
             document.getElementById('messageValue').value = '';
             document.getElementById('partition').value = '';
+            document.getElementById('compression').value = 'none';
             document.getElementById('headersContainer').innerHTML = '';
             clearAlerts();
         }
