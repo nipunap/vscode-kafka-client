@@ -7,6 +7,8 @@ export interface StoredCredentials {
     awsAccessKeyId?: string;
     awsSecretAccessKey?: string;
     awsSessionToken?: string;
+    schemaRegistryApiKey?: string;
+    schemaRegistryApiSecret?: string;
 }
 
 /**
@@ -39,7 +41,7 @@ export class CredentialManager {
         try {
             const key = this.getKey(clusterId);
             const serialized = await this.secrets.get(key);
-            
+
             if (!serialized) {
                 this.logger.debug(`No credentials found for cluster: ${clusterId}`);
                 return undefined;
@@ -73,13 +75,13 @@ export class CredentialManager {
      */
     async storePassword(clusterId: string, passwordType: 'sasl' | 'ssl', password: string): Promise<void> {
         const existing = await this.getCredentials(clusterId) || {};
-        
+
         if (passwordType === 'sasl') {
             existing.saslPassword = password;
         } else {
             existing.sslPassword = password;
         }
-        
+
         await this.storeCredentials(clusterId, existing);
     }
 
@@ -89,6 +91,27 @@ export class CredentialManager {
     async getPassword(clusterId: string, passwordType: 'sasl' | 'ssl'): Promise<string | undefined> {
         const credentials = await this.getCredentials(clusterId);
         return passwordType === 'sasl' ? credentials?.saslPassword : credentials?.sslPassword;
+    }
+
+    /**
+     * Store Schema Registry credentials
+     */
+    async storeSchemaRegistryCredentials(clusterId: string, apiKey: string, apiSecret: string): Promise<void> {
+        const existing = await this.getCredentials(clusterId) || {};
+        existing.schemaRegistryApiKey = apiKey;
+        existing.schemaRegistryApiSecret = apiSecret;
+        await this.storeCredentials(clusterId, existing);
+    }
+
+    /**
+     * Get Schema Registry credentials
+     */
+    async getSchemaRegistryCredentials(clusterId: string): Promise<{ apiKey?: string; apiSecret?: string }> {
+        const credentials = await this.getCredentials(clusterId);
+        return {
+            apiKey: credentials?.schemaRegistryApiKey,
+            apiSecret: credentials?.schemaRegistryApiSecret
+        };
     }
 
     /**
@@ -104,10 +127,10 @@ export class CredentialManager {
      */
     async migrateFromPlainText(clusterId: string, plainTextCreds: StoredCredentials): Promise<void> {
         this.logger.info(`Migrating plain text credentials to secure storage: ${clusterId}`);
-        
+
         // Store in secure storage
         await this.storeCredentials(clusterId, plainTextCreds);
-        
+
         // Clear sensitive data from plain text creds object
         if (plainTextCreds.saslPassword) {
             plainTextCreds.saslPassword = undefined;
@@ -124,7 +147,13 @@ export class CredentialManager {
         if (plainTextCreds.awsSessionToken) {
             plainTextCreds.awsSessionToken = undefined;
         }
-        
+        if (plainTextCreds.schemaRegistryApiKey) {
+            plainTextCreds.schemaRegistryApiKey = undefined;
+        }
+        if (plainTextCreds.schemaRegistryApiSecret) {
+            plainTextCreds.schemaRegistryApiSecret = undefined;
+        }
+
         this.logger.info(`Migration completed for cluster: ${clusterId}`);
     }
 
@@ -141,7 +170,7 @@ export class CredentialManager {
      */
     async clearAll(clusterIds: string[]): Promise<void> {
         this.logger.info(`Clearing credentials for ${clusterIds.length} clusters`);
-        
+
         for (const clusterId of clusterIds) {
             try {
                 await this.deleteCredentials(clusterId);
@@ -151,4 +180,3 @@ export class CredentialManager {
         }
     }
 }
-
