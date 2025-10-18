@@ -14,6 +14,7 @@ import * as auditCommands from './commands/auditCommands';
 import * as kstreamCommands from './commands/kstreamCommands';
 import * as ktableCommands from './commands/ktableCommands';
 import * as clusterDashboardCommands from './commands/clusterDashboardCommands';
+import * as partitionCommands from './commands/partitionCommands';
 import { Logger, LogLevel } from './infrastructure/Logger';
 import { EventBus, KafkaEvents } from './infrastructure/EventBus';
 import { CredentialManager } from './infrastructure/CredentialManager';
@@ -307,6 +308,25 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.findKTable', async () => {
             await ktableCommands.findKTable(clientManager, ktableTreeView, ktableProvider, context);
+        })
+    );
+
+    // Partition commands
+    context.subscriptions.push(
+        vscode.commands.registerCommand('kafka.viewPartitionDetails', async (node) => {
+            await partitionCommands.viewPartitionDetails(clientManager, node.clusterName, node.topicName, node.partitionId);
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('kafka.viewPartitionOffsets', async (node) => {
+            await partitionCommands.viewPartitionOffsets(clientManager, node.clusterName, node.topicName, node.partitionId);
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('kafka.seekToOffset', async (node) => {
+            await partitionCommands.seekToOffset(clientManager, node.clusterName, node.topicName, node.partitionId);
         })
     );
 
