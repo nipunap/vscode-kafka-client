@@ -105,7 +105,7 @@ suite('SchemaRegistryService Test Suite', () => {
 
             try {
                 await service.initialize();
-            } catch (error) {
+            } catch (_error) {
                 // Ignore connection errors
             }
 
@@ -132,7 +132,7 @@ suite('SchemaRegistryService Test Suite', () => {
 
             try {
                 await service.initialize();
-            } catch (error) {
+            } catch (_error) {
                 // Ignore connection errors
             }
 
@@ -165,7 +165,7 @@ suite('SchemaRegistryService Test Suite', () => {
 
             try {
                 await service.initialize();
-            } catch (error) {
+            } catch (_error) {
                 // Ignore connection errors
             }
 
@@ -194,7 +194,7 @@ suite('SchemaRegistryService Test Suite', () => {
             // Should auto-initialize
             try {
                 await service.getLatestSchema('test-subject');
-            } catch (error) {
+            } catch (_error) {
                 // Expected to fail due to no real connection
                 assert.ok(true, 'Should attempt initialization');
             }
@@ -304,7 +304,7 @@ suite('SchemaRegistryService Test Suite', () => {
             // Attempt to fetch schema (will fail but should log)
             try {
                 await service.getLatestSchema('test-subject');
-            } catch (error) {
+            } catch (_error) {
                 // Expected to fail
             }
 

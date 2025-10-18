@@ -40,7 +40,7 @@ suite('Message Search Test Suite', () => {
             try {
                 new RegExp(invalidPattern);
                 assert.fail('Should throw for invalid regex');
-            } catch (error) {
+            } catch (_error) {
                 assert.ok(true, 'Invalid regex should be caught');
             }
         });
