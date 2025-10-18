@@ -1608,12 +1608,60 @@ async disconnectCluster(clusterName: string) {
 
 | ID | Feature | Why Defer | User Demand | Effort | Trigger for Implementation |
 |----|---------|-----------|-------------|--------|---------------------------|
+| 3.7.1 | **Consumer Group Pagination** | Phase 1 focused on topics; same pattern applies | 🟡 Medium | Low (3-4h) | Clusters with >150 consumer groups |
 | 3.5 | **Backup/Export Wizard** | Manual export exists; low demand | 🟢 Low | Low (4h) | >5 user requests via GitHub |
 | 1.5.1 | **OAuth Support** | Most users use SCRAM/MSK IAM; niche | 🟡 Medium | Low (8h) | GitHub issue template; PR welcome |
 | 1.6.1 | **Data Masking** | Enterprise compliance feature; complex | 🟢 Low | Medium (20h) | Enterprise customer request |
 | 1.4.1 | **Metrics Export (Advanced)** | Basic CSV export in Phase 2; Prometheus integration overkill | 🟡 Medium | Medium (12h) | User survey shows demand |
 
 **Decision Process**: If feature receives >5 GitHub issues OR paying customer requests it, prioritize in next planning cycle.
+
+---
+
+### **Phase 1B: Quick Wins (Post-v0.10.0)**
+
+These features extend Phase 1 functionality with minimal effort:
+
+| ID | Feature | Description | Effort | Priority | Status |
+|----|---------|-------------|--------|----------|--------|
+| **3.7.1** | **Consumer Group Pagination** | Paginated webview for 1000+ consumer groups (reuse TopicsWebview pattern) | 3-4h | 🟡 Medium | Planned |
+| **3.1.1** | **Schema Viewer UI** | Display schema in topic details webview (service layer already complete) | 6h | 🟢 High | Planned |
+| **3.1.2** | **Producer Schema Validation** | Integrate schema validation into producer webview (service layer already complete) | 4h | 🟢 High | Planned |
+
+#### **3.7.1 Consumer Group Pagination - Implementation Details**
+
+**Problem**: Enterprise clusters can have 500-1000+ consumer groups, causing same performance issues as topics (slow rendering, high memory usage).
+
+**Solution**: Reuse `TopicsWebview` pattern for consistency.
+
+**Deliverables**:
+1. Create `ConsumerGroupsWebview.ts` (copy/adapt from `TopicsWebview.ts`)
+2. Add `kafka.explorer.consumerGroupThreshold` setting (default: 150)
+3. Update `consumerGroupProvider.ts` to check threshold:
+   ```typescript
+   if (groups.length > threshold) {
+     return [viewAllGroupsItem, ...groups.slice(0, 50), showMoreItem];
+   }
+   ```
+4. Webview features:
+   - Pagination (100 groups per page)
+   - Client-side search by group ID
+   - Filter by state (Active, Empty, Dead, Rebalancing)
+   - Actions: View Details, Reset Offsets, Delete
+   - XSS protection (HTML escaping + command whitelist)
+
+**Testing** (estimated 1h):
+- Unit tests: Pagination logic, search, filtering
+- Security tests: XSS prevention (SEC-3.7-*)
+- Performance: 1000 groups render <3s
+
+**Security**: Same as TopicsWebview (SEC-3.7-1, SEC-3.7-3)
+
+**Effort Breakdown**:
+- Implementation: 2-3h (reuse existing pattern)
+- Testing: 1h
+- Documentation: 30min
+- **Total: 3.5-4.5h**
 
 ---
 
