@@ -2,7 +2,7 @@
   "name": "vscode-kafka-client",
   "displayName": "Kafka Client",
   "description": "Full-featured Kafka client with AWS MSK support, IAM authentication, role assumption, and auto-discovery",
-  "version": "0.9.0",
+  "version": "0.11.0",
   "publisher": "NipunaPerera",
   "license": "GPL-3.0",
   "icon": "resources/kafka-icon.png",
@@ -257,6 +257,21 @@
         "command": "kafka.editBrokerConfig",
         "title": "Edit Broker Configuration",
         "icon": "$(settings-gear)"
+      },
+      {
+        "command": "kafka.viewPartitionDetails",
+        "title": "View Partition Details",
+        "icon": "$(info)"
+      },
+      {
+        "command": "kafka.viewPartitionOffsets",
+        "title": "View Partition Offsets",
+        "icon": "$(list-ordered)"
+      },
+      {
+        "command": "kafka.seekToOffset",
+        "title": "Seek to Offset",
+        "icon": "$(go-to-file)"
       }
     ],
     "menus": {
@@ -442,6 +457,16 @@
           "command": "kafka.editBrokerConfig",
           "when": "view == kafkaBrokers && viewItem == broker",
           "group": "1_modification@1"
+        },
+        {
+          "command": "kafka.viewPartitionOffsets",
+          "when": "view == kafkaExplorer && viewItem == partition",
+          "group": "0_info@1"
+        },
+        {
+          "command": "kafka.seekToOffset",
+          "when": "view == kafkaExplorer && viewItem == partition",
+          "group": "2_actions@1"
         }
       ]
     },
@@ -521,6 +546,31 @@
           "type": "number",
           "default": 60000,
           "description": "Kafka request timeout in milliseconds"
+        },
+        "kafka.explorer.largeListThreshold": {
+          "type": "number",
+          "default": 150,
+          "description": "Number of topics above which to use paginated webview instead of tree view"
+        },
+        "kafka.lagAlerts.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable consumer group lag monitoring and alerts"
+        },
+        "kafka.lagAlerts.warningThreshold": {
+          "type": "number",
+          "default": 1000,
+          "description": "Lag threshold for warning alerts"
+        },
+        "kafka.lagAlerts.criticalThreshold": {
+          "type": "number",
+          "default": 10000,
+          "description": "Lag threshold for critical alerts"
+        },
+        "kafka.lagAlerts.pollIntervalSeconds": {
+          "type": "number",
+          "default": 30,
+          "description": "How often to check consumer group lag (in seconds)"
         }
       }
     }
@@ -548,7 +598,6 @@
     "release:patch": "commit-and-tag-version --release-as patch"
   },
   "devDependencies": {
-    "ovsx": "^0.8.3",
     "@types/ini": "^4.1.1",
     "@types/mocha": "^10.0.10",
     "@types/node": "^20.0.0",
@@ -564,6 +613,7 @@
     "globals": "^16.4.0",
     "mocha": "^11.7.4",
     "npm-run-all": "^4.1.5",
+    "ovsx": "^0.8.3",
     "sinon": "^21.0.0",
     "typescript": "^5.7.2"
   },
@@ -572,6 +622,7 @@
     "@aws-sdk/client-sts": "^3.700.0",
     "@aws-sdk/credential-providers": "^3.700.0",
     "@aws/lambda-invoke-store": "^0.1.0",
+    "@kafkajs/confluent-schema-registry": "^3.9.0",
     "aws-msk-iam-sasl-signer-js": "github:aws/aws-msk-iam-sasl-signer-js",
     "ini": "^5.0.0",
     "kafkajs": "^2.2.4"

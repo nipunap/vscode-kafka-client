@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { KafkaClientManager } from '../kafka/kafkaClientManager';
 import { Logger } from '../infrastructure/Logger';
+import { EventBus, KafkaEvents } from '../infrastructure/EventBus';
 
 interface ConsumedMessage {
     topic: string;
@@ -25,6 +26,7 @@ export class MessageConsumerWebview {
     private panel: vscode.WebviewPanel | undefined;
     private readonly clientManager: KafkaClientManager;
     private readonly logger: Logger;
+    private eventBus?: EventBus;
     private messages: ConsumedMessage[] = [];
     private consumerState: ConsumerState = {
         isRunning: false,
@@ -40,20 +42,24 @@ export class MessageConsumerWebview {
 
     private constructor(
         clientManager: KafkaClientManager,
-        logger: Logger
+        logger: Logger,
+        eventBus?: EventBus
     ) {
         this.clientManager = clientManager;
         this.logger = logger;
+        this.eventBus = eventBus;
     }
 
     public static getInstance(
         clientManager: KafkaClientManager,
-        logger: Logger
+        logger: Logger,
+        eventBus?: EventBus
     ): MessageConsumerWebview {
         if (!MessageConsumerWebview.instance) {
             MessageConsumerWebview.instance = new MessageConsumerWebview(
                 clientManager,
-                logger
+                logger,
+                eventBus
             );
         }
         return MessageConsumerWebview.instance;
@@ -127,6 +133,24 @@ export class MessageConsumerWebview {
                 break;
             case 'export':
                 await this.exportMessages();
+                break;
+            case 'seekToOffset':
+                await this.seekToOffset(message.partition, message.offset);
+                break;
+            case 'seekToTimestamp':
+                await this.seekToTimestamp(message.timestamp);
+                break;
+            case 'messageSearched':
+                // Emit telemetry event for message search
+                if (this.eventBus) {
+                    this.eventBus.emitSync(KafkaEvents.MESSAGE_SEARCHED, {
+                        clusterName: this.clusterName,
+                        topicName: this.topicName,
+                        searchType: message.searchType,
+                        hasKeyFilter: message.hasKeyFilter,
+                        hasOffsetFilter: message.hasOffsetFilter
+                    });
+                }
                 break;
         }
     }
@@ -313,6 +337,78 @@ export class MessageConsumerWebview {
         } catch (error: any) {
             this.logger.error('Error exporting messages', error);
             vscode.window.showErrorMessage(`Failed to export messages: ${error.message}`);
+        }
+    }
+
+    /**
+     * Seek to a specific offset in a partition
+     */
+    private async seekToOffset(partition: number, offset: string): Promise<void> {
+        if (!this.consumerState.isRunning) {
+            vscode.window.showWarningMessage('Consumer is not running');
+            return;
+        }
+
+        try {
+            this.logger.info(`Seeking to offset ${offset} in partition ${partition}`);
+            const consumer = await this.clientManager.getConsumer(this.clusterName);
+
+            await consumer.seek({
+                topic: this.topicName,
+                partition: partition,
+                offset: offset
+            });
+
+            vscode.window.showInformationMessage(`Seeked to offset ${offset} in partition ${partition}`);
+            this.logger.info('Seek operation completed successfully');
+        } catch (error: any) {
+            this.logger.error('Failed to seek to offset', error);
+            vscode.window.showErrorMessage(`Failed to seek: ${error.message}`);
+        }
+    }
+
+    /**
+     * Seek to a specific timestamp across all partitions
+     */
+    private async seekToTimestamp(timestamp: number): Promise<void> {
+        if (!this.consumerState.isRunning) {
+            vscode.window.showWarningMessage('Consumer is not running');
+            return;
+        }
+
+        try {
+            this.logger.info(`Seeking to timestamp ${timestamp}`);
+            const admin = await this.clientManager.getAdminClient(this.clusterName);
+
+            // Fetch offsets by timestamp for all partitions
+            const offsets = await admin.fetchTopicOffsetsByTimestamp(this.topicName, timestamp);
+
+            const consumer = await this.clientManager.getConsumer(this.clusterName);
+
+            // Seek each partition to the corresponding offset
+            for (const partitionOffset of offsets) {
+                await consumer.seek({
+                    topic: this.topicName,
+                    partition: partitionOffset.partition,
+                    offset: partitionOffset.offset
+                });
+            }
+
+            vscode.window.showInformationMessage(`Seeked to timestamp ${new Date(timestamp).toISOString()}`);
+            this.logger.info('Seek by timestamp completed successfully');
+
+            // Emit telemetry event
+            if (this.eventBus) {
+                this.eventBus.emitSync(KafkaEvents.SEEK_PERFORMED, {
+                    clusterName: this.clusterName,
+                    topicName: this.topicName,
+                    seekType: 'timestamp',
+                    timestamp
+                });
+            }
+        } catch (error: any) {
+            this.logger.error('Failed to seek to timestamp', error);
+            vscode.window.showErrorMessage(`Failed to seek: ${error.message}`);
         }
     }
 
@@ -531,6 +627,36 @@ export class MessageConsumerWebview {
             padding: 2px 4px;
             border-radius: 3px;
         }
+
+        .search-bar {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr auto;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 15px;
+            background-color: var(--vscode-editor-inactiveSelectionBackground);
+            border-radius: 5px;
+        }
+
+        .search-input {
+            padding: 6px 10px;
+            background-color: var(--vscode-input-background);
+            color: var(--vscode-input-foreground);
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 3px;
+            font-size: 13px;
+        }
+
+        .search-label {
+            font-size: 11px;
+            opacity: 0.7;
+            margin-bottom: 4px;
+        }
+
+        .search-group {
+            display: flex;
+            flex-direction: column;
+        }
     </style>
 </head>
 <body>
@@ -546,6 +672,25 @@ export class MessageConsumerWebview {
         <button class="btn btn-danger" id="stopBtn" onclick="stopConsumer()" disabled>⏹️ Stop</button>
         <button class="btn" onclick="clearMessages()">🗑️ Clear</button>
         <button class="btn" onclick="exportMessages()">💾 Export</button>
+    </div>
+
+    <div class="search-bar">
+        <div class="search-group">
+            <div class="search-label">🔍 Search Key (regex)</div>
+            <input type="text" id="searchKey" class="search-input" placeholder="e.g., user-.*" oninput="filterMessages()">
+        </div>
+        <div class="search-group">
+            <div class="search-label">📍 Min Offset</div>
+            <input type="number" id="searchOffset" class="search-input" placeholder="e.g., 1000" oninput="filterMessages()">
+        </div>
+        <div class="search-group">
+            <div class="search-label">⏰ Seek to Timestamp</div>
+            <input type="datetime-local" id="searchTimestamp" class="search-input" onchange="seekToTimestampUI()">
+        </div>
+        <div class="search-group">
+            <div class="search-label">&nbsp;</div>
+            <button class="btn" onclick="clearSearch()">Clear Filters</button>
+        </div>
     </div>
 
     <div class="status-bar">
@@ -592,6 +737,7 @@ export class MessageConsumerWebview {
     <script>
         const vscode = acquireVsCodeApi();
         let uptimeInterval = null;
+        let allMessages = []; // Store all messages for filtering
 
         window.addEventListener('message', event => {
             const message = event.data;
@@ -633,6 +779,16 @@ export class MessageConsumerWebview {
         }
 
         function addMessage(msg) {
+            // Store message for filtering
+            allMessages.unshift(msg);
+
+            // Apply current filters
+            if (shouldShowMessage(msg)) {
+                renderMessage(msg);
+            }
+        }
+
+        function renderMessage(msg) {
             const messagesBody = document.getElementById('messagesBody');
 
             // Remove empty state if present
@@ -643,6 +799,9 @@ export class MessageConsumerWebview {
 
             const row = document.createElement('div');
             row.className = 'message-row';
+            row.dataset.partition = msg.partition;
+            row.dataset.offset = msg.offset;
+            row.dataset.key = msg.key || '';
 
             const timestamp = msg.timestamp;
             const humanTimestamp = formatTimestamp(timestamp);
@@ -662,6 +821,111 @@ export class MessageConsumerWebview {
             messagesBody.insertBefore(row, messagesBody.firstChild);
         }
 
+        // SEC-1.2-1: Client-side filtering only (never send regex to Kafka)
+        function shouldShowMessage(msg) {
+            const searchKey = document.getElementById('searchKey').value.trim();
+            const searchOffset = document.getElementById('searchOffset').value.trim();
+
+            // Filter by key (regex)
+            if (searchKey) {
+                try {
+                    const regex = new RegExp(searchKey, 'i');
+                    if (!regex.test(msg.key || '')) {
+                        return false;
+                    }
+                } catch (e) {
+                    // Invalid regex, ignore filter
+                    console.warn('Invalid regex pattern:', searchKey);
+                }
+            }
+
+            // Filter by minimum offset
+            if (searchOffset) {
+                const minOffset = parseInt(searchOffset);
+                if (!isNaN(minOffset) && parseInt(msg.offset) < minOffset) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        // SEC-1.2-2: Warn on potential PII search
+        function checkPIIWarning(searchTerm) {
+            const emailPattern = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/;
+            const ccPattern = /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/;
+
+            if (emailPattern.test(searchTerm) || ccPattern.test(searchTerm)) {
+                alert('⚠️ Warning: Search term looks like it might contain PII (email/credit card). Use carefully.');
+            }
+        }
+
+        function filterMessages() {
+            const searchKey = document.getElementById('searchKey').value.trim();
+            const searchOffset = document.getElementById('searchOffset').value.trim();
+
+            // SEC-1.2-2: Check for PII patterns
+            if (searchKey) {
+                checkPIIWarning(searchKey);
+            }
+
+            // Emit telemetry event when user performs a search
+            if (searchKey || searchOffset) {
+                vscode.postMessage({
+                    command: 'messageSearched',
+                    searchType: 'filter',
+                    hasKeyFilter: !!searchKey,
+                    hasOffsetFilter: !!searchOffset
+                });
+            }
+
+            // Re-render all messages with current filters
+            const messagesBody = document.getElementById('messagesBody');
+            messagesBody.innerHTML = '';
+
+            let visibleCount = 0;
+            for (const msg of allMessages) {
+                if (shouldShowMessage(msg)) {
+                    renderMessage(msg);
+                    visibleCount++;
+                }
+            }
+
+            if (visibleCount === 0 && allMessages.length > 0) {
+                messagesBody.innerHTML = \`
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔍</div>
+                        <div class="empty-state-text">No messages match the current filters.</div>
+                    </div>
+                \`;
+            } else if (allMessages.length === 0) {
+                messagesBody.innerHTML = \`
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <div class="empty-state-text">No messages yet. Click "Start" to begin consuming.</div>
+                    </div>
+                \`;
+            }
+        }
+
+        function clearSearch() {
+            document.getElementById('searchKey').value = '';
+            document.getElementById('searchOffset').value = '';
+            document.getElementById('searchTimestamp').value = '';
+            filterMessages();
+        }
+
+        function seekToTimestampUI() {
+            const timestampInput = document.getElementById('searchTimestamp').value;
+            if (!timestampInput) return;
+
+            const timestamp = new Date(timestampInput).getTime();
+            vscode.postMessage({
+                command: 'seekToTimestamp',
+                timestamp: timestamp
+            });
+        }
+
         function toggleAllTimestamps() {
             const allToggles = document.querySelectorAll('.format-toggle');
             if (allToggles.length === 0) return;
@@ -677,7 +941,7 @@ export class MessageConsumerWebview {
                 const humanValue = element.getAttribute('data-human');
 
                 element.setAttribute('data-format', newFormat);
-                
+
                 // Update text content (first text node)
                 const textNode = Array.from(element.childNodes).find(node => node.nodeType === Node.TEXT_NODE);
                 if (textNode) {
@@ -787,6 +1051,7 @@ export class MessageConsumerWebview {
         }
 
         function clearMessagesList() {
+            allMessages = [];
             const messagesBody = document.getElementById('messagesBody');
             messagesBody.innerHTML = \`
                 <div class="empty-state">

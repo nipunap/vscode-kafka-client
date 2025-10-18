@@ -17,7 +17,12 @@ A comprehensive Kafka management extension for Visual Studio Code with full AWS 
 - 🛡️ **Native ACL Management** - Full create, read, delete operations via KafkaJS API (no CLI required)
 - 📋 **Topic Operations** - Create, delete, produce, consume with rich HTML detail views
 - 📡 **Real-Time Message Streaming** - Live message consumer with start/stop/pause controls and human-readable timestamps
-- 📤 **Advanced Producer** - Interactive form with templates, headers, partition selection, and key/value support
+- 🔍 **Message Search & Filters** (v0.10.0) - Search by key (regex), offset, or timestamp with client-side filtering and PII warnings
+- 📊 **Schema Registry** (v0.10.0) - Confluent/MSK Schema Registry integration with HTTPS enforcement and secure credential storage
+- 🔢 **Partition Navigation** (v0.10.0) - View partition details, leader/replicas/ISR, offsets, and seek to specific offsets
+- 📋 **Scalable Lists** (v0.10.0) - Paginated views for 1000+ topics with client-side search (100 items/page)
+- 📤 **Advanced Producer** - Interactive form with templates, headers, partition selection, GZIP compression, and Avro support
+- ⚠️ **Lag Monitoring** (v0.10.0) - Opt-in consumer group lag alerts with configurable thresholds and smart throttling
 - 💾 **Export & Backup** - Export topics and consumer groups to JSON, CSV, or plain text for documentation and audits
 - 🌊 **Kafka Streams** - Dedicated views for KStreams and KTables with pattern-based filtering
 - 🖥️ **Broker Monitoring** - Rich detail views with all configurations and metadata
@@ -28,7 +33,7 @@ A comprehensive Kafka management extension for Visual Studio Code with full AWS 
 - 🔍 **Smart Search** - Find resources across clusters with fuzzy matching and automatic focus
 - 🚀 **Performance** - Connection pooling, broker caching, optimized data fetching
 - 🛡️ **Enterprise-Grade Security** (v0.7.0+) - XSS protection, Content Security Policy, race condition prevention, request lifecycle management
-- 🔒 **Logger Sanitization** (v0.8.9) - Automatic credential redaction in logs (13 sensitive key types protected)
+- 🔒 **Logger Sanitization** (v0.8.9) - Automatic credential redaction in logs (15+ sensitive key types protected)
 
 ## 📸 Screenshots
 
@@ -272,6 +277,8 @@ Get intelligent, context-aware recommendations for your Kafka resources in a **c
   - Memory-safe buffer (max 1000 messages)
   - Export messages to JSON file
   - Uptime and message count tracking
+  - **Message Search** (v0.10.0): Filter by key (regex), minimum offset, or seek to timestamp
+  - **PII Warning** (v0.10.0): Automatic detection of email/credit card patterns in search terms
 - **Delete**: Right-click → "Delete Topic" (requires confirmation)
 - **Search**: Use Cmd+F / Ctrl+F in detail view to find configurations
 - **Export**: Click "Copy as JSON" to export all details
@@ -303,6 +310,41 @@ Get intelligent, context-aware recommendations for your Kafka resources in a **c
 - **Delete**: Right-click → "Delete Consumer Group"
 - **Reset Offsets**: Right-click → "Reset Offsets" (group must be empty)
 - **Lag Tracking**: See total lag and per-partition breakdown
+- **Lag Alerts** (v0.10.0): Opt-in monitoring with configurable thresholds (warning: 1000, critical: 10000)
+  - Polls every 30 seconds (configurable)
+  - Smart throttling: Max 1 alert per cluster per 5 minutes
+  - Aggregated alerts: Multiple groups in single notification
+  - Enable: `kafka.lagAlerts.enabled: true`
+
+### Partitions (v0.10.0)
+- **Navigation**: Expand topic → "🔢 Partitions" → See all partitions with leader/ISR info
+- **View Details**: Click partition → See leader broker, replicas, in-sync replicas (ISR), and replication health
+- **View Offsets**: Right-click partition → "View Partition Offsets" → See low/high offsets and total messages
+- **Seek to Offset**: Right-click partition → "Seek to Offset" → Jump to specific offset for debugging
+- **Health Indicators**: Visual display of ISR health (e.g., "3/3 in sync" = healthy, "2/3 in sync" = degraded)
+
+### Schema Registry (v0.10.0)
+- **Confluent/MSK Compatible**: Works with Confluent Schema Registry and AWS MSK Schema Registry
+- **Secure Storage**: API keys stored in VSCode SecretStorage (never in plain text)
+- **HTTPS Enforcement**: Automatically enforces HTTPS connections for security
+- **Credential Setup**:
+  ```json
+  // Store credentials securely via extension
+  {
+    "schemaRegistryUrl": "https://schema-registry.example.com",
+    "schemaRegistryApiKey": "your-api-key",
+    "schemaRegistryApiSecret": "your-api-secret"
+  }
+  ```
+- **Operations**: Fetch schemas, validate messages, encode/decode Avro messages
+- **Audit Logging**: All schema operations are logged (credentials automatically redacted)
+
+### Scalable Lists (v0.10.0)
+- **Smart Threshold**: Automatically switches to paginated view when topics exceed 150 (configurable)
+- **Pagination**: 100 topics per page for optimal performance
+- **Client-Side Search**: Instant filtering across all topics without server requests
+- **Configuration**: `kafka.explorer.largeListThreshold` (default: 150)
+- **Performance**: Handles 1000+ topics efficiently with minimal memory usage
 
 ### ACLs
 - **Integrated View**: ACLs are displayed under each topic in the Clusters view

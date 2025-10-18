@@ -497,14 +497,15 @@ export class KafkaClientManager {
             partition?: number;
             headers?: Record<string, string | Buffer>;
             timestamp?: string;
-        }>
+        }>,
+        compression?: 'gzip' | 'none'
     ) {
         const producer = await this.getProducer(clusterName);
 
         try {
-            this.logger.debug(`Sending ${messages.length} advanced message(s) to topic: ${topic}`);
+            this.logger.debug(`Sending ${messages.length} advanced message(s) to topic: ${topic}${compression ? ` with ${compression} compression` : ''}`);
 
-            await producer.send({
+            const sendOptions: any = {
                 topic,
                 messages: messages.map(msg => ({
                     key: msg.key,
@@ -513,7 +514,14 @@ export class KafkaClientManager {
                     headers: msg.headers,
                     timestamp: msg.timestamp
                 }))
-            });
+            };
+
+            // Add compression if specified (Sprint 3: 1.1.1)
+            if (compression === 'gzip') {
+                sendOptions.compression = 1; // CompressionTypes.GZIP
+            }
+
+            await producer.send(sendOptions);
 
             this.logger.info(`Successfully sent ${messages.length} message(s) to topic: ${topic}`);
         } catch (error: any) {

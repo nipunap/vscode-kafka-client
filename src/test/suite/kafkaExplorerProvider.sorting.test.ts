@@ -171,8 +171,8 @@ suite('KafkaExplorerProvider Sorting Test Suite (Phase 0: 2.2)', () => {
             assert.strictEqual(topicItems[topicItems.length - 1].label, 'topic-9', 'Last topic should be topic-9');
         });
 
-        test('should sort topics when count > 1000 (with warning)', async () => {
-            const unsortedTopics = Array.from({ length: 1100 }, (_, i) => `topic-${1100 - i}`);
+        test('should sort topics when count > threshold (with View All button)', async () => {
+            const unsortedTopics = Array.from({ length: 200 }, (_, i) => `topic-${200 - i}`);
             const mockCluster = 'test-cluster';
             sandbox.stub(clientManager, 'getClusters').returns([mockCluster]);
             sandbox.stub(clientManager, 'getTopics').withArgs(mockCluster).resolves(unsortedTopics);
@@ -187,30 +187,30 @@ suite('KafkaExplorerProvider Sorting Test Suite (Phase 0: 2.2)', () => {
 
             const children = await provider.getChildren(clusterNode);
 
-            // Should have: warning (1) + topics (1000) + showMore (1) = 1002 items
-            assert.strictEqual(children.length, 1002, 'Should have warning, 1000 topics, and showMore items');
+            // Should have: viewAllTopics (1) + topics (50) + showMore (1) = 52 items
+            assert.strictEqual(children.length, 52, 'Should have viewAllTopics, 50 topics, and showMore items');
 
-            // Find warning and showMore items
-            const warningItem = children.find(item => item.contextValue === 'topicsWarning');
+            // Find viewAll and showMore items
+            const viewAllItem = children.find(item => item.contextValue === 'viewAllTopics');
             const showMoreItem = children.find(item => item.contextValue === 'topicsMore');
             const topicItems = children.filter(item => item.contextValue === 'topic');
 
-            assert.ok(warningItem, 'Warning item should be present');
+            assert.ok(viewAllItem, 'View All item should be present');
             assert.ok(showMoreItem, 'Show more item should be present');
-            assert.strictEqual(topicItems.length, 1000, 'Should show first 1000 topics');
+            assert.strictEqual(topicItems.length, 50, 'Should show first 50 topics');
 
             // Verify topics are sorted alphabetically
             const topicLabels = topicItems.map((child: any) => child.label);
-            const expectedSorted = unsortedTopics.slice(0, 1000).sort((a, b) => a.localeCompare(b));
+            const expectedSorted = unsortedTopics.slice(0, 50).sort((a, b) => a.localeCompare(b));
             assert.deepStrictEqual(topicLabels, expectedSorted, 'Topics should be sorted');
 
             // First and last of the limited list
             assert.strictEqual(topicItems[0].label, expectedSorted[0], 'First displayed topic should be the first in sorted order');
-            assert.strictEqual(topicItems[999].label, expectedSorted[999], 'Last displayed topic should be the 1000th in sorted order');
+            assert.strictEqual(topicItems[49].label, expectedSorted[49], 'Last displayed topic should be the 50th in sorted order');
         });
 
-        test('should handle exactly 1000 topics (boundary)', async () => {
-            const unsortedTopics = Array.from({ length: 1000 }, (_, i) => `topic-${1000 - i}`);
+        test('should handle exactly 150 topics (at threshold)', async () => {
+            const unsortedTopics = Array.from({ length: 150 }, (_, i) => `topic-${150 - i}`);
 
             sandbox.stub(clientManager, 'getTopics').resolves(unsortedTopics);
             sandbox.stub(clientManager, 'getClusters').returns(['test-cluster']);
@@ -225,14 +225,14 @@ suite('KafkaExplorerProvider Sorting Test Suite (Phase 0: 2.2)', () => {
             const topics = await provider.getChildren(clusterNode);
             const topicItems = topics.filter(item => item.contextValue === 'topic');
 
-            // At exactly 1000, should not show warning
-            const warningItem = topics.find(item => item.contextValue === 'topicsWarning');
-            assert.strictEqual(warningItem, undefined, 'No warning at exactly 1000 topics');
-            assert.strictEqual(topicItems.length, 1000, 'All 1000 topics should be present');
+            // At threshold, all topics should be shown (no View All button)
+            const viewAllItem = topics.find(item => item.contextValue === 'viewAllTopics');
+            assert.strictEqual(viewAllItem, undefined, 'No View All button at exactly 150 topics');
+            assert.strictEqual(topicItems.length, 150, 'All 150 topics should be present');
         });
 
-        test('should handle 1001 topics (just over threshold)', async () => {
-            const unsortedTopics = Array.from({ length: 1001 }, (_, i) => `topic-${1001 - i}`);
+        test('should handle 151 topics (just over threshold)', async () => {
+            const unsortedTopics = Array.from({ length: 151 }, (_, i) => `topic-${151 - i}`);
 
             sandbox.stub(clientManager, 'getTopics').resolves(unsortedTopics);
             sandbox.stub(clientManager, 'getClusters').returns(['test-cluster']);
@@ -246,12 +246,12 @@ suite('KafkaExplorerProvider Sorting Test Suite (Phase 0: 2.2)', () => {
 
             const children = await provider.getChildren(clusterNode);
 
-            // Should show warning at 1001 topics
-            const warningItem = children.find(item => item.contextValue === 'topicsWarning');
+            // Should show View All button at 151 topics
+            const viewAllItem = children.find(item => item.contextValue === 'viewAllTopics');
             const topicItems = children.filter(item => item.contextValue === 'topic');
 
-            assert.ok(warningItem, 'Warning should appear at 1001 topics');
-            assert.strictEqual(topicItems.length, 1000, 'Should limit to 1000 displayed topics');
+            assert.ok(viewAllItem, 'View All button should appear at 151 topics');
+            assert.strictEqual(topicItems.length, 50, 'Should limit to 50 displayed topics');
         });
     });
 

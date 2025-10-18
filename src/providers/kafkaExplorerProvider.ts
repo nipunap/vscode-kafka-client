@@ -39,12 +39,23 @@ export class KafkaExplorerProvider extends BaseProvider<KafkaTreeItem> {
         }
         if (element.contextValue === 'topicDashboard' ||
             element.contextValue === 'topicDetails' ||
+            element.contextValue === 'partitionsContainer' ||
             element.contextValue === 'topicACLContainer') {
             // Parent of topic sub-items is the topic
             return new KafkaTreeItem(
                 element.topicName!,
                 vscode.TreeItemCollapsibleState.Collapsed,
                 'topic',
+                element.clusterName,
+                element.topicName
+            );
+        }
+        if (element.contextValue === 'partition') {
+            // Parent of partition is the partitions container
+            return new KafkaTreeItem(
+                '🔢 Partitions',
+                vscode.TreeItemCollapsibleState.Collapsed,
+                'partitionsContainer',
                 element.clusterName,
                 element.topicName
             );
@@ -104,25 +115,33 @@ export class KafkaExplorerProvider extends BaseProvider<KafkaTreeItem> {
                     // Sort topics alphabetically (Phase 0: 2.2)
                     topics.sort((a, b) => a.localeCompare(b));
 
-                    // Warn if too many topics
-                    const MAX_TOPICS_WITHOUT_WARNING = 1000;
-                    if (topics.length > MAX_TOPICS_WITHOUT_WARNING) {
-                        const warning = new KafkaTreeItem(
-                            `ℹ️ ${topics.length} topics found. Use "Find Topic" (🔍 icon) to search`,
+                    // Check if we should use webview for large lists
+                    const config = vscode.workspace.getConfiguration('kafka');
+                    const largeListThreshold = config.get<number>('explorer.largeListThreshold', 150);
+
+                    if (topics.length > largeListThreshold) {
+                        // Show a tree item that opens the webview
+                        const viewAllItem = new KafkaTreeItem(
+                            `📋 View All ${topics.length} Topics (Paginated)`,
                             vscode.TreeItemCollapsibleState.None,
-                            'topicsWarning',
+                            'viewAllTopics',
                             el!.clusterName,
                             undefined,
                             undefined,
-                            'Click the search icon (🔍) in the toolbar or press Cmd+Shift+F / Ctrl+Shift+F'
+                            'Click to open paginated view of all topics'
                         );
+                        viewAllItem.command = {
+                            command: 'kafka.viewAllTopics',
+                            title: 'View All Topics',
+                            arguments: [el!.clusterName, topics]
+                        };
 
                         // Get dynamic topics for this cluster (from search results)
                         const dynamicTopicsSet = this.dynamicTopics.get(el!.clusterName) || new Set();
 
-                        // Combine first MAX topics with any dynamic topics that aren't already in the list
+                        // Show first 50 topics + dynamic topics in tree view
                         const topicsToShow = new Set<string>();
-                        topics.slice(0, MAX_TOPICS_WITHOUT_WARNING).forEach(t => topicsToShow.add(t));
+                        topics.slice(0, 50).forEach(t => topicsToShow.add(t));
                         dynamicTopicsSet.forEach(t => topicsToShow.add(t));
 
                         // Convert to sorted array
@@ -139,16 +158,15 @@ export class KafkaExplorerProvider extends BaseProvider<KafkaTreeItem> {
                                 )
                         );
 
-                        const dynamicCount = dynamicTopicsSet.size;
-                        const hiddenCount = topics.length - MAX_TOPICS_WITHOUT_WARNING - (dynamicCount > 0 ? Math.max(0, dynamicTopicsSet.size - (sortedTopics.length - MAX_TOPICS_WITHOUT_WARNING)) : 0);
-
+                        const hiddenCount = topics.length - sortedTopics.length;
                         const showMore = new KafkaTreeItem(
-                            `... and ${Math.max(0, hiddenCount)} more. Use 🔍 icon or Cmd+Shift+F`,
+                            `... and ${hiddenCount} more topics. Click "View All" above.`,
                             vscode.TreeItemCollapsibleState.None,
                             'topicsMore',
                             el!.clusterName
                         );
-                        return [warning, ...topicItems, showMore];
+                        
+                        return [viewAllItem, ...topicItems, showMore];
                     }
 
                     return topics.map(
@@ -174,7 +192,7 @@ export class KafkaExplorerProvider extends BaseProvider<KafkaTreeItem> {
         }
 
         if (element.contextValue === 'topic') {
-            // Show dashboard, details, and ACLs for this topic
+            // Show dashboard, details, partitions, and ACLs for this topic
             const items = [
                 new KafkaTreeItem(
                     '📊 Dashboard',
@@ -187,6 +205,13 @@ export class KafkaExplorerProvider extends BaseProvider<KafkaTreeItem> {
                     '📋 Details',
                     vscode.TreeItemCollapsibleState.None,
                     'topicDetails',
+                    element.clusterName,
+                    element.topicName
+                ),
+                new KafkaTreeItem(
+                    '🔢 Partitions',
+                    vscode.TreeItemCollapsibleState.Collapsed,
+                    'partitionsContainer',
                     element.clusterName,
                     element.topicName
                 )
@@ -203,6 +228,63 @@ export class KafkaExplorerProvider extends BaseProvider<KafkaTreeItem> {
             items.push(aclContainerItem);
 
             return items;
+        }
+
+        if (element.contextValue === 'partitionsContainer') {
+            // Show partitions for this topic
+            return this.getChildrenSafely(
+                element,
+                async (el) => {
+                    try {
+                        const admin = await this.clientManager.getAdminClient(el!.clusterName);
+                        const metadata = await admin.fetchTopicMetadata({ topics: [el!.topicName!] });
+
+                        const topicMetadata = metadata.topics.find(t => t.name === el!.topicName);
+                        if (!topicMetadata || topicMetadata.partitions.length === 0) {
+                            return [
+                                new KafkaTreeItem(
+                                    'No partitions found',
+                                    vscode.TreeItemCollapsibleState.None,
+                                    'partitionEmpty',
+                                    el!.clusterName,
+                                    el!.topicName
+                                )
+                            ];
+                        }
+
+                        return topicMetadata.partitions.map(partition => {
+                            const label = `Partition ${partition.partitionId}`;
+                            const description = `Leader: ${partition.leader}, ISR: ${partition.isr.length}/${partition.replicas.length}`;
+
+                            const item = new PartitionTreeItem(
+                                label,
+                                el!.clusterName,
+                                el!.topicName!,
+                                partition.partitionId,
+                                partition.leader,
+                                partition.replicas,
+                                partition.isr,
+                                description
+                            );
+                            return item;
+                        });
+                    } catch (error: any) {
+                        this.logger.error(`Failed to load partitions for topic ${el!.topicName}`, error);
+                        return [
+                            new KafkaTreeItem(
+                                'Failed to load partitions',
+                                vscode.TreeItemCollapsibleState.None,
+                                'partitionError',
+                                el!.clusterName,
+                                el!.topicName,
+                                undefined,
+                                error.message
+                            )
+                        ];
+                    }
+                },
+                `Loading partitions for ${element.topicName}`
+            );
         }
 
         if (element.contextValue === 'topicACLContainer') {
@@ -402,5 +484,62 @@ export class KafkaTreeItem extends vscode.TreeItem {
             return new vscode.ThemeIcon('error');
         }
         return new vscode.ThemeIcon('circle-outline');
+    }
+}
+
+/**
+ * Tree item for a Kafka partition
+ */
+export class PartitionTreeItem extends KafkaTreeItem {
+    public readonly partitionId: number;
+    public readonly leader: number;
+    public readonly replicas: number[];
+    public readonly isr: number[];
+
+    constructor(
+        label: string,
+        clusterName: string,
+        topicName: string,
+        partitionId: number,
+        leader: number,
+        replicas: number[],
+        isr: number[],
+        partitionDescription?: string
+    ) {
+        super(
+            label,
+            vscode.TreeItemCollapsibleState.None,
+            'partition',
+            clusterName,
+            topicName
+        );
+
+        this.partitionId = partitionId;
+        this.leader = leader;
+        this.replicas = replicas;
+        this.isr = isr;
+        this.description = partitionDescription;
+        this.tooltip = this.buildPartitionTooltip();
+        this.iconPath = new vscode.ThemeIcon('symbol-numeric', new vscode.ThemeColor('charts.blue'));
+
+        // Add click command to view partition details
+        this.command = {
+            command: 'kafka.viewPartitionDetails',
+            title: 'View Partition Details',
+            arguments: [this]
+        };
+    }
+
+    private buildPartitionTooltip(): string {
+        const lines = [
+            `Partition ${this.partitionId}`,
+            `Topic: ${this.topicName}`,
+            `Leader: Broker ${this.leader}`,
+            `Replicas: ${this.replicas.map(r => `Broker ${r}`).join(', ')}`,
+            `In-Sync Replicas: ${this.isr.map(r => `Broker ${r}`).join(', ')}`,
+            `Replication Factor: ${this.replicas.length}`,
+            `ISR Health: ${this.isr.length}/${this.replicas.length}`
+        ];
+        return lines.join('\n');
     }
 }
