@@ -82,6 +82,68 @@ suite('Message Search Test Suite', () => {
             assert.ok(filtered.every(m => m.key?.startsWith('user-')), 'All should match key pattern');
             assert.ok(filtered.every(m => parseInt(m.offset) >= minOffset), 'All should match offset filter');
         });
+
+        test('should search in message value (JSON content)', () => {
+            const messages = [
+                { key: 'user-1', value: '{"name": "John Doe", "email": "john@example.com"}', offset: '0' },
+                { key: 'user-2', value: '{"name": "Jane Smith", "email": "jane@example.com"}', offset: '1' },
+                { key: 'user-3', value: '{"name": "Bob Johnson", "email": "bob@example.com"}', offset: '2' }
+            ];
+
+            const keyPattern = 'John';
+            const regex = new RegExp(keyPattern, 'i');
+
+            // Search in both key AND value
+            const filtered = messages.filter(msg => {
+                const matchesKey = regex.test(msg.key || '');
+                const matchesValue = regex.test(msg.value || '');
+                return matchesKey || matchesValue;
+            });
+
+            assert.strictEqual(filtered.length, 2, 'Should match 2 messages containing "John"');
+            assert.ok(filtered.some(m => m.value.includes('John Doe')), 'Should match John Doe');
+            assert.ok(filtered.some(m => m.value.includes('Bob Johnson')), 'Should match Bob Johnson');
+        });
+
+        test('should search in key when value does not match', () => {
+            const messages = [
+                { key: 'order-123', value: '{"product": "laptop"}', offset: '0' },
+                { key: 'order-456', value: '{"product": "phone"}', offset: '1' },
+                { key: 'payment-789', value: '{"product": "tablet"}', offset: '2' }
+            ];
+
+            const keyPattern = 'order-.*';
+            const regex = new RegExp(keyPattern, 'i');
+
+            const filtered = messages.filter(msg => {
+                const matchesKey = regex.test(msg.key || '');
+                const matchesValue = regex.test(msg.value || '');
+                return matchesKey || matchesValue;
+            });
+
+            assert.strictEqual(filtered.length, 2, 'Should match 2 messages with order- keys');
+            assert.ok(filtered.every(m => m.key?.startsWith('order-')), 'All should have order- keys');
+        });
+
+        test('should match either key OR value', () => {
+            const messages = [
+                { key: 'user-123', value: '{"status": "active"}', offset: '0' },
+                { key: 'order-456', value: '{"user": "John"}', offset: '1' },
+                { key: 'payment-789', value: '{"status": "pending"}', offset: '2' }
+            ];
+
+            const keyPattern = 'user';
+            const regex = new RegExp(keyPattern, 'i');
+
+            const filtered = messages.filter(msg => {
+                const matchesKey = regex.test(msg.key || '');
+                const matchesValue = regex.test(msg.value || '');
+                return matchesKey || matchesValue;
+            });
+
+            // Should match: user-123 (key) and order-456 (value contains "user")
+            assert.strictEqual(filtered.length, 2, 'Should match messages where key OR value contains "user"');
+        });
     });
 
     suite('PII Detection (SEC-1.2-2)', () => {

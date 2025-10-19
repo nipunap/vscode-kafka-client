@@ -676,8 +676,8 @@ export class MessageConsumerWebview {
 
     <div class="search-bar">
         <div class="search-group">
-            <div class="search-label">🔍 Search Key (regex)</div>
-            <input type="text" id="searchKey" class="search-input" placeholder="e.g., user-.*" oninput="filterMessages()">
+            <div class="search-label">🔍 Search Key/Value (regex)</div>
+            <input type="text" id="searchKey" class="search-input" placeholder="e.g., user-.* or John" title="Searches both message key and value (JSON content)" oninput="filterMessages()">
         </div>
         <div class="search-group">
             <div class="search-label">📍 Min Offset</div>
@@ -826,11 +826,15 @@ export class MessageConsumerWebview {
             const searchKey = document.getElementById('searchKey').value.trim();
             const searchOffset = document.getElementById('searchOffset').value.trim();
 
-            // Filter by key (regex)
+            // Filter by key OR value (regex)
             if (searchKey) {
                 try {
                     const regex = new RegExp(searchKey, 'i');
-                    if (!regex.test(msg.key || '')) {
+                    const matchesKey = regex.test(msg.key || '');
+                    const matchesValue = regex.test(msg.value || '');
+                    
+                    // Return false if neither key nor value matches
+                    if (!matchesKey && !matchesValue) {
                         return false;
                     }
                 } catch (e) {
