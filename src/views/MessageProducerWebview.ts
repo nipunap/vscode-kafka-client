@@ -107,6 +107,9 @@ export class MessageProducerWebview {
         try {
             this.logger.info(`Producing message to ${this.clusterName}/${this.topicName}`);
 
+            // SEC-3.1-4: Validate message against schema if available
+            await this.validateMessageSchema(data.value);
+
             const messages = [{
                 key: data.key || undefined,
                 value: data.value,
@@ -172,6 +175,82 @@ export class MessageProducerWebview {
                 command: 'produceError',
                 error: error.message
             });
+        }
+    }
+
+    /**
+     * Validate message against schema if Schema Registry is configured
+     * SEC-3.1-4: Schema validation before producing
+     */
+    private async validateMessageSchema(messageValue: string): Promise<void> {
+        try {
+            // Get cluster configuration to check for Schema Registry settings
+            const clusterConfig = this.clientManager.getClusterConfig(this.clusterName);
+            const schemaRegistryUrl = clusterConfig?.schemaRegistryUrl;
+            
+            if (!schemaRegistryUrl) {
+                // No schema registry configured for this cluster, skip validation
+                return;
+            }
+
+            // Import dynamically to avoid circular dependencies
+            const { SchemaRegistryService } = await import('../services/SchemaRegistryService');
+            const { CredentialManager } = await import('../infrastructure/CredentialManager');
+            
+            // Get extension context from global state (set during activation)
+            const context = (global as any).extensionContext;
+            if (!context) {
+                this.logger.warn('Extension context not available, skipping schema validation');
+                return;
+            }
+
+            const credentialManager = new CredentialManager(context.secrets);
+            const schemaService = new SchemaRegistryService(
+                { 
+                    url: schemaRegistryUrl,
+                    username: clusterConfig.schemaRegistryApiKey,
+                    password: clusterConfig.schemaRegistryApiSecret
+                },
+                credentialManager,
+                this.clusterName
+            );
+
+            // Check if schema registry is available
+            const isAvailable = await schemaService.isAvailable();
+            if (!isAvailable) {
+                this.logger.warn('Schema Registry not available, skipping validation');
+                return;
+            }
+
+            // Try to validate against value subject
+            const valueSubject = `${this.topicName}-value`;
+            try {
+                // Parse message value to validate it's valid JSON
+                const payload = JSON.parse(messageValue);
+                
+                // Validate against schema
+                const isValid = await schemaService.validateMessage(valueSubject, payload);
+                
+                if (!isValid) {
+                    throw new Error(`Message does not conform to schema for subject: ${valueSubject}`);
+                }
+                
+                this.logger.info(`Message validated successfully against schema: ${valueSubject}`);
+            } catch (validationError: any) {
+                // If validation fails, throw error to prevent producing
+                if (validationError.message.includes('does not conform')) {
+                    throw validationError;
+                }
+                // If schema doesn't exist, allow producing (optional schema)
+                this.logger.debug(`Schema validation skipped: ${validationError.message}`);
+            }
+        } catch (error: any) {
+            // If it's a validation error, re-throw to prevent producing
+            if (error.message.includes('does not conform')) {
+                throw error;
+            }
+            // For other errors (config issues, etc.), log and continue
+            this.logger.warn(`Schema validation error: ${error.message}`);
         }
     }
 

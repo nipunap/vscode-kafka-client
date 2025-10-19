@@ -189,7 +189,7 @@ jobs:
           prerelease: false
           make_latest: true
           generate_release_notes: true
-          files: '*.vsix'
+          # Note: Not uploading VSIX to release - users download from VS Code Marketplace or Open VSX
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

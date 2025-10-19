@@ -155,6 +155,22 @@ export class ClusterConnectionWebview {
             }
         }
 
+        // Schema Registry configuration (applies to both Kafka and MSK)
+        if (data.schemaRegistryType) {
+            connection.schemaRegistryType = data.schemaRegistryType;
+            
+            if (data.schemaRegistryType === 'confluent') {
+                connection.schemaRegistryUrl = data.schemaRegistryUrl;
+                if (data.schemaRegistryApiKey) {
+                    connection.schemaRegistryApiKey = data.schemaRegistryApiKey;
+                    connection.schemaRegistryApiSecret = data.schemaRegistryApiSecret;
+                }
+            } else if (data.schemaRegistryType === 'aws-glue') {
+                connection.glueRegistryName = data.glueRegistryName;
+                connection.glueRegion = data.glueRegion;
+            }
+        }
+
         return connection;
     }
 
@@ -787,6 +803,57 @@ export class ClusterConnectionWebview {
             </div>
         </div>
 
+        <!-- Schema Registry Configuration -->
+        <div class="form-section">
+            <h3>Schema Registry (Optional)</h3>
+            
+            <div class="form-group">
+                <label for="schemaRegistryType">Schema Registry Type</label>
+                <select id="schemaRegistryType">
+                    <option value="">-- None --</option>
+                    <option value="confluent">Confluent Schema Registry</option>
+                    <option value="aws-glue">AWS Glue Schema Registry</option>
+                </select>
+                <div class="help-text">Select schema registry type for this cluster</div>
+            </div>
+
+            <!-- Confluent Schema Registry Fields -->
+            <div id="confluentSchemaFields" class="hidden">
+                <div class="form-group">
+                    <label for="schemaRegistryUrl">Schema Registry URL *</label>
+                    <input type="text" id="schemaRegistryUrl" placeholder="https://schema-registry.example.com:8081">
+                    <div class="help-text">Must use HTTPS for security</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="schemaRegistryApiKey">API Key (Optional)</label>
+                    <input type="text" id="schemaRegistryApiKey" placeholder="API Key">
+                    <div class="help-text">Leave empty if no authentication required</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="schemaRegistryApiSecret">API Secret (Optional)</label>
+                    <input type="password" id="schemaRegistryApiSecret" placeholder="API Secret">
+                    <div class="help-text">Required if API Key is provided</div>
+                </div>
+            </div>
+
+            <!-- AWS Glue Schema Registry Fields -->
+            <div id="glueSchemaFields" class="hidden">
+                <div class="form-group">
+                    <label for="glueRegistryName">Registry Name *</label>
+                    <input type="text" id="glueRegistryName" placeholder="default-registry" value="default-registry">
+                    <div class="help-text">AWS Glue Schema Registry name</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="glueRegion">AWS Region *</label>
+                    <input type="text" id="glueRegion" placeholder="us-east-1">
+                    <div class="help-text">AWS region for Glue Schema Registry (e.g., us-east-1)</div>
+                </div>
+            </div>
+        </div>
+
         <div class="button-group">
             <button type="submit">Connect</button>
             <button type="button" id="cancelBtn" class="secondary">Cancel</button>
@@ -829,6 +896,13 @@ export class ClusterConnectionWebview {
         // Handle assume role checkbox
         document.getElementById('useAssumeRole').addEventListener('change', (e) => {
             document.getElementById('assumeRoleSection').classList.toggle('hidden', !e.target.checked);
+        });
+
+        // Handle schema registry type change
+        document.getElementById('schemaRegistryType').addEventListener('change', (e) => {
+            const type = e.target.value;
+            document.getElementById('confluentSchemaFields').classList.toggle('hidden', type !== 'confluent');
+            document.getElementById('glueSchemaFields').classList.toggle('hidden', type !== 'aws-glue');
         });
 
         // Discover clusters button (IAM)
@@ -1002,6 +1076,40 @@ export class ClusterConnectionWebview {
                     data.sslCertFile = document.getElementById('mskTlsCertFile').value;
                     data.sslKeyFile = document.getElementById('mskTlsKeyFile').value;
                     data.sslPassword = document.getElementById('mskTlsKeyPassword').value;
+                }
+            }
+
+            // Schema Registry configuration (applies to both Kafka and MSK)
+            const schemaRegistryType = document.getElementById('schemaRegistryType').value;
+            if (schemaRegistryType) {
+                data.schemaRegistryType = schemaRegistryType;
+                
+                if (schemaRegistryType === 'confluent') {
+                    const schemaUrl = document.getElementById('schemaRegistryUrl').value;
+                    if (!schemaUrl) {
+                        alert('Schema Registry URL is required for Confluent Schema Registry');
+                        return;
+                    }
+                    if (!schemaUrl.startsWith('https://')) {
+                        alert('Schema Registry URL must use HTTPS for security');
+                        return;
+                    }
+                    data.schemaRegistryUrl = schemaUrl;
+                    data.schemaRegistryApiKey = document.getElementById('schemaRegistryApiKey').value;
+                    data.schemaRegistryApiSecret = document.getElementById('schemaRegistryApiSecret').value;
+                } else if (schemaRegistryType === 'aws-glue') {
+                    const registryName = document.getElementById('glueRegistryName').value;
+                    const region = document.getElementById('glueRegion').value;
+                    if (!registryName) {
+                        alert('Registry Name is required for AWS Glue Schema Registry');
+                        return;
+                    }
+                    if (!region) {
+                        alert('AWS Region is required for AWS Glue Schema Registry');
+                        return;
+                    }
+                    data.glueRegistryName = registryName;
+                    data.glueRegion = region;
                 }
             }
 

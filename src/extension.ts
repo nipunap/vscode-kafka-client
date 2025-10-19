@@ -34,6 +34,9 @@ const logger = Logger.getLogger('Extension');
 export async function activate(context: vscode.ExtensionContext) {
     logger.info('Kafka extension is now active!');
 
+    // Store context in global state for schema validation
+    (global as any).extensionContext = context;
+
     // Initialize log level from configuration
     const config = vscode.workspace.getConfiguration('kafka');
     const logLevel = config.get<string>('logLevel', 'info');
@@ -255,6 +258,15 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('kafka.showConsumerGroupDetails', async (node) => {
             await consumerGroupCommands.showConsumerGroupDetails(clientManager, node, context);
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('kafka.showAllConsumerGroups', async (clusterName: string) => {
+            const groups = await clientManager.getConsumerGroups(clusterName);
+            const ConsumerGroupsWebview = (await import('./views/ConsumerGroupsWebview')).ConsumerGroupsWebview;
+            const webview = ConsumerGroupsWebview.getInstance();
+            await webview.show(clusterName, groups);
         })
     );
 

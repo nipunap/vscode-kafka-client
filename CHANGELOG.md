@@ -4,6 +4,77 @@ All notable changes to the "Kafka Client" extension will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/) and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.12.0](https://github.com/nipunap/vscode-kafka-client/compare/v0.11.0...v0.12.0) (2025-10-19)
+
+
+### ⚠ BREAKING CHANGES
+
+* **schema:** Schema Registry is now configured per-cluster instead of global VSCode settings
+
+Changes:
+- Add schemaRegistryUrl, schemaRegistryApiKey, schemaRegistryApiSecret to ClusterConnection interface
+- Add configureSchemaRegistry() method to cluster connection form
+- Prompt users during cluster setup: "Do you want to configure Schema Registry?"
+- Add getClusterConfig() method to KafkaClientManager
+- Update topic details to read Schema Registry from cluster config
+- Update producer validation to read Schema Registry from cluster config
+
+User Flow:
+1. When adding/editing a cluster, user is asked about Schema Registry
+2. If Yes: Enter HTTPS URL, optional API key/secret
+3. If No: Skip (can be configured later by editing cluster)
+4. Schema Registry settings are stored per-cluster
+5. Topic details and producer validation use cluster-specific settings
+
+Benefits:
+- ✅ Different Schema Registry per cluster (dev/staging/prod)
+- ✅ Better UX - configure during cluster setup
+- ✅ No global VSCode settings pollution
+- ✅ Cluster-specific credentials
+- ✅ HTTPS enforcement (SEC-3.1-3)
+
+Migration:
+- Old global kafka.schemaRegistry.url setting is no longer used
+- Users need to reconfigure Schema Registry per cluster
+- Existing clusters without Schema Registry config will skip schema features
+
+Testing:
+- All 696 tests passing
+- Compile: ✓ Clean
+- Lint: ✓ Clean
+* **producer:** None (validation is optional)
+* **schema:** None
+* **consumer-groups:** None
+* **consumer:** None
+* **consumer:** None
+
+### ✨ Features
+
+* **consumer-groups:** add paginated webview for 1000+ groups ([150fc12](https://github.com/nipunap/vscode-kafka-client/commit/150fc12daec48790542b175dd003bdd3d2e144a6)), closes [#phase1](https://github.com/nipunap/vscode-kafka-client/issues/phase1) [#3](https://github.com/nipunap/vscode-kafka-client/issues/3)
+* **consumer:** display message headers in webview ([5c78073](https://github.com/nipunap/vscode-kafka-client/commit/5c78073fff0dd023a183f1196946ae502a7b3bea)), closes [#phase1](https://github.com/nipunap/vscode-kafka-client/issues/phase1) [#1](https://github.com/nipunap/vscode-kafka-client/issues/1)
+* **consumer:** search in both message key and value ([edf0822](https://github.com/nipunap/vscode-kafka-client/commit/edf0822280b97a1eed655b1700076af61d74da55)), closes [#phase1](https://github.com/nipunap/vscode-kafka-client/issues/phase1) [#1](https://github.com/nipunap/vscode-kafka-client/issues/1)
+* **producer:** add schema validation before producing messages ([8205b41](https://github.com/nipunap/vscode-kafka-client/commit/8205b41051eb0d00c0f332756acf920ae1dad7ec)), closes [#phase1](https://github.com/nipunap/vscode-kafka-client/issues/phase1) [#3](https://github.com/nipunap/vscode-kafka-client/issues/3)
+* **schema:** add AWS Glue Schema Registry support ([e840361](https://github.com/nipunap/vscode-kafka-client/commit/e8403615b07f2a89df6b7ed0cd1f2c321edc09cf)), closes [#phase1](https://github.com/nipunap/vscode-kafka-client/issues/phase1)
+* **schema:** add schema viewer UI in topic details ([528b122](https://github.com/nipunap/vscode-kafka-client/commit/528b12223abc9adbb6f9bafd89353752107fe903)), closes [#phase1](https://github.com/nipunap/vscode-kafka-client/issues/phase1) [#3](https://github.com/nipunap/vscode-kafka-client/issues/3)
+* **schema:** complete AWS Glue Schema Registry support ([80a0cc7](https://github.com/nipunap/vscode-kafka-client/commit/80a0cc7e25a9c1ad902a445a2764d987cf049e0c)), closes [#phase1](https://github.com/nipunap/vscode-kafka-client/issues/phase1)
+* **schema:** move Schema Registry config to per-cluster settings ([e44ae18](https://github.com/nipunap/vscode-kafka-client/commit/e44ae18312ebe269f3351eced33fe58d6cdb2d3f)), closes [#phase1](https://github.com/nipunap/vscode-kafka-client/issues/phase1)
+
+
+### 🐛 Bug Fixes
+
+* **ci:** remove VSIX upload to GitHub release ([0583a86](https://github.com/nipunap/vscode-kafka-client/commit/0583a86f80ff269892b56853c77e8eff2ff7b4b3))
+* **lint:** rename unused error variables to match eslint rules ([7d5c3e6](https://github.com/nipunap/vscode-kafka-client/commit/7d5c3e6234eed9ba67cfffafd92bedb90077e919))
+
+
+### ⚡ Performance Improvements
+
+* **consumer:** optimize message table header rendering ([b96b406](https://github.com/nipunap/vscode-kafka-client/commit/b96b4063386d169138486ff096f6f66be3068a76))
+
+
+### 📝 Documentation
+
+* **roadmap:** add cluster editing feature to Phase 1.1 ([f4ca954](https://github.com/nipunap/vscode-kafka-client/commit/f4ca95498367c3ae3eb6b27d8940c2c01701e52f)), closes [#phase1](https://github.com/nipunap/vscode-kafka-client/issues/phase1)
+
 ## [0.11.0](https://github.com/nipunap/vscode-kafka-client/compare/v0.9.0...v0.11.0) (2025-10-18)
 
 
