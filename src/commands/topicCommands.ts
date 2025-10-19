@@ -366,7 +366,7 @@ export async function showTopicDetails(clientManager: KafkaClientManager, node: 
                                     <pre style="background-color: var(--vscode-editor-background); padding: 12px; border-radius: 4px; overflow-x: auto; border: 1px solid var(--vscode-panel-border); font-family: var(--vscode-editor-font-family); font-size: 13px;"><code>${schemaJson.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>
                                 </div>`
                             } as any;
-                        } catch (schemaError: any) {
+                        } catch (_schemaError: any) {
                             // Schema not found for value, try key subject
                             const keySubject = `${node.topicName}-key`;
                             try {
@@ -389,13 +389,13 @@ export async function showTopicDetails(clientManager: KafkaClientManager, node: 
                                         <pre style="background-color: var(--vscode-editor-background); padding: 12px; border-radius: 4px; overflow-x: auto; border: 1px solid var(--vscode-panel-border); font-family: var(--vscode-editor-font-family); font-size: 13px;"><code>${schemaJson.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>
                                     </div>`
                                 } as any;
-                            } catch (keySchemaError: any) {
+                            } catch (_keySchemaError: any) {
                                 // No schema found for this topic
                             }
                         }
                     }
                 }
-            } catch (error: any) {
+            } catch (_error: any) {
                 // Schema registry not configured or error fetching schema
             }
 
