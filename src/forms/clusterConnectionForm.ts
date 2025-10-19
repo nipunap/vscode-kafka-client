@@ -861,15 +861,15 @@ export class ClusterConnectionForm {
         // Step 1: Choose Schema Registry type
         const registryType = await vscode.window.showQuickPick(
             [
-                { 
-                    label: '$(server) Confluent Schema Registry', 
+                {
+                    label: '$(server) Confluent Schema Registry',
                     description: 'Standard Confluent Schema Registry (self-hosted or Confluent Cloud)',
-                    value: 'confluent' 
+                    value: 'confluent'
                 },
-                { 
-                    label: '$(cloud) AWS Glue Schema Registry', 
+                {
+                    label: '$(cloud) AWS Glue Schema Registry',
                     description: 'AWS Glue Schema Registry (fully managed by AWS)',
-                    value: 'aws-glue' 
+                    value: 'aws-glue'
                 }
             ],
             {

@@ -377,4 +377,3 @@ suite('Schema Registry Configuration Test Suite', () => {
         });
     });
 });
-

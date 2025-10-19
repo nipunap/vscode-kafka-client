@@ -1375,29 +1375,29 @@ Add "Edit Cluster" command that:
 export async function editCluster(node: ClusterTreeItem) {
     const clusterName = node.clusterName;
     const existingConfig = clientManager.getClusterConfig(clusterName);
-    
+
     if (!existingConfig) {
         vscode.window.showErrorMessage(`Cluster ${clusterName} not found`);
         return;
     }
-    
+
     // Open form with pre-filled values
     const form = new ClusterConnectionForm(context, clientManager);
     const updatedConfig = await form.editCluster(existingConfig);
-    
+
     if (!updatedConfig) {
         return; // User cancelled
     }
-    
+
     // Disconnect existing connection
     await clientManager.disconnectCluster(clusterName);
-    
+
     // Update configuration
     await clientManager.updateCluster(clusterName, updatedConfig);
-    
+
     // Refresh tree view
     kafkaExplorerProvider.refresh();
-    
+
     vscode.window.showInformationMessage(`Cluster ${clusterName} updated successfully`);
 }
 
@@ -1406,18 +1406,18 @@ export class ClusterConnectionForm {
     async editCluster(existingConfig: ClusterConnection): Promise<ClusterConnection | undefined> {
         // Pre-fill form with existing values
         // Show same flow as configureKafka/configureMSK but with defaults
-        
+
         // For Kafka clusters
         if (existingConfig.type === 'kafka') {
             return this.editKafkaCluster(existingConfig);
         }
-        
+
         // For MSK clusters
         if (existingConfig.type === 'msk') {
             return this.editMSKCluster(existingConfig);
         }
     }
-    
+
     private async editKafkaCluster(existing: ClusterConnection): Promise<ClusterConnection | undefined> {
         // Step 1: Brokers (pre-filled)
         const brokers = await vscode.window.showInputBox({
@@ -1430,11 +1430,11 @@ export class ClusterConnectionForm {
                 return undefined;
             }
         });
-        
+
         if (!brokers) {
             return undefined;
         }
-        
+
         // Step 2: Security Protocol (pre-selected)
         const securityProtocol = await vscode.window.showQuickPick(
             [
@@ -1447,10 +1447,10 @@ export class ClusterConnectionForm {
                 placeHolder: `Current: ${existing.securityProtocol}. Select new or press Enter to keep`,
             }
         );
-        
+
         // ... continue with rest of form, pre-filling all fields
         // ... include Schema Registry configuration
-        
+
         return updatedConnection;
     }
 }
@@ -1460,10 +1460,10 @@ export class KafkaClientManager {
     async updateCluster(clusterName: string, newConfig: ClusterConnection): Promise<void> {
         // Update in-memory config
         this.clusters.set(clusterName, newConfig);
-        
+
         // Persist to workspace state
         await this.saveClusterConfig(clusterName, newConfig);
-        
+
         // Update credentials in SecretStorage if changed
         if (newConfig.saslPassword || newConfig.schemaRegistryApiSecret) {
             await this.credentialManager.storeCredentials(clusterName, {
@@ -1472,7 +1472,7 @@ export class KafkaClientManager {
             });
         }
     }
-    
+
     async disconnectCluster(clusterName: string): Promise<void> {
         await this.connectionPool.disconnect(clusterName);
     }
