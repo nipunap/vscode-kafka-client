@@ -324,16 +324,82 @@ export async function showTopicDetails(clientManager: KafkaClientManager, node: 
                 }
             }
 
-            const data: DetailsData = {
-                title: node.topicName,
-                showCopyButton: true,
-                showRefreshButton: false,
-                showAIAdvisor: aiAvailable,
-                    notice: aiAvailable ? {
-                        type: 'info',
-                        text: '🤖 Try the AI Advisor for intelligent configuration recommendations!'
-                    } : undefined,
-                sections: [
+            // Try to fetch schema information
+            let schemaSection = null;
+            try {
+                const { SchemaRegistryService } = await import('../services/SchemaRegistryService');
+                const config = vscode.workspace.getConfiguration('kafka');
+                const schemaRegistryUrl = config.get<string>('schemaRegistry.url');
+                
+                if (schemaRegistryUrl && context) {
+                    const { CredentialManager } = await import('../infrastructure/CredentialManager');
+                    const credentialManager = new CredentialManager(context.secrets);
+                    const schemaService = new SchemaRegistryService(
+                        { url: schemaRegistryUrl },
+                        credentialManager,
+                        node.clusterName
+                    );
+
+                    // Check if schema registry is available
+                    const isAvailable = await schemaService.isAvailable();
+                    
+                    if (isAvailable) {
+                        // Try to get schema for value subject (most common)
+                        const valueSubject = `${node.topicName}-value`;
+                        try {
+                            const schema = await schemaService.getLatestSchema(valueSubject);
+                            const schemaObj = JSON.parse(schema.schema);
+                            
+                            const schemaJson = JSON.stringify(schemaObj, null, 2);
+                            schemaSection = {
+                                title: 'Schema (Value)',
+                                icon: '📝',
+                                properties: [
+                                    { label: 'Subject', value: schema.subject, code: true },
+                                    { label: 'Schema ID', value: String(schema.id) },
+                                    { label: 'Version', value: String(schema.version) },
+                                    { label: 'Type', value: schemaObj.type || 'N/A' },
+                                    { label: 'Name', value: schemaObj.name || 'N/A', code: true }
+                                ],
+                                html: `<div style="margin-top: 15px;">
+                                    <div style="font-weight: 600; margin-bottom: 8px;">Schema Definition:</div>
+                                    <pre style="background-color: var(--vscode-editor-background); padding: 12px; border-radius: 4px; overflow-x: auto; border: 1px solid var(--vscode-panel-border); font-family: var(--vscode-editor-font-family); font-size: 13px;"><code>${schemaJson.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>
+                                </div>`
+                            } as any;
+                        } catch (schemaError: any) {
+                            // Schema not found for value, try key subject
+                            const keySubject = `${node.topicName}-key`;
+                            try {
+                                const schema = await schemaService.getLatestSchema(keySubject);
+                                const schemaObj = JSON.parse(schema.schema);
+                                
+                                const schemaJson = JSON.stringify(schemaObj, null, 2);
+                                schemaSection = {
+                                    title: 'Schema (Key)',
+                                    icon: '🔑',
+                                    properties: [
+                                        { label: 'Subject', value: schema.subject, code: true },
+                                        { label: 'Schema ID', value: String(schema.id) },
+                                        { label: 'Version', value: String(schema.version) },
+                                        { label: 'Type', value: schemaObj.type || 'N/A' },
+                                        { label: 'Name', value: schemaObj.name || 'N/A', code: true }
+                                    ],
+                                    html: `<div style="margin-top: 15px;">
+                                        <div style="font-weight: 600; margin-bottom: 8px;">Schema Definition:</div>
+                                        <pre style="background-color: var(--vscode-editor-background); padding: 12px; border-radius: 4px; overflow-x: auto; border: 1px solid var(--vscode-panel-border); font-family: var(--vscode-editor-font-family); font-size: 13px;"><code>${schemaJson.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>
+                                    </div>`
+                                } as any;
+                            } catch (keySchemaError: any) {
+                                // No schema found for this topic
+                            }
+                        }
+                    }
+                }
+            } catch (error: any) {
+                // Schema registry not configured or error fetching schema
+            }
+
+            const sections = [
                     {
                         title: 'Overview',
                         icon: '📊',
@@ -386,7 +452,23 @@ export async function showTopicDetails(clientManager: KafkaClientManager, node: 
                                 : []
                         }
                     }
-                ]
+                ];
+
+            // Add schema section if available
+            if (schemaSection) {
+                sections.splice(1, 0, schemaSection); // Insert after Overview
+            }
+
+            const data: DetailsData = {
+                title: node.topicName,
+                showCopyButton: true,
+                showRefreshButton: false,
+                showAIAdvisor: aiAvailable,
+                notice: aiAvailable ? {
+                    type: 'info',
+                    text: '🤖 Try the AI Advisor for intelligent configuration recommendations!'
+                } : undefined,
+                sections
             };
 
             // Set up AI request handler only if AI is available
