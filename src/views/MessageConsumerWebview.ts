@@ -540,12 +540,18 @@ export class MessageConsumerWebview {
             overflow-y: auto;
             border: 1px solid var(--vscode-panel-border);
             border-radius: 5px;
+            /* Performance optimizations for scrolling */
+            overflow-anchor: auto;
+            -webkit-overflow-scrolling: touch;
+            transform: translateZ(0);
         }
 
         .message-row {
             padding: 12px;
             border-bottom: 1px solid var(--vscode-panel-border);
             font-size: 13px;
+            /* Performance: Use contain for better rendering isolation */
+            contain: layout style;
         }
 
         .message-row:hover {
@@ -609,6 +615,12 @@ export class MessageConsumerWebview {
             position: sticky;
             top: 0;
             z-index: 10;
+            /* Performance optimizations */
+            will-change: transform;
+            contain: layout style paint;
+            backface-visibility: hidden;
+            /* Ensure header stays on top with proper backdrop */
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         .message-cell {
