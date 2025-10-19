@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { KafkaClientManager } from '../kafka/kafkaClientManager';
 import { BaseProvider } from './BaseProvider';
+import { ConsumerGroupsWebview } from '../views/ConsumerGroupsWebview';
 
 export class ConsumerGroupProvider extends BaseProvider<ConsumerGroupTreeItem> {
     constructor(clientManager: KafkaClientManager) {
@@ -47,6 +48,37 @@ export class ConsumerGroupProvider extends BaseProvider<ConsumerGroupTreeItem> {
 
                     // Sort consumer groups alphabetically by groupId
                     groups.sort((a, b) => a.groupId.localeCompare(b.groupId));
+
+                    // SEC-3.7-1: Check if we need paginated webview for large lists
+                    const config = vscode.workspace.getConfiguration('kafka.explorer');
+                    const largeListThreshold = config.get<number>('largeListThreshold', 500);
+
+                    if (groups.length > largeListThreshold) {
+                        // Show webview for large lists
+                        const webview = ConsumerGroupsWebview.getInstance();
+                        await webview.show(el!.clusterName, groups);
+
+                        // Return a "View All" item in the tree
+                        return [
+                            new ConsumerGroupTreeItem(
+                                `📋 View All Consumer Groups (${groups.length})`,
+                                vscode.TreeItemCollapsibleState.None,
+                                'viewAll',
+                                el!.clusterName
+                            ),
+                            ...groups.slice(0, 10).map(
+                                group =>
+                                    new ConsumerGroupTreeItem(
+                                        group.groupId,
+                                        vscode.TreeItemCollapsibleState.None,
+                                        'consumerGroup',
+                                        el!.clusterName,
+                                        group.groupId,
+                                        group.state
+                                    )
+                            )
+                        ];
+                    }
 
                     return groups.map(
                         group =>
@@ -107,6 +139,12 @@ export class ConsumerGroupTreeItem extends vscode.TreeItem {
                 command: 'kafka.showConsumerGroupDetails',
                 title: 'Show Consumer Group Details',
                 arguments: [this]
+            };
+        } else if (this.contextValue === 'viewAll') {
+            this.command = {
+                command: 'kafka.showAllConsumerGroups',
+                title: 'Show All Consumer Groups',
+                arguments: [this.clusterName]
             };
         }
     }

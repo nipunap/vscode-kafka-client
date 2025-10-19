@@ -259,6 +259,15 @@ export async function activate(context: vscode.ExtensionContext) {
     );
 
     context.subscriptions.push(
+        vscode.commands.registerCommand('kafka.showAllConsumerGroups', async (clusterName: string) => {
+            const groups = await clientManager.getConsumerGroups(clusterName);
+            const ConsumerGroupsWebview = (await import('./views/ConsumerGroupsWebview')).ConsumerGroupsWebview;
+            const webview = ConsumerGroupsWebview.getInstance();
+            await webview.show(clusterName, groups);
+        })
+    );
+
+    context.subscriptions.push(
         vscode.commands.registerCommand('kafka.deleteConsumerGroup', async (node) => {
             await consumerGroupCommands.deleteConsumerGroup(clientManager, consumerGroupProvider, node);
         })
