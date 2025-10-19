@@ -1346,9 +1346,173 @@ The extension uses a **hybrid lazy loading + connection pooling** strategy:
 |----|-------|-------------|----------|-------|--------|
 | **CM-1** | Dual system complexity (legacy maps + pool) | Tech debt; hard to debug | Consolidate to ConnectionPool only | 1.1 (Backlog) | 4h |
 | **CM-2** | No "disable cluster" (only delete) | Must re-add config to pause cluster | Add `kafka.disableCluster` command | 1.1 (Backlog) | 3h |
+| **CM-2.1** | No "edit cluster" feature | Must delete and re-add to change brokers/credentials | Add `kafka.editCluster` command with form pre-fill | 1.1 (Backlog) | 6h |
 | **CM-3** | Consumer cache never cleans up | Memory leak with many consumer groups | Add 5-min idle timeout for consumers | 1.1 (Backlog) | 2h |
 | **CM-4** | No connection status visibility | Can't see if cluster is connected | Add Connection Status Dashboard | v1.0 (Phase 2) | 8h |
 | **CM-5** | Sequential health checks on startup | Slow startup with many clusters | Parallel health checks | 1.1 (Backlog) | 4h |
+
+#### **Proposed Feature: Edit Cluster Configuration (CM-2.1)** — Phase 1.1 (Backlog)
+
+**Objective**: Allow users to edit existing cluster configurations without deleting and re-adding
+
+**Current Limitation**:
+- Users must delete a cluster and re-add it to change brokers, credentials, or Schema Registry settings
+- Loses connection history and any cached state
+- Tedious workflow for updating credentials or adding Schema Registry post-setup
+
+**Proposed Solution**:
+Add "Edit Cluster" command that:
+1. Opens the cluster connection form pre-filled with existing values
+2. Allows users to modify any field (brokers, auth, Schema Registry, etc.)
+3. Validates changes before saving
+4. Disconnects and reconnects with new configuration
+5. Preserves cluster name and history
+
+**Implementation**:
+
+```typescript
+// EXTEND: src/commands/clusterCommands.ts
+export async function editCluster(node: ClusterTreeItem) {
+    const clusterName = node.clusterName;
+    const existingConfig = clientManager.getClusterConfig(clusterName);
+    
+    if (!existingConfig) {
+        vscode.window.showErrorMessage(`Cluster ${clusterName} not found`);
+        return;
+    }
+    
+    // Open form with pre-filled values
+    const form = new ClusterConnectionForm(context, clientManager);
+    const updatedConfig = await form.editCluster(existingConfig);
+    
+    if (!updatedConfig) {
+        return; // User cancelled
+    }
+    
+    // Disconnect existing connection
+    await clientManager.disconnectCluster(clusterName);
+    
+    // Update configuration
+    await clientManager.updateCluster(clusterName, updatedConfig);
+    
+    // Refresh tree view
+    kafkaExplorerProvider.refresh();
+    
+    vscode.window.showInformationMessage(`Cluster ${clusterName} updated successfully`);
+}
+
+// EXTEND: src/forms/clusterConnectionForm.ts
+export class ClusterConnectionForm {
+    async editCluster(existingConfig: ClusterConnection): Promise<ClusterConnection | undefined> {
+        // Pre-fill form with existing values
+        // Show same flow as configureKafka/configureMSK but with defaults
+        
+        // For Kafka clusters
+        if (existingConfig.type === 'kafka') {
+            return this.editKafkaCluster(existingConfig);
+        }
+        
+        // For MSK clusters
+        if (existingConfig.type === 'msk') {
+            return this.editMSKCluster(existingConfig);
+        }
+    }
+    
+    private async editKafkaCluster(existing: ClusterConnection): Promise<ClusterConnection | undefined> {
+        // Step 1: Brokers (pre-filled)
+        const brokers = await vscode.window.showInputBox({
+            prompt: 'Enter Kafka broker addresses (comma-separated)',
+            value: existing.brokers?.join(','), // Pre-fill existing
+            validateInput: (value) => {
+                if (!value || value.trim().length === 0) {
+                    return 'At least one broker is required';
+                }
+                return undefined;
+            }
+        });
+        
+        if (!brokers) {
+            return undefined;
+        }
+        
+        // Step 2: Security Protocol (pre-selected)
+        const securityProtocol = await vscode.window.showQuickPick(
+            [
+                { label: 'PLAINTEXT', description: 'No authentication', value: 'PLAINTEXT' },
+                { label: 'SASL_SSL', description: 'SASL with SSL', value: 'SASL_SSL' },
+                { label: 'SASL_PLAINTEXT', description: 'SASL without SSL', value: 'SASL_PLAINTEXT' },
+                { label: 'SSL', description: 'SSL only', value: 'SSL' }
+            ],
+            {
+                placeHolder: `Current: ${existing.securityProtocol}. Select new or press Enter to keep`,
+            }
+        );
+        
+        // ... continue with rest of form, pre-filling all fields
+        // ... include Schema Registry configuration
+        
+        return updatedConnection;
+    }
+}
+
+// EXTEND: src/kafka/kafkaClientManager.ts
+export class KafkaClientManager {
+    async updateCluster(clusterName: string, newConfig: ClusterConnection): Promise<void> {
+        // Update in-memory config
+        this.clusters.set(clusterName, newConfig);
+        
+        // Persist to workspace state
+        await this.saveClusterConfig(clusterName, newConfig);
+        
+        // Update credentials in SecretStorage if changed
+        if (newConfig.saslPassword || newConfig.schemaRegistryApiSecret) {
+            await this.credentialManager.storeCredentials(clusterName, {
+                saslPassword: newConfig.saslPassword,
+                schemaRegistryApiSecret: newConfig.schemaRegistryApiSecret
+            });
+        }
+    }
+    
+    async disconnectCluster(clusterName: string): Promise<void> {
+        await this.connectionPool.disconnect(clusterName);
+    }
+}
+```
+
+**User Flow**:
+1. Right-click cluster in tree view → "Edit Cluster"
+2. Form opens with all current values pre-filled
+3. User modifies desired fields (e.g., add Schema Registry URL)
+4. Click "Save" → validates changes
+5. Extension disconnects old connection and reconnects with new config
+6. Success message: "Cluster updated successfully"
+
+**Deliverables**:
+1. `kafka.editCluster` command registered in `extension.ts`
+2. `editCluster()` function in `clusterCommands.ts`
+3. `editCluster()` method in `ClusterConnectionForm` (pre-fill logic)
+4. `updateCluster()` method in `KafkaClientManager`
+5. Context menu item: "Edit Cluster" in tree view
+6. Update tests to cover edit workflow
+
+**Testing** (2h):
+- **Unit**: Mock existing config, assert form pre-fills correctly
+- **Integration**: Edit cluster > change brokers > verify reconnection
+- **E2E**: Right-click > Edit > change Schema Registry > verify schema fetches work
+- **Edge Cases**: Cancel edit (no changes), invalid brokers (validation), concurrent edits
+
+**Effort Breakdown**:
+- Implementation: 4h (form pre-fill + update logic)
+- Testing: 2h (unit + integration + E2E)
+- **Total: 6h**
+
+**User Impact**: 🟡 **Medium** - Quality of life improvement. Users currently work around by deleting/re-adding, but it's tedious and loses state.
+
+**Priority**: 🟢 Backlog (v1.1) - Nice to have, not blocking any workflows
+
+**Dependencies**: None (uses existing form and client manager)
+
+---
 
 #### **Proposed Feature: Connection Status Dashboard (CM-4)** — Phase 2 Sprint 5
 
