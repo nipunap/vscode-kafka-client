@@ -543,9 +543,6 @@ export class MessageConsumerWebview {
         }
 
         .message-row {
-            display: grid;
-            grid-template-columns: 80px 120px 150px 200px 1fr;
-            gap: 10px;
             padding: 12px;
             border-bottom: 1px solid var(--vscode-panel-border);
             font-size: 13px;
@@ -553,6 +550,57 @@ export class MessageConsumerWebview {
 
         .message-row:hover {
             background-color: var(--vscode-list-hoverBackground);
+        }
+
+        .message-main {
+            display: grid;
+            grid-template-columns: 80px 120px 150px 200px 1fr;
+            gap: 10px;
+        }
+
+        .message-headers {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: var(--vscode-editor-background);
+            border-radius: 4px;
+            border: 1px solid var(--vscode-panel-border);
+        }
+
+        .headers-title {
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: var(--vscode-foreground);
+        }
+
+        .headers-content {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .header-item {
+            display: inline-block;
+            padding: 4px 8px;
+            background-color: var(--vscode-badge-background);
+            color: var(--vscode-badge-foreground);
+            border-radius: 3px;
+            font-size: 12px;
+            font-family: var(--vscode-editor-font-family);
+        }
+
+        .toggle-headers-btn {
+            margin-top: 8px;
+            padding: 4px 12px;
+            background-color: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+            border: 1px solid var(--vscode-button-border);
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .toggle-headers-btn:hover {
+            background-color: var(--vscode-button-secondaryHoverBackground);
         }
 
         .message-header {
@@ -806,19 +854,56 @@ export class MessageConsumerWebview {
             const timestamp = msg.timestamp;
             const humanTimestamp = formatTimestamp(timestamp);
 
+            // Build headers section if headers exist
+            const hasHeaders = msg.headers && Object.keys(msg.headers).length > 0;
+            const headerCount = hasHeaders ? Object.keys(msg.headers).length : 0;
+            let headersHtml = '';
+            
+            if (hasHeaders) {
+                const headerItems = Object.entries(msg.headers)
+                    .map(([key, value]) => \`<span class="header-item"><strong>\${escapeHtml(key)}:</strong> \${escapeHtml(value)}</span>\`)
+                    .join('');
+                
+                headersHtml = \`
+                    <div class="message-headers" style="display: none;">
+                        <div class="headers-title">📋 Headers:</div>
+                        <div class="headers-content">\${headerItems}</div>
+                    </div>
+                    <button class="toggle-headers-btn" onclick="toggleHeaders(this)">
+                        Show Headers (\${headerCount})
+                    </button>
+                \`;
+            }
+
             row.innerHTML = \`
-                <div class="message-cell">\${msg.partition}</div>
-                <div class="message-cell"><code>\${msg.offset}</code></div>
-                <div class="message-cell">
-                    <span class="format-toggle" data-raw="\${escapeHtml(timestamp)}" data-human="\${escapeHtml(humanTimestamp)}" data-format="raw">
-                        \${escapeHtml(timestamp)}
-                    </span>
+                <div class="message-main">
+                    <div class="message-cell">\${msg.partition}</div>
+                    <div class="message-cell"><code>\${msg.offset}</code></div>
+                    <div class="message-cell">
+                        <span class="format-toggle" data-raw="\${escapeHtml(timestamp)}" data-human="\${escapeHtml(humanTimestamp)}" data-format="raw">
+                            \${escapeHtml(timestamp)}
+                        </span>
+                    </div>
+                    <div class="message-cell"><code>\${escapeHtml(msg.key || '-')}</code></div>
+                    <div class="message-cell message-value">\${escapeHtml(msg.value).substring(0, 200)}\${msg.value.length > 200 ? '...' : ''}</div>
                 </div>
-                <div class="message-cell"><code>\${escapeHtml(msg.key || '-')}</code></div>
-                <div class="message-cell message-value">\${escapeHtml(msg.value).substring(0, 200)}\${msg.value.length > 200 ? '...' : ''}</div>
+                \${headersHtml}
             \`;
 
             messagesBody.insertBefore(row, messagesBody.firstChild);
+        }
+        
+        function toggleHeaders(button) {
+            const row = button.closest('.message-row');
+            const headersDiv = row.querySelector('.message-headers');
+            
+            if (headersDiv.style.display === 'none') {
+                headersDiv.style.display = 'block';
+                button.textContent = button.textContent.replace('Show', 'Hide');
+            } else {
+                headersDiv.style.display = 'none';
+                button.textContent = button.textContent.replace('Hide', 'Show');
+            }
         }
 
         // SEC-1.2-1: Client-side filtering only (never send regex to Kafka)
