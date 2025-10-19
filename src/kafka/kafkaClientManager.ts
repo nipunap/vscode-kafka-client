@@ -336,6 +336,10 @@ export class KafkaClientManager {
         return Array.from(this.clusters.keys());
     }
 
+    getClusterConfig(clusterName: string): ClusterConfig | undefined {
+        return this.clusters.get(clusterName);
+    }
+
     async getTopics(clusterName: string, options?: {
         filter?: string;
         limit?: number;

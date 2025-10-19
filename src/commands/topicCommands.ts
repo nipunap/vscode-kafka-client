@@ -324,18 +324,23 @@ export async function showTopicDetails(clientManager: KafkaClientManager, node: 
                 }
             }
 
-            // Try to fetch schema information
+            // Try to fetch schema information from cluster configuration
             let schemaSection = null;
             try {
-                const { SchemaRegistryService } = await import('../services/SchemaRegistryService');
-                const config = vscode.workspace.getConfiguration('kafka');
-                const schemaRegistryUrl = config.get<string>('schemaRegistry.url');
+                // Get cluster configuration to check for Schema Registry settings
+                const clusterConfig = clientManager.getClusterConfig(node.clusterName);
+                const schemaRegistryUrl = clusterConfig?.schemaRegistryUrl;
                 
                 if (schemaRegistryUrl && context) {
+                    const { SchemaRegistryService } = await import('../services/SchemaRegistryService');
                     const { CredentialManager } = await import('../infrastructure/CredentialManager');
                     const credentialManager = new CredentialManager(context.secrets);
                     const schemaService = new SchemaRegistryService(
-                        { url: schemaRegistryUrl },
+                        { 
+                            url: schemaRegistryUrl,
+                            username: clusterConfig.schemaRegistryApiKey,
+                            password: clusterConfig.schemaRegistryApiSecret
+                        },
                         credentialManager,
                         node.clusterName
                     );

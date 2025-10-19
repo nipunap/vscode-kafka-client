@@ -30,6 +30,11 @@ export interface ClusterConnection {
     sslKeyFile?: string;
     sslPassword?: string;
     rejectUnauthorized?: boolean;
+
+    // Schema Registry
+    schemaRegistryUrl?: string;
+    schemaRegistryApiKey?: string;
+    schemaRegistryApiSecret?: string;
 }
 
 interface AWSProfile {
@@ -159,6 +164,12 @@ export class ClusterConnectionForm {
             Object.assign(connection, sslConfig);
         }
 
+        // Step 4: Optional Schema Registry configuration
+        const schemaRegistryConfig = await this.configureSchemaRegistry();
+        if (schemaRegistryConfig) {
+            Object.assign(connection, schemaRegistryConfig);
+        }
+
         return connection;
     }
 
@@ -280,6 +291,12 @@ export class ClusterConnectionForm {
                 return undefined;
             }
             connection.clusterArn = clusterArn;
+        }
+
+        // Optional Schema Registry configuration
+        const schemaRegistryConfig = await this.configureSchemaRegistry();
+        if (schemaRegistryConfig) {
+            Object.assign(connection, schemaRegistryConfig);
         }
 
         return connection;
@@ -818,5 +835,91 @@ export class ClusterConnectionForm {
                 `Verify: 1) AWS credentials are valid, 2) You have kafka:ListClusters permission, 3) Region is correct`
             );
         }
+    }
+
+    private async configureSchemaRegistry(): Promise<Partial<ClusterConnection> | undefined> {
+        // Ask if user wants to configure Schema Registry
+        const configureRegistry = await vscode.window.showQuickPick(
+            [
+                { label: 'Yes', description: 'Configure Schema Registry for this cluster', value: true },
+                { label: 'No', description: 'Skip Schema Registry configuration (can be added later)', value: false }
+            ],
+            {
+                placeHolder: 'Do you want to configure Schema Registry?',
+                ignoreFocusOut: true
+            }
+        );
+
+        if (!configureRegistry || !configureRegistry.value) {
+            return undefined;
+        }
+
+        // Step 1: Schema Registry URL
+        const schemaRegistryUrl = await vscode.window.showInputBox({
+            prompt: 'Enter Schema Registry URL (must use HTTPS)',
+            placeHolder: 'https://schema-registry.example.com:8081',
+            validateInput: (value) => {
+                if (!value || value.trim().length === 0) {
+                    return 'Schema Registry URL is required';
+                }
+                if (!value.startsWith('https://')) {
+                    return 'Schema Registry URL must use HTTPS (SEC-3.1-3)';
+                }
+                return undefined;
+            }
+        });
+
+        if (!schemaRegistryUrl) {
+            return undefined;
+        }
+
+        // Step 2: Ask if authentication is needed
+        const needsAuth = await vscode.window.showQuickPick(
+            [
+                { label: 'Yes', description: 'Schema Registry requires authentication', value: true },
+                { label: 'No', description: 'Schema Registry is open (no authentication)', value: false }
+            ],
+            {
+                placeHolder: 'Does Schema Registry require authentication?',
+                ignoreFocusOut: true
+            }
+        );
+
+        if (!needsAuth) {
+            return undefined;
+        }
+
+        const config: Partial<ClusterConnection> = {
+            schemaRegistryUrl
+        };
+
+        if (needsAuth.value) {
+            // Step 3: API Key
+            const apiKey = await vscode.window.showInputBox({
+                prompt: 'Enter Schema Registry API Key',
+                placeHolder: 'API Key',
+                password: false
+            });
+
+            if (!apiKey) {
+                return undefined;
+            }
+
+            // Step 4: API Secret
+            const apiSecret = await vscode.window.showInputBox({
+                prompt: 'Enter Schema Registry API Secret',
+                placeHolder: 'API Secret',
+                password: true
+            });
+
+            if (!apiSecret) {
+                return undefined;
+            }
+
+            config.schemaRegistryApiKey = apiKey;
+            config.schemaRegistryApiSecret = apiSecret;
+        }
+
+        return config;
     }
 }

@@ -184,11 +184,12 @@ export class MessageProducerWebview {
      */
     private async validateMessageSchema(messageValue: string): Promise<void> {
         try {
-            const config = vscode.workspace.getConfiguration('kafka');
-            const schemaRegistryUrl = config.get<string>('schemaRegistry.url');
+            // Get cluster configuration to check for Schema Registry settings
+            const clusterConfig = this.clientManager.getClusterConfig(this.clusterName);
+            const schemaRegistryUrl = clusterConfig?.schemaRegistryUrl;
             
             if (!schemaRegistryUrl) {
-                // No schema registry configured, skip validation
+                // No schema registry configured for this cluster, skip validation
                 return;
             }
 
@@ -205,7 +206,11 @@ export class MessageProducerWebview {
 
             const credentialManager = new CredentialManager(context.secrets);
             const schemaService = new SchemaRegistryService(
-                { url: schemaRegistryUrl },
+                { 
+                    url: schemaRegistryUrl,
+                    username: clusterConfig.schemaRegistryApiKey,
+                    password: clusterConfig.schemaRegistryApiSecret
+                },
                 credentialManager,
                 this.clusterName
             );

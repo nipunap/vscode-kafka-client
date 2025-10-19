@@ -274,4 +274,3 @@ suite('Producer Schema Validation Test Suite', () => {
         });
     });
 });
-

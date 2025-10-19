@@ -258,4 +258,3 @@ suite('Schema Viewer Integration Test Suite', () => {
         });
     });
 });
-

@@ -1624,9 +1624,126 @@ These features extend Phase 1 functionality with minimal effort:
 
 | ID | Feature | Description | Effort | Priority | Status |
 |----|---------|-------------|--------|----------|--------|
+| **1.2.3** | **Message Value Search** | Search in message value (JSON content), not just key | 1h | 🔴 Critical | Planned |
+| **1.2.4** | **Display Message Headers** | Show message headers in consumer webview (data already captured) | 30min | 🟢 High | Planned |
 | **3.7.1** | **Consumer Group Pagination** | Paginated webview for 1000+ consumer groups (reuse TopicsWebview pattern) | 3-4h | 🟡 Medium | Planned |
 | **3.1.1** | **Schema Viewer UI** | Display schema in topic details webview (service layer already complete) | 6h | 🟢 High | Planned |
 | **3.1.2** | **Producer Schema Validation** | Integrate schema validation into producer webview (service layer already complete) | 4h | 🟢 High | Planned |
+
+#### **1.2.3 Message Value Search - Implementation Details**
+
+**Problem**: Current search only looks at message key, not the message value (JSON content). Users cannot search for content like `"John"` inside `{"name": "John Doe"}`.
+
+**Solution**: Extend regex search to check both key AND value fields.
+
+**Current Behavior** (Line 833 in `MessageConsumerWebview.ts`):
+```typescript
+if (!regex.test(msg.key || '')) {  // Only searches key
+    return false;
+}
+```
+
+**Fixed Behavior**:
+```typescript
+if (searchKey) {
+    try {
+        const regex = new RegExp(searchKey, 'i');
+        const matchesKey = regex.test(msg.key || '');
+        const matchesValue = regex.test(msg.value || '');
+
+        if (!matchesKey && !matchesValue) {  // Search both key AND value
+            return false;
+        }
+    } catch (e) {
+        console.warn('Invalid regex pattern:', searchKey);
+    }
+}
+```
+
+**Deliverables**:
+1. Update `shouldShowMessage()` function in `MessageConsumerWebview.ts` (line 825-850)
+2. Update UI label from "Search by Key" to "Search in Key/Value"
+3. Add tooltip: "Searches both message key and value (JSON content)"
+4. Update tests in `messageSearch.test.ts` to cover value search
+
+**Testing** (estimated 20min):
+- Unit test: Search in value field (e.g., `"John"` matches `{"name": "John Doe"}`)
+- Unit test: Search in key still works
+- Unit test: Search matches either key OR value
+- Performance: No impact (same regex test, just on two fields)
+
+**Security**: No changes needed (still client-side only, SEC-1.2-1 compliant)
+
+**Effort Breakdown**:
+- Implementation: 30min (simple change)
+- Testing: 20min (add 3-4 test cases)
+- Documentation: 10min (update label + tooltip)
+- **Total: 1h**
+
+**User Impact**: 🔴 **Critical** - Users expect to search message content, not just keys. This is a common use case (debugging, finding specific JSON fields).
+
+---
+
+#### **1.2.4 Display Message Headers - Implementation Details**
+
+**Problem**: Message headers are already captured (line 193) but not displayed in the UI. Headers contain important metadata like correlation IDs, content types, tracing info, etc.
+
+**Current State**:
+- ✅ Headers captured: `headers: message.headers ? this.parseHeaders(message.headers) : undefined`
+- ❌ Headers not displayed in webview
+
+**Solution**: Add headers display in message row (collapsible/expandable).
+
+**UI Design**:
+```html
+<div class="message-row">
+    <div class="message-main">
+        <!-- Existing: Partition, Offset, Key, Value, Timestamp -->
+    </div>
+    <div class="message-headers" style="display: none;">
+        <div class="headers-title">📋 Headers:</div>
+        <div class="headers-content">
+            <span class="header-item">content-type: application/json</span>
+            <span class="header-item">correlation-id: abc-123</span>
+            <span class="header-item">trace-id: xyz-789</span>
+        </div>
+    </div>
+    <button class="toggle-headers" onclick="toggleHeaders(this)">
+        Show Headers (3)
+    </button>
+</div>
+```
+
+**Deliverables**:
+1. Update `renderMessage()` function to include headers section (line 791+)
+2. Add toggle button to show/hide headers
+3. Display header count badge (e.g., "Headers (3)")
+4. Style headers with key-value pairs
+5. Handle empty headers gracefully (hide section if no headers)
+
+**Testing** (estimated 10min):
+- Manual test: Produce message with headers → verify display
+- Manual test: Toggle headers show/hide
+- Manual test: Message without headers → no headers section shown
+
+**Security**: No changes needed (headers already sanitized in parseHeaders())
+
+**Effort Breakdown**:
+- Implementation: 20min (add HTML + toggle function)
+- Styling: 5min (CSS for headers section)
+- Testing: 5min (manual testing)
+- **Total: 30min**
+
+**User Impact**: 🟢 **High** - Headers are essential for debugging distributed systems (correlation IDs, tracing, content types, custom metadata).
+
+**Common Use Cases**:
+- Correlation IDs for request tracing
+- Content-Type for schema detection
+- Trace IDs for distributed tracing (Jaeger, Zipkin)
+- Custom business metadata
+- Event sourcing metadata (event type, version)
+
+---
 
 #### **3.7.1 Consumer Group Pagination - Implementation Details**
 

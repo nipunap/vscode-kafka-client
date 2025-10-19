@@ -870,12 +870,12 @@ export class MessageConsumerWebview {
             const hasHeaders = msg.headers && Object.keys(msg.headers).length > 0;
             const headerCount = hasHeaders ? Object.keys(msg.headers).length : 0;
             let headersHtml = '';
-            
+
             if (hasHeaders) {
                 const headerItems = Object.entries(msg.headers)
                     .map(([key, value]) => \`<span class="header-item"><strong>\${escapeHtml(key)}:</strong> \${escapeHtml(value)}</span>\`)
                     .join('');
-                
+
                 headersHtml = \`
                     <div class="message-headers" style="display: none;">
                         <div class="headers-title">📋 Headers:</div>
@@ -904,11 +904,11 @@ export class MessageConsumerWebview {
 
             messagesBody.insertBefore(row, messagesBody.firstChild);
         }
-        
+
         function toggleHeaders(button) {
             const row = button.closest('.message-row');
             const headersDiv = row.querySelector('.message-headers');
-            
+
             if (headersDiv.style.display === 'none') {
                 headersDiv.style.display = 'block';
                 button.textContent = button.textContent.replace('Show', 'Hide');
@@ -929,7 +929,7 @@ export class MessageConsumerWebview {
                     const regex = new RegExp(searchKey, 'i');
                     const matchesKey = regex.test(msg.key || '');
                     const matchesValue = regex.test(msg.value || '');
-                    
+
                     // Return false if neither key nor value matches
                     if (!matchesKey && !matchesValue) {
                         return false;
