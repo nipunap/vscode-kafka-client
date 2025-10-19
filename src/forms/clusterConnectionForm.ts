@@ -32,9 +32,13 @@ export interface ClusterConnection {
     rejectUnauthorized?: boolean;
 
     // Schema Registry
-    schemaRegistryUrl?: string;
-    schemaRegistryApiKey?: string;
-    schemaRegistryApiSecret?: string;
+    schemaRegistryType?: 'confluent' | 'aws-glue';
+    schemaRegistryUrl?: string; // For Confluent
+    schemaRegistryApiKey?: string; // For Confluent
+    schemaRegistryApiSecret?: string; // For Confluent
+    // AWS Glue Schema Registry
+    glueRegistryName?: string;
+    glueRegion?: string;
 }
 
 interface AWSProfile {
@@ -854,7 +858,39 @@ export class ClusterConnectionForm {
             return undefined;
         }
 
-        // Step 1: Schema Registry URL
+        // Step 1: Choose Schema Registry type
+        const registryType = await vscode.window.showQuickPick(
+            [
+                { 
+                    label: '$(server) Confluent Schema Registry', 
+                    description: 'Standard Confluent Schema Registry (self-hosted or Confluent Cloud)',
+                    value: 'confluent' 
+                },
+                { 
+                    label: '$(cloud) AWS Glue Schema Registry', 
+                    description: 'AWS Glue Schema Registry (fully managed by AWS)',
+                    value: 'aws-glue' 
+                }
+            ],
+            {
+                placeHolder: 'Select Schema Registry type',
+                ignoreFocusOut: true
+            }
+        );
+
+        if (!registryType) {
+            return undefined;
+        }
+
+        if (registryType.value === 'aws-glue') {
+            return this.configureGlueSchemaRegistry();
+        } else {
+            return this.configureConfluentSchemaRegistry();
+        }
+    }
+
+    private async configureConfluentSchemaRegistry(): Promise<Partial<ClusterConnection> | undefined> {
+
         const schemaRegistryUrl = await vscode.window.showInputBox({
             prompt: 'Enter Schema Registry URL (must use HTTPS)',
             placeHolder: 'https://schema-registry.example.com:8081',
@@ -890,6 +926,7 @@ export class ClusterConnectionForm {
         }
 
         const config: Partial<ClusterConnection> = {
+            schemaRegistryType: 'confluent',
             schemaRegistryUrl
         };
 
@@ -921,5 +958,50 @@ export class ClusterConnectionForm {
         }
 
         return config;
+    }
+
+    private async configureGlueSchemaRegistry(): Promise<Partial<ClusterConnection> | undefined> {
+        // Step 1: Registry Name
+        const registryName = await vscode.window.showInputBox({
+            prompt: 'Enter AWS Glue Schema Registry name',
+            placeHolder: 'default-registry or my-custom-registry',
+            value: 'default-registry',
+            validateInput: (value) => {
+                if (!value || value.trim().length === 0) {
+                    return 'Registry name is required';
+                }
+                return undefined;
+            }
+        });
+
+        if (!registryName) {
+            return undefined;
+        }
+
+        // Step 2: AWS Region
+        const region = await vscode.window.showInputBox({
+            prompt: 'Enter AWS region for Glue Schema Registry',
+            placeHolder: 'us-east-1, eu-west-1, etc.',
+            validateInput: (value) => {
+                if (!value || value.trim().length === 0) {
+                    return 'AWS region is required';
+                }
+                // Basic region format validation
+                if (!/^[a-z]{2}-[a-z]+-\d{1}$/.test(value)) {
+                    return 'Invalid AWS region format (e.g., us-east-1)';
+                }
+                return undefined;
+            }
+        });
+
+        if (!region) {
+            return undefined;
+        }
+
+        return {
+            schemaRegistryType: 'aws-glue',
+            glueRegistryName: registryName,
+            glueRegion: region
+        };
     }
 }
