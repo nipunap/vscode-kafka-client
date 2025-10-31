@@ -53,24 +53,6 @@ jobs:
         with:
           fetch-depth: 2  # Need previous commit to detect version change
 
-      - name: Security scan
-        if: steps.version_check.outputs.changed == 'true'
-        uses: github/super-linter@v4
-        env:
-          DEFAULT_BRANCH: main
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VALIDATE_ALL_CODEBASE: false
-          VALIDATE_YAML: true
-          VALIDATE_JSON: true
-          VALIDATE_JAVASCRIPT_ES: true
-          VALIDATE_TYPESCRIPT_ES: true
-
-      - name: Dependency review
-        if: steps.version_check.outputs.changed == 'true'
-        uses: actions/dependency-review-action@v3
-        with:
-          fail-on-severity: moderate
-
       - name: Check if version changed
         id: version_check
         run: |
@@ -116,6 +98,26 @@ jobs:
             echo "ℹ️ Version unchanged, skipping release"
             echo "changed=false" >> $GITHUB_OUTPUT
           fi
+
+      - name: Security scan
+        if: steps.version_check.outputs.changed == 'true'
+        uses: github/super-linter@v4
+        env:
+          DEFAULT_BRANCH: main
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VALIDATE_ALL_CODEBASE: false
+          VALIDATE_YAML: true
+          VALIDATE_JSON: true
+          VALIDATE_JAVASCRIPT_ES: true
+          VALIDATE_TYPESCRIPT_ES: true
+
+      - name: Dependency review
+        if: steps.version_check.outputs.changed == 'true'
+        uses: actions/dependency-review-action@v3
+        with:
+          fail-on-severity: moderate
+          base-ref: ${{ github.event.before }}
+          head-ref: ${{ github.sha }}
 
       - name: Setup Node.js
         if: steps.version_check.outputs.changed == 'true'
