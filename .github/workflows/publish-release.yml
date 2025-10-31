@@ -116,8 +116,8 @@ jobs:
         uses: actions/dependency-review-action@v3
         with:
           fail-on-severity: moderate
-          base-ref: ${{ github.event.before }}
-          head-ref: ${{ github.sha }}
+          base_ref: ${{ github.event.before }}
+          head_ref: ${{ github.sha }}
 
       - name: Setup Node.js
         if: steps.version_check.outputs.changed == 'true'
