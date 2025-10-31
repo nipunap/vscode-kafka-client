@@ -13,161 +13,269 @@ concurrency:
 
 # Security: Explicitly define minimal permissions at workflow level
 permissions:
-  actions: none      # Prevent workflow manipulation
-  checks: none       # Prevent check manipulation
-  contents: write    # Needed for creating releases
-  deployments: none  # Prevent deployment manipulation
-  issues: write      # Needed for creating issues on publish failure
-  packages: none     # Prevent package manipulation
+  actions: read       # Needed for wait-on-check
+  checks: read        # Needed for wait-on-check
+  contents: write     # Needed for creating releases
+  deployments: none   # Prevent deployment manipulation
+  issues: write       # Needed for creating issues on publish failure
+  packages: none      # Prevent package manipulation
   pull-requests: read # Needed for waiting on checks
   repository-projects: none
-  security-events: none
+  security-events: write  # Needed for dependency-review
   statuses: none
 
 jobs:
   wait-for-ci:
     name: Wait for CI
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
     steps:
       - name: Wait for CI checks
         uses: lewagon/wait-on-check-action@v1.3.4
         with:
           ref: ${{ github.sha }}
           check-regexp: '^(Build and Test|Lint Report|Status Check).*$'
+          running-workflow-name: 'Wait for CI'  # Prevent self-waiting
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           wait-interval: 30
           allowed-conclusions: success
-        timeout-minutes: 30
 
-  publish:
-    name: Publish to Marketplace
+  version-check:
+    name: Check Version Change
     runs-on: ubuntu-latest
     needs: wait-for-ci
-    permissions:
-      contents: write
-      issues: write
-
+    timeout-minutes: 5
+    outputs:
+      changed: ${{ steps.check.outputs.changed }}
+      version: ${{ steps.check.outputs.version }}
+      previous_version: ${{ steps.check.outputs.previous_version }}
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2  # Need previous commit to detect version change
+          fetch-depth: 0  # Full history for tag comparison
 
       - name: Check if version changed
-        id: version_check
+        id: check
         run: |
+          set -e
+          
           # Get current version from package.json
           CURRENT_VERSION=$(node -p "require('./package.json').version")
-
-          # Get previous version from git history
-          git show HEAD~1:package.json > /tmp/prev-package.json 2>/dev/null || {
-            echo "First commit or package.json didn't exist before"
-            PREVIOUS_VERSION="0.0.0"
-          }
-
-          if [ -f /tmp/prev-package.json ]; then
-            PREVIOUS_VERSION=$(node -e "try { console.log(require('/tmp/prev-package.json').version); } catch(e) { console.log('0.0.0'); }")
-          else
-            PREVIOUS_VERSION="0.0.0"
-          fi
-
-          echo "Previous version: $PREVIOUS_VERSION"
           echo "Current version: $CURRENT_VERSION"
-
+          
+          # Get last released version from git tags
+          LAST_TAG=$(git describe --tags --abbrev=0 --match "v*.*.*" 2>/dev/null || echo "v0.0.0")
+          PREVIOUS_VERSION=${LAST_TAG#v}
+          echo "Previous version (from tags): $PREVIOUS_VERSION"
+          
           # Validate semantic version format
-          if ! npx semver "$CURRENT_VERSION" >/dev/null 2>&1; then
+          if ! npx --yes semver "$CURRENT_VERSION" >/dev/null 2>&1; then
             echo "❌ Invalid semantic version format: $CURRENT_VERSION"
             echo "changed=false" >> $GITHUB_OUTPUT
             exit 1
           fi
-
+          
           # Check version increment (must be greater than previous)
           if [ "$PREVIOUS_VERSION" != "0.0.0" ]; then
-            if ! npx semver -r ">$PREVIOUS_VERSION" "$CURRENT_VERSION" >/dev/null 2>&1; then
+            if ! npx --yes semver -r ">$PREVIOUS_VERSION" "$CURRENT_VERSION" >/dev/null 2>&1; then
               echo "❌ Version $CURRENT_VERSION must be greater than previous version $PREVIOUS_VERSION"
               echo "changed=false" >> $GITHUB_OUTPUT
               exit 1
             fi
           fi
-
+          
+          # Check if this version already has a tag
+          if git rev-parse "v$CURRENT_VERSION" >/dev/null 2>&1; then
+            echo "ℹ️ Version v$CURRENT_VERSION already tagged, skipping release"
+            echo "changed=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
           if [ "$CURRENT_VERSION" != "$PREVIOUS_VERSION" ]; then
             echo "✅ Version changed: $PREVIOUS_VERSION → $CURRENT_VERSION"
             echo "changed=true" >> $GITHUB_OUTPUT
             echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+            echo "previous_version=$PREVIOUS_VERSION" >> $GITHUB_OUTPUT
           else
             echo "ℹ️ Version unchanged, skipping release"
             echo "changed=false" >> $GITHUB_OUTPUT
           fi
 
+  security:
+    name: Security & Dependency Review
+    runs-on: ubuntu-latest
+    needs: version-check
+    if: needs.version-check.outputs.changed == 'true'
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Security scan
-        if: steps.version_check.outputs.changed == 'true'
-        uses: github/super-linter@v4
+        uses: github/super-linter@v7
         env:
-          DEFAULT_BRANCH: main
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEFAULT_BRANCH: main
           VALIDATE_ALL_CODEBASE: false
           VALIDATE_YAML: true
           VALIDATE_JSON: true
           VALIDATE_JAVASCRIPT_ES: true
           VALIDATE_TYPESCRIPT_ES: true
+          VALIDATE_MARKDOWN: false  # Can be noisy
+          FILTER_REGEX_EXCLUDE: '.*node_modules.*'
 
       - name: Dependency review
-        if: steps.version_check.outputs.changed == 'true'
-        uses: actions/dependency-review-action@v3
+        uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: moderate
-          base_ref: ${{ github.event.before }}
-          head_ref: ${{ github.sha }}
+          base-ref: ${{ github.event.before != '0000000000000000000000000000000000000000' && github.event.before || format('refs/tags/v{0}', needs.version-check.outputs.previous_version) }}
+          head-ref: ${{ github.sha }}
+        continue-on-error: true  # Don't block on edge cases
+
+  build:
+    name: Build & Package Extension
+    runs-on: ubuntu-latest
+    needs: [version-check, security]
+    if: needs.version-check.outputs.changed == 'true'
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        if: steps.version_check.outputs.changed == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20.x'
           cache: 'npm'
 
       - name: Install dependencies
-        if: steps.version_check.outputs.changed == 'true'
+        timeout-minutes: 5
         run: npm ci
 
       - name: Install tools
-        if: steps.version_check.outputs.changed == 'true'
+        timeout-minutes: 2
         run: |
           npm install -g @vscode/vsce
           npm install -g semver
 
-      - name: Package extension (bundled with esbuild)
-        if: steps.version_check.outputs.changed == 'true'
+      - name: Compile TypeScript
+        timeout-minutes: 5
+        run: npm run compile
+
+      - name: Package extension
+        timeout-minutes: 5
         run: npm run package
 
-      - name: Verify VSIX package
-        if: steps.version_check.outputs.changed == 'true'
+      - name: Find and validate VSIX
+        id: vsix
         run: |
-          # Find the VSIX file created by npm run package
-          VSIX_FILE=$(ls *.vsix)
-          echo "Verifying $VSIX_FILE..."
-          # Basic verification that the file exists and has reasonable size
-          if [ -f "$VSIX_FILE" ]; then
-            FILE_SIZE=$(stat -f%z "$VSIX_FILE" 2>/dev/null || stat -c%s "$VSIX_FILE" 2>/dev/null)
-            echo "✅ VSIX package verified: $VSIX_FILE ($FILE_SIZE bytes)"
-          else
-            echo "❌ VSIX package not found"
+          set -e
+          
+          # Find VSIX file (robust method)
+          VSIX_FILE=$(find . -maxdepth 1 -name "*.vsix" -type f | head -n 1)
+          
+          if [ -z "$VSIX_FILE" ]; then
+            echo "❌ No VSIX file found after packaging"
             exit 1
           fi
+          
+          # Check for multiple VSIX files
+          VSIX_COUNT=$(find . -maxdepth 1 -name "*.vsix" -type f | wc -l)
+          if [ "$VSIX_COUNT" -gt 1 ]; then
+            echo "⚠️ Multiple VSIX files found ($VSIX_COUNT), using: $VSIX_FILE"
+            find . -maxdepth 1 -name "*.vsix" -type f
+          fi
+          
+          # Get file info
+          FILE_SIZE=$(stat -f%z "$VSIX_FILE" 2>/dev/null || stat -c%s "$VSIX_FILE")
+          FILE_SIZE_MB=$((FILE_SIZE / 1024 / 1024))
+          echo "📦 VSIX package: $VSIX_FILE (${FILE_SIZE_MB}MB)"
+          
+          # Validate size (reasonable limits)
+          if [ "$FILE_SIZE" -lt 1024 ]; then
+            echo "❌ VSIX file too small (< 1KB), likely corrupted"
+            exit 1
+          fi
+          
+          if [ "$FILE_SIZE" -gt 104857600 ]; then
+            echo "❌ VSIX file too large (> 100MB), exceeds marketplace limits"
+            exit 1
+          fi
+          
+          if [ "$FILE_SIZE_MB" -gt 50 ]; then
+            echo "⚠️ VSIX file is large (${FILE_SIZE_MB}MB), consider optimization"
+          fi
+          
+          # Validate VSIX structure
+          echo "Validating VSIX contents..."
+          if ! unzip -l "$VSIX_FILE" | grep -q "extension/package.json"; then
+            echo "❌ Invalid VSIX: missing extension/package.json"
+            exit 1
+          fi
+          
+          if ! unzip -l "$VSIX_FILE" | grep -q "extension.vsixmanifest"; then
+            echo "❌ Invalid VSIX: missing extension.vsixmanifest"
+            exit 1
+          fi
+          
+          # Extract and validate package.json version
+          unzip -p "$VSIX_FILE" "extension/package.json" > /tmp/vsix-package.json
+          VSIX_VERSION=$(node -p "require('/tmp/vsix-package.json').version")
+          EXPECTED_VERSION="${{ needs.version-check.outputs.version }}"
+          
+          if [ "$VSIX_VERSION" != "$EXPECTED_VERSION" ]; then
+            echo "❌ Version mismatch: VSIX contains v$VSIX_VERSION but expected v$EXPECTED_VERSION"
+            exit 1
+          fi
+          
+          echo "✅ VSIX validation passed"
+          echo "vsix_file=$VSIX_FILE" >> $GITHUB_OUTPUT
+          echo "vsix_size=$FILE_SIZE" >> $GITHUB_OUTPUT
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-kafka-${{ needs.version-check.outputs.version }}.vsix
+          path: '*.vsix'
+          retention-days: 90
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [version-check, build]
+    if: needs.version-check.outputs.changed == 'true'
+    timeout-minutes: 10
+    outputs:
+      release_created: ${{ steps.create_release.outputs.release_created }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download VSIX artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: vscode-kafka-${{ needs.version-check.outputs.version }}.vsix
 
       - name: Extract version-specific changelog
-        if: steps.version_check.outputs.changed == 'true'
         id: extract_changelog
         run: |
-          VERSION="${{ steps.version_check.outputs.version }}"
-
-          # Extract only this version's section from CHANGELOG.md
+          VERSION="${{ needs.version-check.outputs.version }}"
+          
           if [ -f CHANGELOG.md ]; then
             echo "Extracting changelog for version $VERSION..."
-
+            
             # Look for the version header and extract until the next version header
             awk "/^## \[$VERSION\]/{flag=1; next} /^## \[/{flag=0} flag" CHANGELOG.md > version_changelog.md
-
+            
             if [ -s version_changelog.md ]; then
               echo "✅ Found changelog section for v$VERSION"
               echo "has_changelog=true" >> $GITHUB_OUTPUT
@@ -181,23 +289,41 @@ jobs:
           fi
 
       - name: Create GitHub Release
-        if: steps.version_check.outputs.changed == 'true'
+        id: create_release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version_check.outputs.version }}
-          name: Release v${{ steps.version_check.outputs.version }}
+          tag_name: v${{ needs.version-check.outputs.version }}
+          name: Release v${{ needs.version-check.outputs.version }}
           body_path: ${{ steps.extract_changelog.outputs.has_changelog == 'true' && 'version_changelog.md' || '' }}
           draft: false
           prerelease: false
           make_latest: true
           generate_release_notes: true
-          # Note: Not uploading VSIX to release - users download from VS Code Marketplace or Open VSX
+          fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Mark release created
+        if: success()
+        run: |
+          echo "release_created=true" >> $GITHUB_OUTPUT
+          echo "✅ GitHub Release v${{ needs.version-check.outputs.version }} created successfully"
+
+  publish-vscode:
+    name: Publish to VS Code Marketplace
+    runs-on: ubuntu-latest
+    needs: [version-check, release]
+    if: needs.version-check.outputs.changed == 'true'
+    timeout-minutes: 15
+    
+    steps:
+      - name: Download VSIX artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: vscode-kafka-${{ needs.version-check.outputs.version }}.vsix
+
       - name: Check Azure token availability
         id: check_token
-        if: steps.version_check.outputs.changed == 'true'
         env:
           AZURE_TOKEN: ${{ secrets.AZURE_TOKEN }}
         run: |
@@ -207,20 +333,37 @@ jobs:
             echo "has_token=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Install vsce
+        if: steps.check_token.outputs.has_token == 'true'
+        run: npm install -g @vscode/vsce
+
       - name: Publish to VS Code Marketplace
-        id: marketplace_publish
-        if: steps.version_check.outputs.changed == 'true' && steps.check_token.outputs.has_token == 'true'
+        id: publish
+        if: steps.check_token.outputs.has_token == 'true'
+        timeout-minutes: 10
         run: |
-          # Find the VSIX file created by npm run package
-          VSIX_FILE=$(ls *.vsix)
-          echo "Publishing $VSIX_FILE to marketplace..."
-          vsce publish --packagePath "$VSIX_FILE" --pat $VSCE_PAT
+          set -e
+          VSIX_FILE=$(find . -maxdepth 1 -name "*.vsix" -type f | head -n 1)
+          
+          if [ -z "$VSIX_FILE" ]; then
+            echo "❌ VSIX file not found"
+            exit 1
+          fi
+          
+          echo "Publishing $VSIX_FILE to VS Code Marketplace..."
+          vsce publish --packagePath "$VSIX_FILE" --pat "$VSCE_PAT"
+          echo "✅ Published to VS Code Marketplace"
         env:
           VSCE_PAT: ${{ secrets.AZURE_TOKEN }}
         continue-on-error: true
 
+      - name: Report success
+        if: steps.check_token.outputs.has_token == 'true' && steps.publish.outcome == 'success'
+        run: |
+          echo "✅ Successfully published v${{ needs.version-check.outputs.version }} to VS Code Marketplace"
+
       - name: Report marketplace publish failure
-        if: steps.version_check.outputs.changed == 'true' && steps.marketplace_publish.outcome == 'failure'
+        if: steps.check_token.outputs.has_token == 'true' && steps.publish.outcome == 'failure'
         uses: actions/github-script@v7
         continue-on-error: true
         with:
@@ -228,11 +371,11 @@ jobs:
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: '🚨 Failed to publish v${{ steps.version_check.outputs.version }} to VS Code Marketplace',
+              title: '🚨 Failed to publish v${{ needs.version-check.outputs.version }} to VS Code Marketplace',
               body: [
                 '## Marketplace Publish Failed',
                 '',
-                '**Version:** v${{ steps.version_check.outputs.version }}',
+                '**Version:** v${{ needs.version-check.outputs.version }}',
                 '**Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}',
                 '',
                 'The automated marketplace publish step failed. This may require manual intervention.',
@@ -240,17 +383,36 @@ jobs:
                 '### Next Steps:',
                 '1. Check the [workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details',
                 '2. Verify AZURE_TOKEN secret is valid and has proper permissions',
-                '3. If needed, publish manually using: `vsce publish`',
-                '4. Close this issue once resolved',
+                '3. Download the VSIX from [workflow artifacts](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})',
+                '4. Publish manually: `vsce publish --packagePath <vsix-file>`',
+                '5. Close this issue once resolved',
                 '',
                 '**Note:** The GitHub Release and git tag were created successfully.'
               ].join('\n'),
-              labels: ['release', 'automation', 'bug']
+              labels: ['release', 'automation', 'marketplace', 'bug']
             });
 
+      - name: Report token missing
+        if: steps.check_token.outputs.has_token == 'false'
+        run: |
+          echo "⚠️ AZURE_TOKEN not configured, skipping VS Code Marketplace publish"
+          echo "To enable automatic publishing, add AZURE_TOKEN secret to repository settings"
+
+  publish-openvsx:
+    name: Publish to Open VSX Registry
+    runs-on: ubuntu-latest
+    needs: [version-check, release]
+    if: needs.version-check.outputs.changed == 'true'
+    timeout-minutes: 15
+    
+    steps:
+      - name: Download VSIX artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: vscode-kafka-${{ needs.version-check.outputs.version }}.vsix
+
       - name: Check Open VSX token availability
-        id: check_ovsx_token
-        if: steps.version_check.outputs.changed == 'true'
+        id: check_token
         env:
           OVSX_TOKEN: ${{ secrets.OPEN_VSX_ACCESS_TOKEN }}
         run: |
@@ -260,20 +422,39 @@ jobs:
             echo "has_token=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Setup Node.js
+        if: steps.check_token.outputs.has_token == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
       - name: Publish to Open VSX Registry
-        id: ovsx_publish
-        if: steps.version_check.outputs.changed == 'true' && steps.check_ovsx_token.outputs.has_token == 'true'
+        id: publish
+        if: steps.check_token.outputs.has_token == 'true'
+        timeout-minutes: 10
         run: |
-          # Find the VSIX file created by npm run package
-          VSIX_FILE=$(ls *.vsix)
+          set -e
+          VSIX_FILE=$(find . -maxdepth 1 -name "*.vsix" -type f | head -n 1)
+          
+          if [ -z "$VSIX_FILE" ]; then
+            echo "❌ VSIX file not found"
+            exit 1
+          fi
+          
           echo "Publishing $VSIX_FILE to Open VSX Registry..."
-          npx ovsx publish --packagePath "$VSIX_FILE" -p $OVSX_PAT
+          npx --yes ovsx publish "$VSIX_FILE" -p "$OVSX_PAT"
+          echo "✅ Published to Open VSX Registry"
         env:
           OVSX_PAT: ${{ secrets.OPEN_VSX_ACCESS_TOKEN }}
         continue-on-error: true
 
+      - name: Report success
+        if: steps.check_token.outputs.has_token == 'true' && steps.publish.outcome == 'success'
+        run: |
+          echo "✅ Successfully published v${{ needs.version-check.outputs.version }} to Open VSX Registry"
+
       - name: Report Open VSX publish failure
-        if: steps.version_check.outputs.changed == 'true' && steps.ovsx_publish.outcome == 'failure'
+        if: steps.check_token.outputs.has_token == 'true' && steps.publish.outcome == 'failure'
         uses: actions/github-script@v7
         continue-on-error: true
         with:
@@ -281,11 +462,11 @@ jobs:
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: '🚨 Failed to publish v${{ steps.version_check.outputs.version }} to Open VSX Registry',
+              title: '🚨 Failed to publish v${{ needs.version-check.outputs.version }} to Open VSX Registry',
               body: [
                 '## Open VSX Publish Failed',
                 '',
-                '**Version:** v${{ steps.version_check.outputs.version }}',
+                '**Version:** v${{ needs.version-check.outputs.version }}',
                 '**Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}',
                 '',
                 'The automated Open VSX publish step failed. This may require manual intervention.',
@@ -293,47 +474,169 @@ jobs:
                 '### Next Steps:',
                 '1. Check the [workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details',
                 '2. Verify OPEN_VSX_ACCESS_TOKEN secret is valid and has proper permissions',
-                '3. If needed, publish manually using: `npx ovsx publish`',
-                '4. Close this issue once resolved',
+                '3. Download the VSIX from [workflow artifacts](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})',
+                '4. Publish manually: `npx ovsx publish <vsix-file> -p <token>`',
+                '5. Close this issue once resolved',
                 '',
                 '**Note:** The GitHub Release and git tag were created successfully.'
               ].join('\n'),
-              labels: ['release', 'automation', 'bug']
+              labels: ['release', 'automation', 'openvsx', 'bug']
             });
 
-      - name: Summary
-        if: steps.version_check.outputs.changed == 'true'
+      - name: Report token missing
+        if: steps.check_token.outputs.has_token == 'false'
         run: |
-          echo "## 🎉 Release v${{ steps.version_check.outputs.version }} Published!" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ OPEN_VSX_ACCESS_TOKEN not configured, skipping Open VSX Registry publish"
+          echo "To enable automatic publishing, add OPEN_VSX_ACCESS_TOKEN secret to repository settings"
+
+  rollback:
+    name: Rollback on Critical Failure
+    runs-on: ubuntu-latest
+    needs: [version-check, release, publish-vscode, publish-openvsx]
+    if: |
+      always() &&
+      needs.version-check.outputs.changed == 'true' &&
+      needs.release.outputs.release_created == 'true' &&
+      (needs.publish-vscode.result == 'failure' || needs.publish-openvsx.result == 'failure')
+    timeout-minutes: 5
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check if both publishes failed
+        id: check_failure
+        run: |
+          VSCODE_RESULT="${{ needs.publish-vscode.result }}"
+          OPENVSX_RESULT="${{ needs.publish-openvsx.result }}"
+          
+          # Only rollback if BOTH marketplaces failed (catastrophic failure)
+          if [ "$VSCODE_RESULT" == "failure" ] && [ "$OPENVSX_RESULT" == "failure" ]; then
+            echo "Both marketplace publishes failed, considering rollback"
+            echo "should_rollback=true" >> $GITHUB_OUTPUT
+          else
+            echo "At least one publish succeeded or was skipped, keeping release"
+            echo "should_rollback=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create rollback issue (manual decision)
+        if: steps.check_failure.outputs.should_rollback == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '⚠️ Release v${{ needs.version-check.outputs.version }} - Marketplace Publish Failed',
+              body: [
+                '## Critical: Both Marketplace Publishes Failed',
+                '',
+                '**Version:** v${{ needs.version-check.outputs.version }}',
+                '**Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}',
+                '',
+                '### Status:',
+                '- ✅ GitHub Release created',
+                '- ✅ Git tag `v${{ needs.version-check.outputs.version }}` created',
+                '- ❌ VS Code Marketplace publish failed',
+                '- ❌ Open VSX Registry publish failed',
+                '',
+                '### Manual Decision Required:',
+                '',
+                '**Option 1: Retry Publishing (Recommended)**',
+                '```bash',
+                '# Download VSIX from workflow artifacts',
+                '# Then manually publish:',
+                'vsce publish --packagePath vscode-kafka-${{ needs.version-check.outputs.version }}.vsix',
+                'npx ovsx publish vscode-kafka-${{ needs.version-check.outputs.version }}.vsix -p <token>',
+                '```',
+                '',
+                '**Option 2: Rollback Release**',
+                '```bash',
+                'gh release delete v${{ needs.version-check.outputs.version }} --yes',
+                'git push origin :refs/tags/v${{ needs.version-check.outputs.version }}',
+                '```',
+                '',
+                '**Option 3: Keep Release as Pre-release**',
+                '- Update the release to mark as pre-release',
+                '- Fix the issue and re-run publish workflows',
+                '',
+                '### Next Steps:',
+                '1. Review workflow logs for failure details',
+                '2. Choose an option above',
+                '3. Execute the chosen action',
+                '4. Close this issue once resolved',
+                '',
+                '**Note:** Automated rollback was NOT performed to allow manual inspection.'
+              ].join('\n'),
+              labels: ['release', 'critical', 'requires-manual-action']
+            });
+
+  summary:
+    name: Release Summary
+    runs-on: ubuntu-latest
+    needs: [version-check, security, build, release, publish-vscode, publish-openvsx]
+    if: always() && needs.version-check.outputs.changed == 'true'
+    timeout-minutes: 2
+    
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## 🚀 Release v${{ needs.version-check.outputs.version }} Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### ✅ Completed" >> $GITHUB_STEP_SUMMARY
-          echo "- 🔒 Security scan completed" >> $GITHUB_STEP_SUMMARY
-          echo "- 📋 Dependency review passed" >> $GITHUB_STEP_SUMMARY
-          echo "- 📦 VSIX package verified" >> $GITHUB_STEP_SUMMARY
-          echo "- 🏷️ Git tag and GitHub Release created" >> $GITHUB_STEP_SUMMARY
-
-          if [ "${{ steps.check_token.outputs.has_token }}" == "true" ]; then
-            if [ "${{ steps.marketplace_publish.outcome }}" == "success" ]; then
-              echo "- ✅ Published to VS Code Marketplace" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "- ❌ Marketplace publish failed (issue created automatically)" >> $GITHUB_STEP_SUMMARY
-            fi
+          echo "**Previous Version:** v${{ needs.version-check.outputs.previous_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**New Version:** v${{ needs.version-check.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Pipeline Status" >> $GITHUB_STEP_SUMMARY
+          
+          # Security
+          if [ "${{ needs.security.result }}" == "success" ]; then
+            echo "- ✅ Security scan passed" >> $GITHUB_STEP_SUMMARY
           else
-            echo "- ⚠️ Marketplace publish skipped (AZURE_TOKEN not configured)" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ Security scan failed" >> $GITHUB_STEP_SUMMARY
           fi
-
-          if [ "${{ steps.check_ovsx_token.outputs.has_token }}" == "true" ]; then
-            if [ "${{ steps.ovsx_publish.outcome }}" == "success" ]; then
-              echo "- ✅ Published to Open VSX Registry" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "- ❌ Open VSX publish failed (issue created automatically)" >> $GITHUB_STEP_SUMMARY
-            fi
+          
+          # Build
+          if [ "${{ needs.build.result }}" == "success" ]; then
+            echo "- ✅ Build and package successful" >> $GITHUB_STEP_SUMMARY
           else
-            echo "- ⚠️ Open VSX publish skipped (OPEN_VSX_ACCESS_TOKEN not configured)" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ Build and package failed" >> $GITHUB_STEP_SUMMARY
           fi
-
-      - name: No release
-        if: steps.version_check.outputs.changed == 'false'
+          
+          # Release
+          if [ "${{ needs.release.result }}" == "success" ]; then
+            echo "- ✅ GitHub Release created" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ GitHub Release failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # VS Code Marketplace
+          if [ "${{ needs.publish-vscode.result }}" == "success" ]; then
+            echo "- ✅ Published to VS Code Marketplace" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.publish-vscode.result }}" == "skipped" ]; then
+            echo "- ⏭️ VS Code Marketplace publish skipped" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ VS Code Marketplace publish failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Open VSX
+          if [ "${{ needs.publish-openvsx.result }}" == "success" ]; then
+            echo "- ✅ Published to Open VSX Registry" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.publish-openvsx.result }}" == "skipped" ]; then
+            echo "- ⏭️ Open VSX Registry publish skipped" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ Open VSX Registry publish failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Links" >> $GITHUB_STEP_SUMMARY
+          echo "- [GitHub Release](https://github.com/${{ github.repository }}/releases/tag/v${{ needs.version-check.outputs.version }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          
+      - name: Check overall status
         run: |
-          echo "## ℹ️ No Release" >> $GITHUB_STEP_SUMMARY
-          echo "Version in package.json unchanged, skipping release." >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.build.result }}" != "success" ] || \
+             [ "${{ needs.release.result }}" != "success" ]; then
+            echo "❌ Critical jobs failed"
+            exit 1
+          fi
+          echo "✅ Release pipeline completed"
