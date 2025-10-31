@@ -17,7 +17,7 @@ permissions:
   packages: none      # Prevent package manipulation
   pull-requests: write # Needed for PR comments
   repository-projects: none
-  security-events: none
+  security-events: write  # Needed for dependency review
   statuses: none
 
 jobs:
@@ -206,6 +206,23 @@ jobs:
       - name: Run ESLint
         run: npm run lint
         continue-on-error: true
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: moderate
 
   status-check:
     name: Status Check

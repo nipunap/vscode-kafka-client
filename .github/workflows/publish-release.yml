@@ -129,14 +129,9 @@ jobs:
           VALIDATE_TYPESCRIPT_ES: true
           VALIDATE_MARKDOWN: false  # Can be noisy
           FILTER_REGEX_EXCLUDE: '.*node_modules.*'
-
-      - name: Dependency review
-        uses: actions/dependency-review-action@v4
-        with:
-          fail-on-severity: moderate
-          base-ref: ${{ github.event.before != '0000000000000000000000000000000000000000' && github.event.before || format('refs/tags/v{0}', needs.version-check.outputs.previous_version) }}
-          head-ref: ${{ github.sha }}
-        continue-on-error: true  # Don't block on edge cases
+      
+      # Note: dependency-review-action removed - it's designed for PRs, not push events
+      # Dependencies are reviewed in ci.yml during pull request phase
 
   build:
     name: Build & Package Extension
