@@ -29,7 +29,7 @@ jobs:
     name: Wait for CI
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    
+
     steps:
       - name: Wait for CI checks
         uses: lewagon/wait-on-check-action@v1.3.4
@@ -50,7 +50,7 @@ jobs:
       changed: ${{ steps.check.outputs.changed }}
       version: ${{ steps.check.outputs.version }}
       previous_version: ${{ steps.check.outputs.previous_version }}
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -61,23 +61,23 @@ jobs:
         id: check
         run: |
           set -e
-          
+
           # Get current version from package.json
           CURRENT_VERSION=$(node -p "require('./package.json').version")
           echo "Current version: $CURRENT_VERSION"
-          
+
           # Get last released version from git tags
           LAST_TAG=$(git describe --tags --abbrev=0 --match "v*.*.*" 2>/dev/null || echo "v0.0.0")
           PREVIOUS_VERSION=${LAST_TAG#v}
           echo "Previous version (from tags): $PREVIOUS_VERSION"
-          
+
           # Validate semantic version format
           if ! npx --yes semver "$CURRENT_VERSION" >/dev/null 2>&1; then
             echo "❌ Invalid semantic version format: $CURRENT_VERSION"
             echo "changed=false" >> $GITHUB_OUTPUT
             exit 1
           fi
-          
+
           # Check version increment (must be greater than previous)
           if [ "$PREVIOUS_VERSION" != "0.0.0" ]; then
             if ! npx --yes semver -r ">$PREVIOUS_VERSION" "$CURRENT_VERSION" >/dev/null 2>&1; then
@@ -86,14 +86,14 @@ jobs:
               exit 1
             fi
           fi
-          
+
           # Check if this version already has a tag
           if git rev-parse "v$CURRENT_VERSION" >/dev/null 2>&1; then
             echo "ℹ️ Version v$CURRENT_VERSION already tagged, skipping release"
             echo "changed=false" >> $GITHUB_OUTPUT
             exit 0
           fi
-          
+
           if [ "$CURRENT_VERSION" != "$PREVIOUS_VERSION" ]; then
             echo "✅ Version changed: $PREVIOUS_VERSION → $CURRENT_VERSION"
             echo "changed=true" >> $GITHUB_OUTPUT
@@ -110,7 +110,7 @@ jobs:
     needs: version-check
     if: needs.version-check.outputs.changed == 'true'
     timeout-minutes: 15
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -144,7 +144,7 @@ jobs:
     needs: [version-check, security]
     if: needs.version-check.outputs.changed == 'true'
     timeout-minutes: 15
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -177,64 +177,64 @@ jobs:
         id: vsix
         run: |
           set -e
-          
+
           # Find VSIX file (robust method)
           VSIX_FILE=$(find . -maxdepth 1 -name "*.vsix" -type f | head -n 1)
-          
+
           if [ -z "$VSIX_FILE" ]; then
             echo "❌ No VSIX file found after packaging"
             exit 1
           fi
-          
+
           # Check for multiple VSIX files
           VSIX_COUNT=$(find . -maxdepth 1 -name "*.vsix" -type f | wc -l)
           if [ "$VSIX_COUNT" -gt 1 ]; then
             echo "⚠️ Multiple VSIX files found ($VSIX_COUNT), using: $VSIX_FILE"
             find . -maxdepth 1 -name "*.vsix" -type f
           fi
-          
+
           # Get file info
           FILE_SIZE=$(stat -f%z "$VSIX_FILE" 2>/dev/null || stat -c%s "$VSIX_FILE")
           FILE_SIZE_MB=$((FILE_SIZE / 1024 / 1024))
           echo "📦 VSIX package: $VSIX_FILE (${FILE_SIZE_MB}MB)"
-          
+
           # Validate size (reasonable limits)
           if [ "$FILE_SIZE" -lt 1024 ]; then
             echo "❌ VSIX file too small (< 1KB), likely corrupted"
             exit 1
           fi
-          
+
           if [ "$FILE_SIZE" -gt 104857600 ]; then
             echo "❌ VSIX file too large (> 100MB), exceeds marketplace limits"
             exit 1
           fi
-          
+
           if [ "$FILE_SIZE_MB" -gt 50 ]; then
             echo "⚠️ VSIX file is large (${FILE_SIZE_MB}MB), consider optimization"
           fi
-          
+
           # Validate VSIX structure
           echo "Validating VSIX contents..."
           if ! unzip -l "$VSIX_FILE" | grep -q "extension/package.json"; then
             echo "❌ Invalid VSIX: missing extension/package.json"
             exit 1
           fi
-          
+
           if ! unzip -l "$VSIX_FILE" | grep -q "extension.vsixmanifest"; then
             echo "❌ Invalid VSIX: missing extension.vsixmanifest"
             exit 1
           fi
-          
+
           # Extract and validate package.json version
           unzip -p "$VSIX_FILE" "extension/package.json" > /tmp/vsix-package.json
           VSIX_VERSION=$(node -p "require('/tmp/vsix-package.json').version")
           EXPECTED_VERSION="${{ needs.version-check.outputs.version }}"
-          
+
           if [ "$VSIX_VERSION" != "$EXPECTED_VERSION" ]; then
             echo "❌ Version mismatch: VSIX contains v$VSIX_VERSION but expected v$EXPECTED_VERSION"
             exit 1
           fi
-          
+
           echo "✅ VSIX validation passed"
           echo "vsix_file=$VSIX_FILE" >> $GITHUB_OUTPUT
           echo "vsix_size=$FILE_SIZE" >> $GITHUB_OUTPUT
@@ -255,7 +255,7 @@ jobs:
     timeout-minutes: 10
     outputs:
       release_created: ${{ steps.create_release.outputs.release_created }}
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -269,13 +269,13 @@ jobs:
         id: extract_changelog
         run: |
           VERSION="${{ needs.version-check.outputs.version }}"
-          
+
           if [ -f CHANGELOG.md ]; then
             echo "Extracting changelog for version $VERSION..."
-            
+
             # Look for the version header and extract until the next version header
             awk "/^## \[$VERSION\]/{flag=1; next} /^## \[/{flag=0} flag" CHANGELOG.md > version_changelog.md
-            
+
             if [ -s version_changelog.md ]; then
               echo "✅ Found changelog section for v$VERSION"
               echo "has_changelog=true" >> $GITHUB_OUTPUT
@@ -315,7 +315,7 @@ jobs:
     needs: [version-check, release]
     if: needs.version-check.outputs.changed == 'true'
     timeout-minutes: 15
-    
+
     steps:
       - name: Download VSIX artifact
         uses: actions/download-artifact@v4
@@ -344,12 +344,12 @@ jobs:
         run: |
           set -e
           VSIX_FILE=$(find . -maxdepth 1 -name "*.vsix" -type f | head -n 1)
-          
+
           if [ -z "$VSIX_FILE" ]; then
             echo "❌ VSIX file not found"
             exit 1
           fi
-          
+
           echo "Publishing $VSIX_FILE to VS Code Marketplace..."
           vsce publish --packagePath "$VSIX_FILE" --pat "$VSCE_PAT"
           echo "✅ Published to VS Code Marketplace"
@@ -404,7 +404,7 @@ jobs:
     needs: [version-check, release]
     if: needs.version-check.outputs.changed == 'true'
     timeout-minutes: 15
-    
+
     steps:
       - name: Download VSIX artifact
         uses: actions/download-artifact@v4
@@ -435,12 +435,12 @@ jobs:
         run: |
           set -e
           VSIX_FILE=$(find . -maxdepth 1 -name "*.vsix" -type f | head -n 1)
-          
+
           if [ -z "$VSIX_FILE" ]; then
             echo "❌ VSIX file not found"
             exit 1
           fi
-          
+
           echo "Publishing $VSIX_FILE to Open VSX Registry..."
           npx --yes ovsx publish "$VSIX_FILE" -p "$OVSX_PAT"
           echo "✅ Published to Open VSX Registry"
@@ -499,7 +499,7 @@ jobs:
       needs.release.outputs.release_created == 'true' &&
       (needs.publish-vscode.result == 'failure' || needs.publish-openvsx.result == 'failure')
     timeout-minutes: 5
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -509,7 +509,7 @@ jobs:
         run: |
           VSCODE_RESULT="${{ needs.publish-vscode.result }}"
           OPENVSX_RESULT="${{ needs.publish-openvsx.result }}"
-          
+
           # Only rollback if BOTH marketplaces failed (catastrophic failure)
           if [ "$VSCODE_RESULT" == "failure" ] && [ "$OPENVSX_RESULT" == "failure" ]; then
             echo "Both marketplace publishes failed, considering rollback"
@@ -577,7 +577,7 @@ jobs:
     needs: [version-check, security, build, release, publish-vscode, publish-openvsx]
     if: always() && needs.version-check.outputs.changed == 'true'
     timeout-minutes: 2
-    
+
     steps:
       - name: Generate summary
         run: |
@@ -587,28 +587,28 @@ jobs:
           echo "**New Version:** v${{ needs.version-check.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Pipeline Status" >> $GITHUB_STEP_SUMMARY
-          
+
           # Security
           if [ "${{ needs.security.result }}" == "success" ]; then
             echo "- ✅ Security scan passed" >> $GITHUB_STEP_SUMMARY
           else
             echo "- ❌ Security scan failed" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           # Build
           if [ "${{ needs.build.result }}" == "success" ]; then
             echo "- ✅ Build and package successful" >> $GITHUB_STEP_SUMMARY
           else
             echo "- ❌ Build and package failed" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           # Release
           if [ "${{ needs.release.result }}" == "success" ]; then
             echo "- ✅ GitHub Release created" >> $GITHUB_STEP_SUMMARY
           else
             echo "- ❌ GitHub Release failed" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           # VS Code Marketplace
           if [ "${{ needs.publish-vscode.result }}" == "success" ]; then
             echo "- ✅ Published to VS Code Marketplace" >> $GITHUB_STEP_SUMMARY
@@ -617,7 +617,7 @@ jobs:
           else
             echo "- ❌ VS Code Marketplace publish failed" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           # Open VSX
           if [ "${{ needs.publish-openvsx.result }}" == "success" ]; then
             echo "- ✅ Published to Open VSX Registry" >> $GITHUB_STEP_SUMMARY
@@ -626,12 +626,12 @@ jobs:
           else
             echo "- ❌ Open VSX Registry publish failed" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Links" >> $GITHUB_STEP_SUMMARY
           echo "- [GitHub Release](https://github.com/${{ github.repository }}/releases/tag/v${{ needs.version-check.outputs.version }})" >> $GITHUB_STEP_SUMMARY
           echo "- [Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
-          
+
       - name: Check overall status
         run: |
           if [ "${{ needs.build.result }}" != "success" ] || \
