@@ -5,6 +5,7 @@
   "version": "0.12.0",
   "publisher": "NipunaPerera",
   "license": "GPL-3.0",
+  "pricing": "Free",
   "icon": "resources/kafka-icon.png",
   "repository": {
     "type": "git",
