@@ -487,6 +487,8 @@ src/
 │   ├── ktableProvider.ts           # KTables view
 │   └── aclProvider.ts              # ACL provider (legacy, not registered)
 ├── commands/                       # Command handlers
+│   ├── commandRegistry.ts          # Metadata-driven registration infrastructure
+│   ├── commandDefinitions.ts       # Centralized command definitions (39 commands)
 │   ├── clusterCommands.ts
 │   ├── topicCommands.ts
 │   ├── consumerGroupCommands.ts
@@ -519,6 +521,9 @@ src/
 - **Singleton Pattern** - Logger instances
 - **Factory Pattern** - ConnectionPool
 - **Strategy Pattern** - Multiple auth strategies
+- **Command Registry** - Metadata-driven command registration
+- **Dependency Injection** - Constructor-based dependency management
+- **Error Boundaries** - Provider-level error isolation
 - **Strong Typing** - TypeScript interfaces throughout
 
 ### Build & Test
@@ -545,6 +550,7 @@ npm run publish         # Publish to marketplace
 - AI Integration (Availability checks, error handling, **request validation, race condition prevention**)
 - Performance (Caching, connection pooling)
 - Webview Security (**27 new tests**: CSP, XSS prevention, request lifecycle management)
+- Architecture (Command registry, dependency injection, error isolation)
 - **Phase 0 (v0.8.9)**: Logger sanitization (389 lines), Search focus (450 lines), Topic sorting (382 lines)
 
 ### Key Dependencies

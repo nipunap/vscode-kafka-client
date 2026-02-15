@@ -61,6 +61,12 @@ export function getCommandDefinitions(): CommandDefinition[] {
                 );
             }
         },
+        {
+            id: 'kafka.configureExplorerSettings',
+            handler: async (_ctx, node) => {
+                await clusterCommands.configureExplorerSettings(node);
+            }
+        },
 
         // ========== Topic Commands ==========
         {
