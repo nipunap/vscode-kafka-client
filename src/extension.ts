@@ -5,22 +5,10 @@ import { BrokerProvider } from './providers/brokerProvider';
 import { KStreamProvider } from './providers/kstreamProvider';
 import { KTableProvider } from './providers/ktableProvider';
 import { KafkaClientManager } from './kafka/kafkaClientManager';
-import * as clusterCommands from './commands/clusterCommands';
-import * as topicCommands from './commands/topicCommands';
-import * as consumerGroupCommands from './commands/consumerGroupCommands';
-import * as brokerCommands from './commands/brokerCommands';
-import * as aclCommands from './commands/aclCommands';
-import * as auditCommands from './commands/auditCommands';
-import * as kstreamCommands from './commands/kstreamCommands';
-import * as ktableCommands from './commands/ktableCommands';
-import * as clusterDashboardCommands from './commands/clusterDashboardCommands';
-import * as partitionCommands from './commands/partitionCommands';
 import { Logger, LogLevel } from './infrastructure/Logger';
 import { EventBus, KafkaEvents } from './infrastructure/EventBus';
 import { CredentialManager } from './infrastructure/CredentialManager';
 import { FieldDescriptions } from './utils/fieldDescriptions';
-import { MessageConsumerWebview } from './views/MessageConsumerWebview';
-import { MessageProducerWebview } from './views/MessageProducerWebview';
 import { WebviewManager } from './views/WebviewManager';
 import { LagMonitor } from './services/LagMonitor';
 
@@ -152,289 +140,36 @@ export async function activate(context: vscode.ExtensionContext) {
         });
     }
 
-    // Register commands
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.addCluster', async () => {
-            await clusterCommands.addCluster(clientManager, kafkaExplorerProvider, consumerGroupProvider, context);
-            eventBus.emitSync(KafkaEvents.CLUSTER_ADDED);
-        })
-    );
+    // Register all commands using the command registry
+    const { CommandRegistry } = await import('./commands/commandRegistry');
+    const { getCommandDefinitions } = await import('./commands/commandDefinitions');
 
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.removeCluster', async (node) => {
-            await clusterCommands.removeCluster(clientManager, kafkaExplorerProvider, node);
-            eventBus.emitSync(KafkaEvents.CLUSTER_REMOVED);
-        })
-    );
+    const commandContext = {
+        clientManager,
+        eventBus,
+        credentialManager,
+        extensionContext: context,
+        providers: {
+            kafkaExplorer: kafkaExplorerProvider,
+            consumerGroup: consumerGroupProvider,
+            broker: brokerProvider,
+            kstream: kstreamProvider,
+            ktable: ktableProvider
+        },
+        treeViews: {
+            kafkaExplorer: kafkaExplorerTreeView,
+            consumerGroup: consumerGroupTreeView,
+            broker: brokerTreeView,
+            kstream: kstreamTreeView,
+            ktable: ktableTreeView
+        },
+        logger
+    };
 
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.refreshCluster', () => {
-            eventBus.emitSync(KafkaEvents.REFRESH_REQUESTED);
-            vscode.window.showInformationMessage('Refreshed cluster data');
-        })
-    );
+    const registry = new CommandRegistry(context, commandContext);
+    registry.registerAll(getCommandDefinitions());
 
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.createTopic', async (node) => {
-            await topicCommands.createTopic(clientManager, kafkaExplorerProvider, node);
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.deleteTopic', async (node) => {
-            await topicCommands.deleteTopic(clientManager, kafkaExplorerProvider, node);
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.addPartitions', async (node) => {
-            await topicCommands.addPartitions(clientManager, kafkaExplorerProvider, node);
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.editTopicConfig', async (node) => {
-            await topicCommands.editTopicConfig(clientManager, kafkaExplorerProvider, node);
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.produceMessage', async (node) => {
-            // Validate input
-            if (!node || !node.clusterName || !node.topicName) {
-                vscode.window.showErrorMessage('Invalid topic selection. Please try again.');
-                return;
-            }
-
-            // Show the message producer webview
-            const messageProducerWebview = MessageProducerWebview.getInstance(
-                clientManager,
-                logger,
-                credentialManager
-            );
-
-            await messageProducerWebview.show(node.clusterName, node.topicName);
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.consumeMessages', async (node) => {
-            // Validate input
-            if (!node || !node.clusterName || !node.topicName) {
-                vscode.window.showErrorMessage('Invalid topic selection. Please try again.');
-                return;
-            }
-
-            // Ask user if they want to start from beginning or latest
-            const fromBeginningChoice = await vscode.window.showQuickPick(
-                [
-                    { label: 'Latest', description: 'Start consuming from the latest offset', value: false },
-                    { label: 'Beginning', description: 'Start consuming from the beginning of the topic', value: true }
-                ],
-                {
-                    placeHolder: 'Where do you want to start consuming from?'
-                }
-            );
-
-            if (!fromBeginningChoice) {
-                return;
-            }
-
-            // Show the message consumer webview
-            const messageConsumerWebview = MessageConsumerWebview.getInstance(
-                clientManager,
-                logger,
-                eventBus
-            );
-
-            await messageConsumerWebview.show(
-                node.clusterName,
-                node.topicName,
-                fromBeginningChoice.value
-            );
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.viewConsumerGroup', async (node) => {
-            await consumerGroupCommands.showConsumerGroupDetails(clientManager, node, context);
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.showTopicDetails', async (node) => {
-            await topicCommands.showTopicDetails(clientManager, node, context);
-        })
-    );
-
-    // Register view all topics command (for large lists)
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.viewAllTopics', async (clusterName: string, topics: string[]) => {
-            const { TopicsWebview } = await import('./views/TopicsWebview');
-            await TopicsWebview.getInstance().show(clusterName, topics);
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.showConsumerGroupDetails', async (node) => {
-            await consumerGroupCommands.showConsumerGroupDetails(clientManager, node, context);
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.showAllConsumerGroups', async (clusterName: string) => {
-            const groups = await clientManager.getConsumerGroups(clusterName);
-            const ConsumerGroupsWebview = (await import('./views/ConsumerGroupsWebview')).ConsumerGroupsWebview;
-            const webview = ConsumerGroupsWebview.getInstance();
-            await webview.show(clusterName, groups);
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.deleteConsumerGroup', async (node) => {
-            await consumerGroupCommands.deleteConsumerGroup(clientManager, consumerGroupProvider, node);
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.resetConsumerGroupOffsets', async (node) => {
-            await consumerGroupCommands.resetConsumerGroupOffsets(clientManager, node);
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.findTopic', async () => {
-            await topicCommands.findTopic(clientManager, kafkaExplorerTreeView, kafkaExplorerProvider, context);
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.findConsumerGroup', async () => {
-            await consumerGroupCommands.findConsumerGroup(clientManager, consumerGroupTreeView, consumerGroupProvider, context);
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.showBrokerDetails', async (node) => {
-            await brokerCommands.showBrokerDetails(clientManager, node, context);
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.findBroker', async () => {
-            await brokerCommands.findBroker(clientManager, brokerTreeView, brokerProvider, context);
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.editBrokerConfig', async (node) => {
-            await brokerCommands.editBrokerConfig(clientManager, node);
-        })
-    );
-
-    // KStream commands
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.showKStreamDetails', async (node) => {
-            await kstreamCommands.showKStreamDetails(clientManager, node, context);
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.findKStream', async () => {
-            await kstreamCommands.findKStream(clientManager, kstreamTreeView, kstreamProvider, context);
-        })
-    );
-
-    // KTable commands
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.showKTableDetails', async (node) => {
-            await ktableCommands.showKTableDetails(clientManager, node, context);
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.findKTable', async () => {
-            await ktableCommands.findKTable(clientManager, ktableTreeView, ktableProvider, context);
-        })
-    );
-
-    // Partition commands
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.viewPartitionDetails', async (node) => {
-            await partitionCommands.viewPartitionDetails(clientManager, node.clusterName, node.topicName, node.partitionId);
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.viewPartitionOffsets', async (node) => {
-            await partitionCommands.viewPartitionOffsets(clientManager, node.clusterName, node.topicName, node.partitionId);
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.seekToOffset', async (node) => {
-            await partitionCommands.seekToOffset(clientManager, node.clusterName, node.topicName, node.partitionId);
-        })
-    );
-
-    // ACL commands
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.showACLDetails', async (node) => {
-            await aclCommands.showACLDetails(clientManager, node, context);
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.createACL', async (node) => {
-            await aclCommands.createACL(clientManager, node);
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.deleteACL', async (node) => {
-            await aclCommands.deleteACL(clientManager, node);
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.findACL', async () => {
-            await aclCommands.findACL(clientManager);
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.showACLHelp', async () => {
-            await aclCommands.showACLHelp(clientManager, context);
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.showAuditLog', async () => {
-            await auditCommands.showAuditLog();
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('kafka.showClusterDashboard', async (node) => {
-            await clusterDashboardCommands.showClusterDashboard(clientManager, context, node);
-        }),
-
-        vscode.commands.registerCommand('kafka.exportTopics', async (node) => {
-            await topicCommands.exportTopics(clientManager, node);
-        }),
-
-        vscode.commands.registerCommand('kafka.exportConsumerGroups', async (node) => {
-            await consumerGroupCommands.exportConsumerGroups(clientManager, node);
-        }),
-
-        vscode.commands.registerCommand('kafka.showTopicDashboard', async (node) => {
-            await topicCommands.showTopicDashboard(clientManager, context, node);
-        }),
-
-        vscode.commands.registerCommand('kafka.showTopicACLDetails', async (node) => {
-            await topicCommands.showTopicACLDetails(clientManager, node, context);
-        })
-    );
+    logger.info('All commands registered successfully');
 }
 
 export async function deactivate() {
