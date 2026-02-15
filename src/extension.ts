@@ -80,6 +80,15 @@ export async function activate(context: vscode.ExtensionContext) {
         treeDataProvider: ktableProvider
     });
 
+    // Register TreeViews for proper disposal
+    context.subscriptions.push(
+        kafkaExplorerTreeView,
+        consumerGroupTreeView,
+        brokerTreeView,
+        kstreamTreeView,
+        ktableTreeView
+    );
+
     // Set up event listeners for auto-refresh
     eventBus.on(KafkaEvents.CLUSTER_ADDED, () => {
         logger.debug('Cluster added, refreshing providers');
