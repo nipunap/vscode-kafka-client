@@ -127,7 +127,7 @@ jobs:
           VALIDATE_JSON: true
           VALIDATE_JAVASCRIPT_ES: true
           VALIDATE_TYPESCRIPT_ES: true
-          VALIDATE_MARKDOWN: false  # Can be noisy
+          # Only validate languages explicitly set to true above
           FILTER_REGEX_EXCLUDE: '.*node_modules.*'
       
       # Note: dependency-review-action removed - it's designed for PRs, not push events
