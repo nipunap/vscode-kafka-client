@@ -89,32 +89,45 @@ export async function activate(context: vscode.ExtensionContext) {
         ktableTreeView
     );
 
+    // Define providers for easy iteration and error isolation
+    const providers = [
+        { provider: kafkaExplorerProvider, name: 'KafkaExplorerProvider' },
+        { provider: consumerGroupProvider, name: 'ConsumerGroupProvider' },
+        { provider: brokerProvider, name: 'BrokerProvider' },
+        { provider: kstreamProvider, name: 'KStreamProvider' },
+        { provider: ktableProvider, name: 'KTableProvider' }
+    ];
+
+    /**
+     * Safely refresh all providers with error isolation
+     * Prevents one provider failure from affecting others
+     */
+    function refreshAllProviders(reason: string): void {
+        logger.debug(`${reason}, refreshing providers`);
+        providers.forEach(({ provider, name }) => {
+            try {
+                provider.refresh();
+            } catch (error) {
+                logger.error(`Failed to refresh ${name}`, error);
+                // Don't throw - isolate errors per provider
+            }
+        });
+    }
+
     // Set up event listeners for auto-refresh
     eventBus.on(KafkaEvents.CLUSTER_ADDED, () => {
-        logger.debug('Cluster added, refreshing providers');
-        kafkaExplorerProvider.refresh();
-        consumerGroupProvider.refresh();
-        brokerProvider.refresh();
-        kstreamProvider.refresh();
-        ktableProvider.refresh();
+        logger.debug('Cluster added event received');
+        refreshAllProviders('Cluster added');
     });
 
     eventBus.on(KafkaEvents.CLUSTER_REMOVED, () => {
-        logger.debug('Cluster removed, refreshing providers');
-        kafkaExplorerProvider.refresh();
-        consumerGroupProvider.refresh();
-        brokerProvider.refresh();
-        kstreamProvider.refresh();
-        ktableProvider.refresh();
+        logger.debug('Cluster removed event received');
+        refreshAllProviders('Cluster removed');
     });
 
     eventBus.on(KafkaEvents.REFRESH_REQUESTED, () => {
-        logger.debug('Refresh requested, refreshing all providers');
-        kafkaExplorerProvider.refresh();
-        consumerGroupProvider.refresh();
-        brokerProvider.refresh();
-        kstreamProvider.refresh();
-        ktableProvider.refresh();
+        logger.debug('Refresh requested event received');
+        refreshAllProviders('Refresh requested');
     });
 
     // Load saved clusters from configuration
