@@ -11,6 +11,7 @@ async function main() {
 
         // Download VS Code, unzip it and run the integration test
         await runTests({
+            version: '1.95.0', // Use stable version for testing
             extensionDevelopmentPath,
             extensionTestsPath,
             launchArgs: ['--disable-extensions'] // Disable other extensions during testing

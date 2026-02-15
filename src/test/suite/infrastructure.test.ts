@@ -164,6 +164,7 @@ suite('Infrastructure Test Suite', () => {
                 get: async (key: string) => storage.get(key),
                 store: async (key: string, value: string) => { storage.set(key, value); },
                 delete: async (key: string) => { storage.delete(key); },
+                keys: async () => Array.from(storage.keys()),
                 onDidChange: new vscode.EventEmitter<vscode.SecretStorageChangeEvent>().event
             };
             credentialManager = new CredentialManager(mockSecretStorage);
