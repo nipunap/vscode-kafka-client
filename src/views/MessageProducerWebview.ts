@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { KafkaClientManager } from '../kafka/kafkaClientManager';
 import { Logger } from '../infrastructure/Logger';
+import { CredentialManager } from '../infrastructure/CredentialManager';
 
 interface ProducerMessage {
     key?: string;
@@ -22,6 +23,7 @@ export class MessageProducerWebview {
     private panel: vscode.WebviewPanel | undefined;
     private readonly clientManager: KafkaClientManager;
     private readonly logger: Logger;
+    private readonly credentialManager: CredentialManager;
     private producerState: ProducerState = {
         messageCount: 0,
         lastMessageTime: null,
@@ -32,20 +34,24 @@ export class MessageProducerWebview {
 
     private constructor(
         clientManager: KafkaClientManager,
-        logger: Logger
+        logger: Logger,
+        credentialManager: CredentialManager
     ) {
         this.clientManager = clientManager;
         this.logger = logger;
+        this.credentialManager = credentialManager;
     }
 
     public static getInstance(
         clientManager: KafkaClientManager,
-        logger: Logger
+        logger: Logger,
+        credentialManager: CredentialManager
     ): MessageProducerWebview {
         if (!MessageProducerWebview.instance) {
             MessageProducerWebview.instance = new MessageProducerWebview(
                 clientManager,
-                logger
+                logger,
+                credentialManager
             );
         }
         return MessageProducerWebview.instance;
@@ -195,23 +201,15 @@ export class MessageProducerWebview {
 
             // Import dynamically to avoid circular dependencies
             const { SchemaRegistryService } = await import('../services/SchemaRegistryService');
-            const { CredentialManager } = await import('../infrastructure/CredentialManager');
-            
-            // Get extension context from global state (set during activation)
-            const context = (global as any).extensionContext;
-            if (!context) {
-                this.logger.warn('Extension context not available, skipping schema validation');
-                return;
-            }
 
-            const credentialManager = new CredentialManager(context.secrets);
+            // Use injected credentialManager
             const schemaService = new SchemaRegistryService(
-                { 
+                {
                     url: schemaRegistryUrl,
                     username: clusterConfig.schemaRegistryApiKey,
                     password: clusterConfig.schemaRegistryApiSecret
                 },
-                credentialManager,
+                this.credentialManager,
                 this.clusterName
             );
 

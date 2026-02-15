@@ -116,8 +116,8 @@ export class KafkaExplorerProvider extends BaseProvider<KafkaTreeItem> {
                     topics.sort((a, b) => a.localeCompare(b));
 
                     // Check if we should use webview for large lists
-                    const config = vscode.workspace.getConfiguration('kafka');
-                    const largeListThreshold = config.get<number>('explorer.largeListThreshold', 150);
+                    const config = vscode.workspace.getConfiguration('kafka.explorer');
+                    const largeListThreshold = config.get<number>('topics.threshold', 1000);
 
                     if (topics.length > largeListThreshold) {
                         // Show a tree item that opens the webview

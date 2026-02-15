@@ -51,7 +51,7 @@ export class ConsumerGroupProvider extends BaseProvider<ConsumerGroupTreeItem> {
 
                     // SEC-3.7-1: Check if we need paginated webview for large lists
                     const config = vscode.workspace.getConfiguration('kafka.explorer');
-                    const largeListThreshold = config.get<number>('largeListThreshold', 500);
+                    const largeListThreshold = config.get<number>('consumerGroups.threshold', 1000);
 
                     if (groups.length > largeListThreshold) {
                         // Show webview for large lists

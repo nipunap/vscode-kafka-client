@@ -18,6 +18,16 @@ suite('KafkaExplorerProvider Sorting Test Suite (Phase 0: 2.2)', () => {
         sandbox = sinon.createSandbox();
         clientManager = new KafkaClientManager();
         provider = new KafkaExplorerProvider(clientManager);
+
+        // Mock workspace configuration to use threshold of 150 for testing
+        sandbox.stub(vscode.workspace, 'getConfiguration').returns({
+            get: (key: string, defaultValue?: any) => {
+                if (key === 'topics.threshold') {
+                    return 150;
+                }
+                return defaultValue;
+            }
+        } as any);
     });
 
     teardown(() => {

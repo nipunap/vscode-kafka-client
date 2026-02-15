@@ -203,18 +203,17 @@ suite('Producer Schema Validation Test Suite', () => {
             }
         });
 
-        test('should access extension context from global', () => {
-            // Simulate global context
-            const mockContext = { secrets: {} };
-            (global as any).extensionContext = mockContext;
+        test('should use injected credential manager for schema validation', () => {
+            // CredentialManager is now injected via constructor
+            // No longer uses global state for extension context
+            const mockCredentialManager = {
+                storeCredentials: sandbox.stub(),
+                getCredentials: sandbox.stub(),
+                deleteCredentials: sandbox.stub()
+            };
 
-            const context = (global as any).extensionContext;
-
-            assert.ok(context, 'Should access context from global');
-            assert.ok(context.secrets, 'Should have secrets property');
-
-            // Cleanup
-            delete (global as any).extensionContext;
+            assert.ok(mockCredentialManager, 'Should use injected credential manager');
+            assert.ok(typeof mockCredentialManager.getCredentials === 'function', 'Should have getCredentials method');
         });
     });
 

@@ -2,7 +2,7 @@
   "name": "vscode-kafka-client",
   "displayName": "Kafka Client",
   "description": "Full-featured Kafka client with AWS MSK support, IAM authentication, role assumption, and auto-discovery",
-  "version": "0.12.1",
+  "version": "0.12.2",
   "publisher": "NipunaPerera",
   "license": "GPL-3.0",
   "pricing": "Free",
@@ -230,6 +230,11 @@
         "icon": "$(dashboard)"
       },
       {
+        "command": "kafka.configureExplorerSettings",
+        "title": "Configure Explorer Settings",
+        "icon": "$(settings-gear)"
+      },
+      {
         "command": "kafka.exportTopics",
         "title": "Export Topics to File",
         "icon": "$(export)"
@@ -291,6 +296,11 @@
           "command": "kafka.refreshCluster",
           "when": "view == kafkaExplorer",
           "group": "navigation@3"
+        },
+        {
+          "command": "kafka.configureExplorerSettings",
+          "when": "view == kafkaExplorer",
+          "group": "navigation@4"
         },
         {
           "command": "kafka.findConsumerGroup",
@@ -363,6 +373,11 @@
           "command": "kafka.removeCluster",
           "when": "view == kafkaExplorer && viewItem == cluster",
           "group": "9_danger@1"
+        },
+        {
+          "command": "kafka.configureExplorerSettings",
+          "when": "view == kafkaExplorer && viewItem == cluster",
+          "group": "inline"
         },
         {
           "command": "kafka.createTopic",
@@ -551,7 +566,36 @@
         "kafka.explorer.largeListThreshold": {
           "type": "number",
           "default": 150,
-          "description": "Number of topics above which to use paginated webview instead of tree view"
+          "markdownDescription": "⚠️ **DEPRECATED**: Use `kafka.explorer.topics.threshold` instead",
+          "deprecationMessage": "Use kafka.explorer.topics.threshold for topics and kafka.explorer.consumerGroups.threshold for consumer groups"
+        },
+        "kafka.explorer.topics.threshold": {
+          "type": "number",
+          "default": 1000,
+          "minimum": 10,
+          "maximum": 10000,
+          "markdownDescription": "Number of topics above which to use paginated webview. Click the ⚙️ icon next to a cluster to configure."
+        },
+        "kafka.explorer.consumerGroups.threshold": {
+          "type": "number",
+          "default": 1000,
+          "minimum": 10,
+          "maximum": 10000,
+          "markdownDescription": "Number of consumer groups above which to use paginated webview"
+        },
+        "kafka.explorer.brokers.threshold": {
+          "type": "number",
+          "default": 1000,
+          "minimum": 10,
+          "maximum": 10000,
+          "markdownDescription": "Number of brokers above which to use paginated webview"
+        },
+        "kafka.explorer.acls.threshold": {
+          "type": "number",
+          "default": 1000,
+          "minimum": 10,
+          "maximum": 10000,
+          "markdownDescription": "Number of ACLs above which to use paginated webview"
         },
         "kafka.lagAlerts.enabled": {
           "type": "boolean",

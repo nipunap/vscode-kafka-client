@@ -4,6 +4,35 @@ All notable changes to the "Kafka Client" extension will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/) and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.12.2](https://github.com/nipunap/vscode-kafka-client/compare/v0.12.0...v0.12.2) (2026-02-15)
+
+
+### ✨ Features
+
+* **ci:** comprehensive release workflow improvements ([ec083ac](https://github.com/nipunap/vscode-kafka-client/commit/ec083aca56340fed079af5ab92a4adf10fe567b3))
+
+
+### 🐛 Bug Fixes
+
+* add TreeView instances to context.subscriptions ([5f07c7d](https://github.com/nipunap/vscode-kafka-client/commit/5f07c7d6ec2e7e5d749be9639b165563fbeea991))
+* **ci:** fix dependency-review-action step ordering and add required refs ([1d72f6d](https://github.com/nipunap/vscode-kafka-client/commit/1d72f6d9e23eceda8b172c944c88478ec701bee7))
+* **ci:** remove dependency-review from release workflow, add to CI ([015d4da](https://github.com/nipunap/vscode-kafka-client/commit/015d4dae51bd99a58b71c0c97f25dfe4897866c7))
+* **ci:** use underscores in dependency-review-action parameters ([49a5cfe](https://github.com/nipunap/vscode-kafka-client/commit/49a5cfe457f2e0e0e7f7856b89c7ea9f5df9c1db))
+* handle optional node parameter in configureExplorerSettings ([6cb6cf0](https://github.com/nipunap/vscode-kafka-client/commit/6cb6cf002d3e668819fadee8d0802aa2dc30c275))
+
+
+### ♻️ Code Refactoring
+
+* add error isolation to provider refresh handlers ([5cc142a](https://github.com/nipunap/vscode-kafka-client/commit/5cc142a6d263e20229fdc329d88cbe0d128828be))
+* introduce command registry pattern ([d4b1014](https://github.com/nipunap/vscode-kafka-client/commit/d4b10143f80f4d11fe6da88ca7bd8fa0a2b3f8c8))
+* remove global state anti-pattern in MessageProducerWebview ([c2c60cd](https://github.com/nipunap/vscode-kafka-client/commit/c2c60cd638f67a1c3d6f093c0a496895019df72a))
+
+
+### 📝 Documentation
+
+* add comprehensive release workflow documentation ([b3b6cb6](https://github.com/nipunap/vscode-kafka-client/commit/b3b6cb6f17a1e5241108d411dbb53a341ea85175))
+* add version level security changes ([cce730b](https://github.com/nipunap/vscode-kafka-client/commit/cce730bc9355bbe3c5336a25a6fc5bd726a9dee8))
+
 ## [0.12.0](https://github.com/nipunap/vscode-kafka-client/compare/v0.11.0...v0.12.0) (2025-10-19)
 
 
