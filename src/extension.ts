@@ -34,9 +34,6 @@ const logger = Logger.getLogger('Extension');
 export async function activate(context: vscode.ExtensionContext) {
     logger.info('Kafka extension is now active!');
 
-    // Store context in global state for schema validation
-    (global as any).extensionContext = context;
-
     // Initialize log level from configuration
     const config = vscode.workspace.getConfiguration('kafka');
     const logLevel = config.get<string>('logLevel', 'info');
@@ -190,7 +187,8 @@ export async function activate(context: vscode.ExtensionContext) {
             // Show the message producer webview
             const messageProducerWebview = MessageProducerWebview.getInstance(
                 clientManager,
-                logger
+                logger,
+                credentialManager
             );
 
             await messageProducerWebview.show(node.clusterName, node.topicName);
