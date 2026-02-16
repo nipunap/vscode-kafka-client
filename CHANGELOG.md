@@ -4,6 +4,12 @@ All notable changes to the "Kafka Client" extension will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/) and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.12.6] - 2026-02-16
+
+### 🐛 Bug Fixes
+
+* **ci:** fix super-linter validator configuration for ESLint flat config compatibility
+
 ## [0.12.5](https://github.com/nipunap/vscode-kafka-client/compare/v0.12.0...v0.12.5) (2026-02-16)
 
 
