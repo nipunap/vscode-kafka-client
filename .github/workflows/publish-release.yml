@@ -123,13 +123,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DEFAULT_BRANCH: main
           VALIDATE_ALL_CODEBASE: false
+          # Only validate YAML files (other validators disabled implicitly)
+          # JSON/JS/TS validation handled by npm run lint in ci.yml
+          # Note: Can't mix VALIDATE_*=true and VALIDATE_*=false with v7
           VALIDATE_YAML: true
-          # Disable JSON/JS/TS validation - handled by npm run lint in ci.yml
-          # These validators are incompatible with ESLint flat config (eslint.config.js)
-          VALIDATE_JSON: false
-          VALIDATE_JAVASCRIPT_ES: false
-          VALIDATE_TYPESCRIPT_ES: false
-          # Only validate languages explicitly set to true above
           FILTER_REGEX_EXCLUDE: '.*node_modules.*'
       
       # Note: dependency-review-action removed - it's designed for PRs, not push events
