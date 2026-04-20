@@ -101,45 +101,6 @@ export class ConsumerGroupService {
     }
 
     /**
-     * Reset consumer group offsets
-     */
-    async resetConsumerGroupOffsets(
-        admin: Admin,
-        groupId: string,
-        topic: string,
-        offset: 'earliest' | 'latest' | number
-    ): Promise<void> {
-        try {
-            this.logger.info(`Resetting offsets for consumer group: ${groupId}, topic: ${topic}, offset: ${offset}`);
-
-            // First, get topic metadata to know partition count
-            const metadata = await admin.fetchTopicMetadata({ topics: [topic] });
-            const topicMetadata = metadata.topics.find(t => t.name === topic);
-
-            if (!topicMetadata) {
-                throw new Error(`Topic not found: ${topic}`);
-            }
-
-            // Build offset reset structure
-            const partitions = topicMetadata.partitions.map(p => ({
-                partition: p.partitionId,
-                offset: offset === 'earliest' ? '0' : offset === 'latest' ? '-1' : String(offset)
-            }));
-
-            await admin.setOffsets({
-                groupId,
-                topic,
-                partitions
-            });
-
-            this.logger.info(`Successfully reset offsets for consumer group: ${groupId}`);
-        } catch (error) {
-            this.logger.error(`Failed to reset offsets for consumer group: ${groupId}`, error);
-            throw error;
-        }
-    }
-
-    /**
      * Get comprehensive consumer group info (details + offsets)
      */
     async getConsumerGroupInfo(admin: Admin, groupId: string): Promise<any> {
