@@ -2,7 +2,7 @@
   "name": "vscode-kafka-client",
   "displayName": "Kafka Client",
   "description": "Full-featured Kafka client with AWS MSK support, IAM authentication, role assumption, and auto-discovery",
-  "version": "0.12.8",
+  "version": "0.12.9",
   "publisher": "NipunaPerera",
   "license": "GPL-3.0",
   "pricing": "Free",
@@ -40,14 +40,6 @@
     "color": "#231F20",
     "theme": "dark"
   },
-  "activationEvents": [
-    "onView:kafkaExplorer",
-    "onView:kafkaConsumerGroups",
-    "onView:kafkaBrokers",
-    "onView:kafkaStreams",
-    "onView:kafkaTables",
-    "onCommand:kafka.addCluster"
-  ],
   "main": "./out/extension.js",
   "contributes": {
     "viewsContainers": {
@@ -59,6 +51,28 @@
         }
       ]
     },
+    "viewsWelcome": [
+      {
+        "view": "kafkaExplorer",
+        "contents": "No Kafka clusters configured.\n[Add Cluster](command:kafka.addCluster)\nYou can also run the **Add Cluster** command from the Command Palette."
+      },
+      {
+        "view": "kafkaConsumerGroups",
+        "contents": "No Kafka clusters configured.\n[Add Cluster](command:kafka.addCluster)"
+      },
+      {
+        "view": "kafkaBrokers",
+        "contents": "No Kafka clusters configured.\n[Add Cluster](command:kafka.addCluster)"
+      },
+      {
+        "view": "kafkaStreams",
+        "contents": "No Kafka clusters configured.\n[Add Cluster](command:kafka.addCluster)"
+      },
+      {
+        "view": "kafkaTables",
+        "contents": "No Kafka clusters configured.\n[Add Cluster](command:kafka.addCluster)"
+      }
+    ],
     "views": {
       "kafka-explorer": [
         {
@@ -642,6 +656,10 @@
     "release:minor": "commit-and-tag-version --release-as minor",
     "release:patch": "commit-and-tag-version --release-as patch"
   },
+  "overrides": {
+    "serialize-javascript": "7.0.5",
+    "diff": "8.0.3"
+  },
   "devDependencies": {
     "@types/ini": "^4.1.1",
     "@types/mocha": "^10.0.10",
@@ -660,6 +678,7 @@
     "npm-run-all": "^4.1.5",
     "ovsx": "^0.8.3",
     "sinon": "^21.0.0",
+    "ts-node": "^10.9.2",
     "typescript": "^5.7.2"
   },
   "dependencies": {

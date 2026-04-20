@@ -17,7 +17,7 @@ export class KTableProvider extends BaseProvider<KTableTreeItem> {
             const clusters = this.getClusters();
 
             if (clusters.length === 0) {
-                return [this.createEmptyItem('No clusters configured.') as KTableTreeItem];
+                return [];
             }
 
             return clusters.map(

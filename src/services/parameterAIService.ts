@@ -85,15 +85,8 @@ export class ParameterAIService {
      * Fetch response from AI model
      */
     private async fetchAIResponse(parameterName: string): Promise<string> {
-        const models = await vscode.lm.selectChatModels({
-            vendor: 'copilot',
-            family: 'gpt-4'
-        });
-
-        const model = models[0] || (await vscode.lm.selectChatModels({
-            vendor: 'copilot',
-            family: 'gpt-3.5-turbo'
-        }))[0];
+        const models = await vscode.lm.selectChatModels({});
+        const model = models[0];
 
         if (!model) {
             throw new Error('No AI model available');

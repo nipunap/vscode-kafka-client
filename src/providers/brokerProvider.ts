@@ -13,7 +13,7 @@ export class BrokerProvider extends BaseProvider<BrokerTreeItem> {
             const clusters = this.getClusters();
 
             if (clusters.length === 0) {
-                return [this.createEmptyItem('No clusters configured.') as BrokerTreeItem];
+                return [];
             }
 
             return clusters.map(

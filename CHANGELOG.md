@@ -4,6 +4,13 @@ All notable changes to the "Kafka Client" extension will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/) and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.12.9](https://github.com/nipunap/vscode-kafka-client/compare/v0.12.8...v0.12.9) (2026-04-20)
+
+
+### 🐛 Bug Fixes
+
+* resolve AI model detection and empty tree view UX issues ([32b1d20](https://github.com/nipunap/vscode-kafka-client/commit/32b1d202fcf569b071c29d37b6786846c7962b70))
+
 ## [0.12.8](https://github.com/nipunap/vscode-kafka-client/compare/v0.12.7...v0.12.8) (2026-04-20)
 
 

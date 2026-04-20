@@ -37,9 +37,7 @@ suite('Broker Provider Test Suite', () => {
         test('should return empty array when no clusters', async () => {
             const children = await provider.getChildren();
             assert.strictEqual(Array.isArray(children), true);
-            // Now returns 1 item with helpful "No clusters configured." message
-            assert.strictEqual(children.length, 1);
-            assert.strictEqual(children[0].contextValue, 'empty');
+            assert.strictEqual(children.length, 0);
         });
 
         test('should have onDidChangeTreeData event', () => {

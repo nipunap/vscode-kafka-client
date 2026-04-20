@@ -17,7 +17,7 @@ export class KStreamProvider extends BaseProvider<KStreamTreeItem> {
             const clusters = this.getClusters();
 
             if (clusters.length === 0) {
-                return [this.createEmptyItem('No clusters configured.') as KStreamTreeItem];
+                return [];
             }
 
             return clusters.map(

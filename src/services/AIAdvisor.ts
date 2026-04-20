@@ -8,6 +8,7 @@ import { Logger } from '../infrastructure/Logger';
 export class AIAdvisor {
     private static logger = Logger.getLogger('AIAdvisor');
     private static isAvailable: boolean | undefined;
+    private static cachedModels: vscode.LanguageModelChat[] | undefined;
 
     /**
      * Check if AI/LLM features are available
@@ -18,32 +19,37 @@ export class AIAdvisor {
         }
 
         try {
-            // Check if the Language Model API is available
-            const models = await vscode.lm.selectChatModels({
-                vendor: 'copilot',
-                family: 'gpt-4'
-            });
+            const models = await vscode.lm.selectChatModels({});
 
-            // Also check for gpt-3.5-turbo as fallback
-            const fallbackModels = await vscode.lm.selectChatModels({
-                vendor: 'copilot',
-                family: 'gpt-3.5-turbo'
-            });
-
-            this.isAvailable = models.length > 0 || fallbackModels.length > 0;
-
-            if (this.isAvailable) {
+            if (models.length > 0) {
+                this.isAvailable = true;
+                this.cachedModels = models;
                 this.logger.info('AI Advisor features are available');
             } else {
+                this.isAvailable = undefined; // don't cache false — Copilot may still be initialising; retry on next user action
+                this.cachedModels = undefined;
                 this.logger.info('AI Advisor features not available - GitHub Copilot may not be active');
             }
 
-            return this.isAvailable;
+            return this.isAvailable ?? false;
         } catch (error) {
             this.logger.debug('Language Model API not available', error);
             this.isAvailable = false;
             return false;
         }
+    }
+
+    private static async resolveModel(): Promise<vscode.LanguageModelChat> {
+        if (this.cachedModels && this.cachedModels.length > 0) {
+            return this.cachedModels[0];
+        }
+        const models = await vscode.lm.selectChatModels({});
+        const model = models[0];
+        if (!model) {
+            throw new Error('No AI models available');
+        }
+        this.cachedModels = models;
+        return model;
     }
 
     /**
@@ -62,23 +68,8 @@ export class AIAdvisor {
         }
 
         try {
-            const models = await vscode.lm.selectChatModels({
-                vendor: 'copilot',
-                family: 'gpt-4'
-            });
+            const model = await AIAdvisor.resolveModel();
 
-            if (models.length === 0) {
-                // Fallback to GPT-3.5
-                const fallbackModels = await vscode.lm.selectChatModels({
-                    vendor: 'copilot',
-                    family: 'gpt-3.5-turbo'
-                });
-                if (fallbackModels.length === 0) {
-                    throw new Error('No AI models available');
-                }
-            }
-
-            const model = models[0];
             const messages = [
                 vscode.LanguageModelChatMessage.User(`You are a Kafka expert consultant. Analyze this topic and provide CONCISE, actionable recommendations.
 
@@ -125,6 +116,7 @@ Keep each bullet point to ONE LINE. Be specific with numbers and settings. No fl
 
             return response || 'Unable to generate recommendations at this time.';
         } catch (error: any) {
+            AIAdvisor.cachedModels = undefined;
             this.logger.error('Failed to get AI recommendations', error);
             throw new Error(`AI analysis failed: ${error.message}`);
         }
@@ -145,22 +137,8 @@ Keep each bullet point to ONE LINE. Be specific with numbers and settings. No fl
         }
 
         try {
-            const models = await vscode.lm.selectChatModels({
-                vendor: 'copilot',
-                family: 'gpt-4'
-            });
+            const model = await AIAdvisor.resolveModel();
 
-            if (models.length === 0) {
-                const fallbackModels = await vscode.lm.selectChatModels({
-                    vendor: 'copilot',
-                    family: 'gpt-3.5-turbo'
-                });
-                if (fallbackModels.length === 0) {
-                    throw new Error('No AI models available');
-                }
-            }
-
-            const model = models[0];
             const messages = [
                 vscode.LanguageModelChatMessage.User(`You are a Kafka expert consultant. Analyze this broker and provide CONCISE, actionable recommendations.
 
@@ -208,6 +186,7 @@ Keep each bullet to ONE LINE. Be specific with numbers. No fluff.`)
 
             return response || 'Unable to generate recommendations at this time.';
         } catch (error: any) {
+            AIAdvisor.cachedModels = undefined;
             this.logger.error('Failed to get AI recommendations', error);
             throw new Error(`AI analysis failed: ${error.message}`);
         }
@@ -229,22 +208,8 @@ Keep each bullet to ONE LINE. Be specific with numbers. No fluff.`)
         }
 
         try {
-            const models = await vscode.lm.selectChatModels({
-                vendor: 'copilot',
-                family: 'gpt-4'
-            });
+            const model = await AIAdvisor.resolveModel();
 
-            if (models.length === 0) {
-                const fallbackModels = await vscode.lm.selectChatModels({
-                    vendor: 'copilot',
-                    family: 'gpt-3.5-turbo'
-                });
-                if (fallbackModels.length === 0) {
-                    throw new Error('No AI models available');
-                }
-            }
-
-            const model = models[0];
             const messages = [
                 vscode.LanguageModelChatMessage.User(`You are a Kafka expert consultant. Analyze this consumer group and provide CONCISE, actionable recommendations.
 
@@ -288,6 +253,7 @@ Keep each bullet to ONE LINE. Be specific with numbers. No fluff.`)
 
             return response || 'Unable to generate recommendations at this time.';
         } catch (error: any) {
+            AIAdvisor.cachedModels = undefined;
             this.logger.error('Failed to get AI recommendations', error);
             throw new Error(`AI analysis failed: ${error.message}`);
         }
@@ -303,22 +269,7 @@ Keep each bullet to ONE LINE. Be specific with numbers. No fluff.`)
         }
 
         try {
-            const models = await vscode.lm.selectChatModels({
-                vendor: 'copilot',
-                family: 'gpt-4'
-            });
-
-            if (models.length === 0) {
-                const fallbackModels = await vscode.lm.selectChatModels({
-                    vendor: 'copilot',
-                    family: 'gpt-3.5-turbo'
-                });
-                if (fallbackModels.length === 0) {
-                    throw new Error('No AI models available');
-                }
-            }
-
-            const model = models[0];
+            const model = await AIAdvisor.resolveModel();
 
             const contextMessage = context ? `\n\n**Context:**\n${context}` : '';
 
@@ -344,6 +295,7 @@ Keep each bullet to ONE LINE. Be specific with numbers. No fluff.`)
 
             return response || 'Unable to generate an answer at this time.';
         } catch (error: any) {
+            AIAdvisor.cachedModels = undefined;
             this.logger.error('Failed to get AI answer', error);
             throw new Error(`AI query failed: ${error.message}`);
         }
