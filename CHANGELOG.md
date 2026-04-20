@@ -4,6 +4,13 @@ All notable changes to the "Kafka Client" extension will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/) and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.12.7](https://github.com/nipunap/vscode-kafka-client/compare/v0.12.6...v0.12.7) (2026-04-20)
+
+
+### 🐛 Bug Fixes
+
+* resolve security vulnerabilities and improve offset reset robustness ([0d5f07e](https://github.com/nipunap/vscode-kafka-client/commit/0d5f07ed8a42ad01a33449f32f5f079af46ec225))
+
 ## [0.12.6] - 2026-02-16
 
 ### 🐛 Bug Fixes
