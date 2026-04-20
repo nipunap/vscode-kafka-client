@@ -633,13 +633,30 @@ export class KafkaClientManager {
     ) {
         const admin = await this.getAdmin(clusterName);
 
+        // Validate specific offset before any network calls
+        if (resetTo === 'specific offset') {
+            const offsetNum = parseInt(specificOffset ?? '', 10);
+            if (!specificOffset || isNaN(offsetNum) || offsetNum < 0) {
+                throw new Error(`Invalid offset value: "${specificOffset}". Must be a non-negative integer.`);
+            }
+        }
+
         // Get topics for the consumer group if not specified
         let topics: string[] = [];
         if (topic) {
             topics = [topic];
         } else {
             const offsets = await admin.fetchOffsets({ groupId });
-            topics = [...new Set(offsets.map((o: any) => o.topic))];
+            const validTopics = offsets.map((o: any) => o.topic).filter(Boolean);
+            const dropped = offsets.length - validTopics.length;
+            if (dropped > 0) {
+                this.logger.warn(`resetConsumerGroupOffsets: dropped ${dropped} offset entries with undefined topic for group "${groupId}"`);
+            }
+            topics = [...new Set(validTopics)];
+        }
+
+        if (topics.length === 0) {
+            throw new Error(`Consumer group "${groupId}" has no committed topic offsets to reset`);
         }
 
         // Build reset spec for each topic
@@ -651,8 +668,11 @@ export class KafkaClientManager {
         for (const topicName of topics) {
             const topicOffsets = await admin.fetchTopicOffsets(topicName);
             const partitions = topicOffsets.map((p: any) => {
-                let offset: string;
+                if (p.low === undefined || p.low === null || p.high === undefined || p.high === null) {
+                    throw new Error(`Missing offset bounds for partition ${p.partition} on topic "${topicName}"`);
+                }
 
+                let offset: string;
                 if (resetTo === 'beginning') {
                     offset = p.low;
                 } else if (resetTo === 'end') {
