@@ -44,8 +44,9 @@ suite('Provider Test Suite', () => {
             sandbox.stub(clientManager, 'getClusters').returns([]);
 
             const children = await provider.getChildren();
-            assert.ok(Array.isArray(children));
+            assert.strictEqual(children.length, 0, 'Should return empty array to trigger viewsWelcome');
         });
+
     });
 
     suite('ConsumerGroupProvider', () => {

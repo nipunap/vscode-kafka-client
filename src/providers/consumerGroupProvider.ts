@@ -14,7 +14,7 @@ export class ConsumerGroupProvider extends BaseProvider<ConsumerGroupTreeItem> {
             const clusters = this.getClusters();
 
             if (clusters.length === 0) {
-                return [this.createEmptyItem('No clusters configured.') as ConsumerGroupTreeItem];
+                return [];
             }
 
             return clusters.map(

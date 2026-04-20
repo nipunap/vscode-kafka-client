@@ -80,7 +80,7 @@ export class KafkaExplorerProvider extends BaseProvider<KafkaTreeItem> {
             const clusters = this.getClusters();
 
             if (clusters.length === 0) {
-                return [this.createEmptyItem('No clusters configured. Click + to add one.') as KafkaTreeItem];
+                return [];
             }
 
             return clusters.map(

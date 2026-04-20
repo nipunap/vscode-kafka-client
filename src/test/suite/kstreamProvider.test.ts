@@ -25,14 +25,12 @@ suite('KStream Provider Test Suite', () => {
     });
 
     suite('Root Level', () => {
-        test('should return empty state when no clusters configured', async () => {
+        test('should return empty array when no clusters configured', async () => {
             getClustersStub.returns([]);
 
             const children = await provider.getChildren();
 
-            assert.strictEqual(children.length, 1);
-            assert.strictEqual(children[0].label, 'No clusters configured.');
-            assert.strictEqual(children[0].contextValue, 'empty');
+            assert.strictEqual(children.length, 0);
         });
 
         test('should return cluster items when clusters exist', async () => {

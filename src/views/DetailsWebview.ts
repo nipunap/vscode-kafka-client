@@ -1098,13 +1098,7 @@ export class DetailsWebview extends BaseWebviewWithAI {
                                 🤖 Get AI Details
                             </button>
                         </div>
-                        ` : `
-                        <div class="info-modal-footer" style="justify-content: center;">
-                            <div style="color: var(--vscode-descriptionForeground); font-size: 12px; text-align: center; padding: 8px;">
-                                💡 Install <a href="https://marketplace.visualstudio.com/items?itemName=GitHub.copilot" target="_blank" style="color: var(--vscode-textLink-foreground);">GitHub Copilot</a> to enable AI-powered parameter details
-                            </div>
-                        </div>
-                        `}
+                        ` : ''}
                     </div>
                 </div>
 

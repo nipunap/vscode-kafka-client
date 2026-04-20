@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import { KafkaClientManager } from '../kafka/kafkaClientManager';
 import { DetailsWebview, DetailsData } from '../views/DetailsWebview';
 import { ErrorHandler } from '../infrastructure/ErrorHandler';
+import { AIAdvisor } from '../services/AIAdvisor';
 
 export async function showConsumerGroupDetails(clientManager: KafkaClientManager, node: any, context?: vscode.ExtensionContext) {
     await ErrorHandler.wrap(async () => {
@@ -38,6 +39,9 @@ export async function showConsumerGroupDetails(clientManager: KafkaClientManager
         // Create HTML view
         const detailsView = new DetailsWebview(`Consumer Group: ${node.groupId}`, '👥', context);
 
+        // Check if AI features are available
+        const aiAvailable = await AIAdvisor.checkAvailability();
+
         // Get state badge
         const getStateBadge = (state: string) => {
             const stateUpper = state.toUpperCase();
@@ -51,6 +55,7 @@ export async function showConsumerGroupDetails(clientManager: KafkaClientManager
             title: node.groupId,
             showCopyButton: true,
             showRefreshButton: false,
+            showAIAdvisor: aiAvailable,
             notice: {
                 type: 'info',
                 text: '✏️ Edit mode coming soon! You\'ll be able to reset offsets and modify group settings directly from this view.'
@@ -122,6 +127,20 @@ export async function showConsumerGroupDetails(clientManager: KafkaClientManager
                 }
             ]
         };
+
+        // Set up AI request handler only if AI is available
+        if (aiAvailable) {
+            detailsView.setAIRequestHandler(async () => {
+                const recommendations = await AIAdvisor.analyzeConsumerGroup({
+                    groupId: details.groupId || node.groupId,
+                    state: details.state || 'Unknown',
+                    members: details.members?.length || 0,
+                    totalLag: details.totalLag || 0,
+                    topics: Array.from(new Set<string>((details.offsets || []).map((o: any) => o.topic).filter(Boolean)))
+                });
+                detailsView.updateWithAIRecommendations(recommendations);
+            });
+        }
 
         detailsView.showDetails(data);
     }, `Loading consumer group details for "${node.groupId}"`);

@@ -40,14 +40,6 @@
     "color": "#231F20",
     "theme": "dark"
   },
-  "activationEvents": [
-    "onView:kafkaExplorer",
-    "onView:kafkaConsumerGroups",
-    "onView:kafkaBrokers",
-    "onView:kafkaStreams",
-    "onView:kafkaTables",
-    "onCommand:kafka.addCluster"
-  ],
   "main": "./out/extension.js",
   "contributes": {
     "viewsContainers": {
@@ -59,6 +51,28 @@
         }
       ]
     },
+    "viewsWelcome": [
+      {
+        "view": "kafkaExplorer",
+        "contents": "No Kafka clusters configured.\n[Add Cluster](command:kafka.addCluster)\nYou can also run the **Add Cluster** command from the Command Palette."
+      },
+      {
+        "view": "kafkaConsumerGroups",
+        "contents": "No Kafka clusters configured.\n[Add Cluster](command:kafka.addCluster)"
+      },
+      {
+        "view": "kafkaBrokers",
+        "contents": "No Kafka clusters configured.\n[Add Cluster](command:kafka.addCluster)"
+      },
+      {
+        "view": "kafkaStreams",
+        "contents": "No Kafka clusters configured.\n[Add Cluster](command:kafka.addCluster)"
+      },
+      {
+        "view": "kafkaTables",
+        "contents": "No Kafka clusters configured.\n[Add Cluster](command:kafka.addCluster)"
+      }
+    ],
     "views": {
       "kafka-explorer": [
         {
@@ -660,6 +674,7 @@
     "npm-run-all": "^4.1.5",
     "ovsx": "^0.8.3",
     "sinon": "^21.0.0",
+    "ts-node": "^10.9.2",
     "typescript": "^5.7.2"
   },
   "dependencies": {
