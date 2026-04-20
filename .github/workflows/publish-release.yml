@@ -53,7 +53,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0  # Full history for tag comparison
 
@@ -113,7 +113,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -141,10 +141,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20.x'
           cache: 'npm'
@@ -234,7 +234,7 @@ jobs:
           echo "vsix_size=$FILE_SIZE" >> $GITHUB_OUTPUT
 
       - name: Upload VSIX artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: vscode-kafka-${{ needs.version-check.outputs.version }}.vsix
           path: '*.vsix'
@@ -252,10 +252,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download VSIX artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: vscode-kafka-${{ needs.version-check.outputs.version }}.vsix
 
@@ -312,7 +312,7 @@ jobs:
 
     steps:
       - name: Download VSIX artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: vscode-kafka-${{ needs.version-check.outputs.version }}.vsix
 
@@ -358,7 +358,7 @@ jobs:
 
       - name: Report marketplace publish failure
         if: steps.check_token.outputs.has_token == 'true' && steps.publish.outcome == 'failure'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         continue-on-error: true
         with:
           script: |
@@ -401,7 +401,7 @@ jobs:
 
     steps:
       - name: Download VSIX artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: vscode-kafka-${{ needs.version-check.outputs.version }}.vsix
 
@@ -418,7 +418,7 @@ jobs:
 
       - name: Setup Node.js
         if: steps.check_token.outputs.has_token == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20.x'
 
@@ -449,7 +449,7 @@ jobs:
 
       - name: Report Open VSX publish failure
         if: steps.check_token.outputs.has_token == 'true' && steps.publish.outcome == 'failure'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         continue-on-error: true
         with:
           script: |
@@ -496,7 +496,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Check if both publishes failed
         id: check_failure
@@ -515,7 +515,7 @@ jobs:
 
       - name: Create rollback issue (manual decision)
         if: steps.check_failure.outputs.should_rollback == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             await github.rest.issues.create({

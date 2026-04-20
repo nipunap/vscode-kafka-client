@@ -4,6 +4,14 @@ All notable changes to the "Kafka Client" extension will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/) and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.12.8](https://github.com/nipunap/vscode-kafka-client/compare/v0.12.7...v0.12.8) (2026-04-20)
+
+
+### 🐛 Bug Fixes
+
+* upgrade actions/github-script to v9 ([d0a913a](https://github.com/nipunap/vscode-kafka-client/commit/d0a913a4c1b461ee4587798230614cdfe7ecf4b5))
+* upgrade GitHub Actions to Node.js 24 compatible versions ([507e90f](https://github.com/nipunap/vscode-kafka-client/commit/507e90ff8aca2aa0318c11653cf2d00dc4da6b30))
+
 ## [0.12.7](https://github.com/nipunap/vscode-kafka-client/compare/v0.12.6...v0.12.7) (2026-04-20)
 
 
