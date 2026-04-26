@@ -164,20 +164,9 @@ export class KafkaClientManager {
             kafkaConfig.sasl = await this.buildSASLConfig(connection);
         }
 
-        // Create Kafka instance
+        // Create Kafka instance (connection established lazily via getAdmin() on first use)
         const kafka = new Kafka(kafkaConfig);
         this.kafkaInstances.set(connection.name, kafka);
-
-        // Test connection
-        try {
-            const admin = kafka.admin();
-            await admin.connect();
-            this.admins.set(connection.name, admin);
-        } catch (error) {
-            // Connection failed, but still save the config
-            // We'll try to connect later when needed
-            console.warn(`Failed to connect to cluster ${connection.name} on startup:`, error);
-        }
 
         // Save configuration using ConfigurationService
         this.saveConfiguration();
@@ -262,7 +251,7 @@ export class KafkaClientManager {
             clientId: `vscode-kafka-${connection.name}`,
             brokers: brokerList,
             logLevel: logLevel.ERROR,
-            connectionTimeout: 30000,
+            connectionTimeout: vscode.workspace.getConfiguration('kafka').get('connectionTimeoutMs', 30000),
             requestTimeout: 60000,
             authenticationTimeout: 30000,
             retry: {
@@ -1314,66 +1303,68 @@ export class KafkaClientManager {
 
         const failedClusters: { name: string; reason: string }[] = [];
 
-        for (const cluster of clusters) {
-            // Validate cluster configuration
-            if (!this.validateClusterConfig(cluster)) {
-                console.error(`Invalid cluster configuration for "${cluster.name}"`);
-                failedClusters.push({
-                    name: cluster.name || 'Unknown',
-                    reason: 'Invalid configuration (missing required fields)'
-                });
-                continue;
-            }
-
-            try {
-                // Reconstruct the full cluster connection from saved config
-                const connection: ClusterConnection = {
-                    name: cluster.name,
-                    type: cluster.type || 'kafka',
-                    brokers: cluster.brokers || [],
-                    securityProtocol: cluster.securityProtocol || 'PLAINTEXT',
-
-                    // MSK-specific fields
-                    region: cluster.region,
-                    clusterArn: cluster.clusterArn,
-                    awsProfile: cluster.awsProfile,
-                    assumeRoleArn: cluster.assumeRoleArn,
-
-                    // SASL fields
-                    saslMechanism: cluster.saslMechanism,
-                    // Note: We don't save passwords, so SASL clusters will need re-authentication
-
-                    // SSL fields
-                    sslCaFile: cluster.sslCaFile,
-                    sslCertFile: cluster.sslCertFile,
-                    sslKeyFile: cluster.sslKeyFile,
-                    rejectUnauthorized: cluster.rejectUnauthorized
-                };
-
-                // Use the same method as adding a new cluster to ensure consistency
-                await this.addClusterFromConnection(connection);
-
-            } catch (error: any) {
-                // Log the error using the logger instead of console
-                this.logger.error(`Failed to load cluster ${cluster.name}`, error);
-
-                // Determine the reason for failure
-                const errorMsg = error?.message || error.toString();
-
-                let reason: string;
-                if (errorMsg.includes('expired') || errorMsg.includes('credentials')) {
-                    reason = 'AWS credentials expired or invalid';
-                } else if (errorMsg.includes('brokers')) {
-                    reason = 'Failed to fetch brokers';
-                } else if (errorMsg.includes('network') || errorMsg.includes('timeout')) {
-                    reason = 'Network connection failed';
-                } else {
-                    reason = errorMsg.substring(0, 100);
+        await Promise.allSettled(
+            clusters.map(async cluster => {
+                // Validate cluster configuration
+                if (!this.validateClusterConfig(cluster)) {
+                    console.error(`Invalid cluster configuration for "${cluster.name}"`);
+                    failedClusters.push({
+                        name: cluster.name || 'Unknown',
+                        reason: 'Invalid configuration (missing required fields)'
+                    });
+                    return;
                 }
 
-                failedClusters.push({ name: cluster.name, reason });
-            }
-        }
+                try {
+                    // Reconstruct the full cluster connection from saved config
+                    const connection: ClusterConnection = {
+                        name: cluster.name,
+                        type: cluster.type || 'kafka',
+                        brokers: cluster.brokers || [],
+                        securityProtocol: cluster.securityProtocol || 'PLAINTEXT',
+
+                        // MSK-specific fields
+                        region: cluster.region,
+                        clusterArn: cluster.clusterArn,
+                        awsProfile: cluster.awsProfile,
+                        assumeRoleArn: cluster.assumeRoleArn,
+
+                        // SASL fields
+                        saslMechanism: cluster.saslMechanism,
+                        // Note: We don't save passwords, so SASL clusters will need re-authentication
+
+                        // SSL fields
+                        sslCaFile: cluster.sslCaFile,
+                        sslCertFile: cluster.sslCertFile,
+                        sslKeyFile: cluster.sslKeyFile,
+                        rejectUnauthorized: cluster.rejectUnauthorized
+                    };
+
+                    // Use the same method as adding a new cluster to ensure consistency
+                    await this.addClusterFromConnection(connection);
+
+                } catch (error: any) {
+                    // Log the error using the logger instead of console
+                    this.logger.error(`Failed to load cluster ${cluster.name}`, error);
+
+                    // Determine the reason for failure
+                    const errorMsg = error?.message || error.toString();
+
+                    let reason: string;
+                    if (errorMsg.includes('expired') || errorMsg.includes('credentials')) {
+                        reason = 'AWS credentials expired or invalid';
+                    } else if (errorMsg.includes('brokers')) {
+                        reason = 'Failed to fetch brokers';
+                    } else if (errorMsg.includes('network') || errorMsg.includes('timeout')) {
+                        reason = 'Network connection failed';
+                    } else {
+                        reason = errorMsg.substring(0, 100);
+                    }
+
+                    failedClusters.push({ name: cluster.name, reason });
+                }
+            })
+        );
 
         // Show notification if any clusters failed to load
         if (failedClusters.length > 0) {
