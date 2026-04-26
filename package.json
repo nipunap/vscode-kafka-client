@@ -2,7 +2,7 @@
   "name": "vscode-kafka-client",
   "displayName": "Kafka Client",
   "description": "Full-featured Kafka client with AWS MSK support, IAM authentication, role assumption, and auto-discovery",
-  "version": "0.12.9",
+  "version": "0.12.10",
   "publisher": "NipunaPerera",
   "license": "GPL-3.0",
   "pricing": "Free",
@@ -658,7 +658,8 @@
   },
   "overrides": {
     "serialize-javascript": "7.0.5",
-    "diff": "8.0.3"
+    "diff": "8.0.3",
+    "fast-xml-parser": "5.7.2"
   },
   "devDependencies": {
     "@types/ini": "^4.1.1",
@@ -686,7 +687,7 @@
     "@aws-sdk/client-sts": "^3.990.0",
     "@aws-sdk/credential-providers": "^3.990.0",
     "@aws/lambda-invoke-store": "^0.1.0",
-    "@kafkajs/confluent-schema-registry": "^3.9.0",
+    "@kafkajs/confluent-schema-registry": "^4.0.8",
     "aws-msk-iam-sasl-signer-js": "github:aws/aws-msk-iam-sasl-signer-js",
     "ini": "^5.0.0",
     "kafkajs": "^2.2.4"

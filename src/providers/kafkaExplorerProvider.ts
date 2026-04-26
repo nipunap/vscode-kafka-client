@@ -9,8 +9,6 @@ export class KafkaExplorerProvider extends BaseProvider<KafkaTreeItem> {
 
     constructor(clientManager: KafkaClientManager) {
         super(clientManager, 'KafkaExplorerProvider');
-        // Load saved clusters on startup
-        this.clientManager.loadConfiguration();
     }
 
     /**

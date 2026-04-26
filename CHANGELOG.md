@@ -4,6 +4,14 @@ All notable changes to the "Kafka Client" extension will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/) and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.12.10](https://github.com/nipunap/vscode-kafka-client/compare/v0.12.9...v0.12.10) (2026-04-26)
+
+
+### 🐛 Bug Fixes
+
+* prevent unreachable cluster from blocking extension startup ([30ac912](https://github.com/nipunap/vscode-kafka-client/commit/30ac9126ae80207196fac49d78275bc5ed9b3dc7)), closes [#55](https://github.com/nipunap/vscode-kafka-client/issues/55)
+* resolve moderate npm dependency vulnerabilities ([0c76e94](https://github.com/nipunap/vscode-kafka-client/commit/0c76e94d13fe92ff74b736dcc93d64077428eeff))
+
 ## [0.12.9](https://github.com/nipunap/vscode-kafka-client/compare/v0.12.8...v0.12.9) (2026-04-20)
 
 
