@@ -6,6 +6,27 @@ import { CredentialManager } from '../../infrastructure/CredentialManager';
 import { EventBus, KafkaEvents } from '../../infrastructure/EventBus';
 import * as sinon from 'sinon';
 
+suite('EventBus Listener Cleanup', () => {
+    test('should dispose listener via vscode.Disposable wrapper', async () => {
+        const eventBus = new EventBus();
+        let callCount = 0;
+        const callback = () => { callCount++; };
+
+        const disposable = new vscode.Disposable(
+            eventBus.on(KafkaEvents.CLUSTER_ADDED, callback)
+        );
+
+        await eventBus.emit(KafkaEvents.CLUSTER_ADDED);
+        assert.strictEqual(callCount, 1);
+
+        disposable.dispose();
+        await eventBus.emit(KafkaEvents.CLUSTER_ADDED);
+        assert.strictEqual(callCount, 1);
+
+        eventBus.removeAllListeners();
+    });
+});
+
 suite('Infrastructure Test Suite', () => {
     let sandbox: sinon.SinonSandbox;
 

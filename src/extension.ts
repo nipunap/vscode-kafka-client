@@ -102,21 +102,21 @@ export async function activate(context: vscode.ExtensionContext) {
         });
     }
 
-    // Set up event listeners for auto-refresh
-    eventBus.on(KafkaEvents.CLUSTER_ADDED, () => {
-        logger.debug('Cluster added event received');
-        refreshAllProviders('Cluster added');
-    });
-
-    eventBus.on(KafkaEvents.CLUSTER_REMOVED, () => {
-        logger.debug('Cluster removed event received');
-        refreshAllProviders('Cluster removed');
-    });
-
-    eventBus.on(KafkaEvents.REFRESH_REQUESTED, () => {
-        logger.debug('Refresh requested event received');
-        refreshAllProviders('Refresh requested');
-    });
+    // Set up event listeners for auto-refresh (capture disposables to prevent leaks on re-activation)
+    context.subscriptions.push(
+        new vscode.Disposable(eventBus.on(KafkaEvents.CLUSTER_ADDED, () => {
+            logger.debug('Cluster added event received');
+            refreshAllProviders('Cluster added');
+        })),
+        new vscode.Disposable(eventBus.on(KafkaEvents.CLUSTER_REMOVED, () => {
+            logger.debug('Cluster removed event received');
+            refreshAllProviders('Cluster removed');
+        })),
+        new vscode.Disposable(eventBus.on(KafkaEvents.REFRESH_REQUESTED, () => {
+            logger.debug('Refresh requested event received');
+            refreshAllProviders('Refresh requested');
+        }))
+    );
 
     // Load saved clusters from configuration
     try {
