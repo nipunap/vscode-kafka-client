@@ -392,65 +392,45 @@ export class KafkaClientManager {
             includeSynonyms: true // Include configuration synonyms to get full details
         });
 
-        // Fetch topic offsets (beginning and end)
-        const kafka = this.kafkaInstances.get(clusterName);
-        if (!kafka) {
-            throw new Error(`Cluster ${clusterName} not found`);
-        }
-
-        const consumer = kafka.consumer({ groupId: `vscode-kafka-offsets-${Date.now()}` });
-
+        // Fetch topic offsets (beginning and end) using admin API — no consumer needed
+        let topicOffsets: { partition: number; low: string; high: string; }[] = [];
         try {
-            await consumer.connect();
-            await consumer.subscribe({ topic: topicName, fromBeginning: false });
-
-            const offsetInfo: any = {};
-
-            // Fetch offsets for each partition
-            for (const partition of topicMetadata.partitions) {
-                const partitionId = partition.partitionId;
-
-                // Get beginning and end offsets using fetchOffsets
-                let beginOffset: { partition: number; low: string; high: string; }[] = [];
-                try {
-                    beginOffset = await admin.fetchTopicOffsets(topicName);
-                } catch (error) {
-                    this.logger.warn(`Failed to fetch offsets for partition ${partitionId}, using 0`, error);
-                }
-
-                const partitionOffset = beginOffset.find((p) => p.partition === partitionId);
-
-                // Convert Long objects to strings (kafkajs uses 'long' library for 64-bit integers)
-                const lowOffset = partitionOffset?.low ? String(partitionOffset.low) : '0';
-                const highOffset = partitionOffset?.high ? String(partitionOffset.high) : '0';
-
-                offsetInfo[partitionId] = {
-                    partition: partitionId,
-                    leader: partition.leader,
-                    replicas: partition.replicas,
-                    isr: partition.isr,
-                    lowWaterMark: lowOffset,
-                    highWaterMark: highOffset,
-                    messageCount: partitionOffset ?
-                        (BigInt(highOffset) - BigInt(lowOffset)).toString() : '0'
-                };
-            }
-
-            return {
-                name: topicName,
-                partitions: topicMetadata.partitions.length,
-                replicationFactor: topicMetadata.partitions[0]?.replicas?.length || 0,
-                partitionDetails: offsetInfo,
-                configuration: configs.resources[0]?.configEntries || []
-            };
-        } finally {
-            // Always disconnect consumer, even if an error occurs
-            try {
-                await consumer.disconnect();
-            } catch (error) {
-                console.error('Error disconnecting consumer in getTopicDetails:', error);
-            }
+            topicOffsets = await admin.fetchTopicOffsets(topicName);
+        } catch (error) {
+            this.logger.warn(`Failed to fetch offsets for topic ${topicName}, using 0`, error);
         }
+
+        const offsetInfo: any = {};
+
+        // Fetch offsets for each partition
+        for (const partition of topicMetadata.partitions) {
+            const partitionId = partition.partitionId;
+
+            const partitionOffset = topicOffsets.find((p) => p.partition === partitionId);
+
+            // Convert Long objects to strings (kafkajs uses 'long' library for 64-bit integers)
+            const lowOffset = partitionOffset?.low ? String(partitionOffset.low) : '0';
+            const highOffset = partitionOffset?.high ? String(partitionOffset.high) : '0';
+
+            offsetInfo[partitionId] = {
+                partition: partitionId,
+                leader: partition.leader,
+                replicas: partition.replicas,
+                isr: partition.isr,
+                lowWaterMark: lowOffset,
+                highWaterMark: highOffset,
+                messageCount: partitionOffset ?
+                    (BigInt(highOffset) - BigInt(lowOffset)).toString() : '0'
+            };
+        }
+
+        return {
+            name: topicName,
+            partitions: topicMetadata.partitions.length,
+            replicationFactor: topicMetadata.partitions[0]?.replicas?.length || 0,
+            partitionDetails: offsetInfo,
+            configuration: configs.resources[0]?.configEntries || []
+        };
     }
 
     async createTopic(
@@ -547,6 +527,8 @@ export class KafkaClientManager {
             const messages: any[] = [];
             let isDisconnected = false;
 
+            let settled = false;
+
             return await new Promise((resolve, reject) => {
                 const disconnect = async () => {
                     if (!isDisconnected) {
@@ -554,15 +536,29 @@ export class KafkaClientManager {
                         try {
                             await consumer.disconnect();
                         } catch (err) {
-                            console.error('Error disconnecting consumer:', err);
+                            this.logger.error('Error disconnecting consumer:', err);
                         }
+                    }
+                };
+
+                const safeResolve = (value: any[]) => {
+                    if (!settled) {
+                        settled = true;
+                        resolve(value);
+                    }
+                };
+
+                const safeReject = (error: Error) => {
+                    if (!settled) {
+                        settled = true;
+                        reject(error);
                     }
                 };
 
                 if (cancellationToken) {
                     cancellationToken.onCancellationRequested(async () => {
                         await disconnect();
-                        resolve(messages);
+                        safeResolve(messages);
                     });
                 }
 
@@ -571,25 +567,23 @@ export class KafkaClientManager {
                         const msg = { topic, partition, ...message };
                         messages.push(msg);
 
-                        // Call the callback for real-time streaming
                         if (onMessage) {
                             onMessage(msg, messages.length);
                         }
 
                         if (messages.length >= limit) {
                             await disconnect();
-                            resolve(messages);
+                            safeResolve(messages);
                         }
                     }
                 }).catch(async (error) => {
                     await disconnect();
-                    reject(error);
+                    safeReject(error);
                 });
 
-                // Timeout after 30 seconds
                 setTimeout(async () => {
                     await disconnect();
-                    resolve(messages);
+                    safeResolve(messages);
                 }, 30000);
             });
         } catch (error) {

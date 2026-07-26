@@ -659,7 +659,8 @@
   "overrides": {
     "serialize-javascript": "7.0.5",
     "diff": "8.0.3",
-    "fast-xml-parser": "5.7.2"
+    "fast-xml-parser": "5.7.2",
+    "brace-expansion": "5.0.8"
   },
   "devDependencies": {
     "@types/ini": "^4.1.1",
@@ -670,14 +671,14 @@
     "@typescript-eslint/eslint-plugin": "^8.15.0",
     "@typescript-eslint/parser": "^8.15.0",
     "@vscode/test-electron": "^2.5.2",
-    "c8": "^10.1.3",
+    "c8": "^12.0.0",
     "commit-and-tag-version": "^12.5.0",
     "esbuild": "^0.25.10",
-    "eslint": "^9.15.0",
+    "eslint": "^10.8.0",
     "globals": "^16.4.0",
-    "mocha": "^11.3.0",
-    "npm-run-all": "^4.1.5",
-    "ovsx": "^0.8.3",
+    "mocha": "^11.7.6",
+    "npm-run-all": "^1.1.3",
+    "ovsx": "^1.0.2",
     "sinon": "^21.0.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.7.2"
